@@ -3,6 +3,7 @@ import { Alert, Button, Input, Modal, Space, Table, Tag, Typography, message } f
 import { DeleteOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { pointApi, type PointInput, type PointType } from '../api/client'
+import { POINT_TYPE_LABEL, POINT_TYPE_TAG_COLOR } from '../labels'
 
 interface Props {
   projectId: number
@@ -40,8 +41,6 @@ const TYPE_ALIAS: Record<string, PointType> = {
   '沉降位移': 'both',
   '沉降+位移': 'both',
 }
-
-const TYPE_LABEL: Record<PointType, string> = { settlement: '沉降', displacement: '水平位移', both: '沉降+位移' }
 
 /** 解析多行文本：每行 `编号,类型[,初始值][,位置]`；兼容 Excel 粘贴与表头行。 */
 function parseText(text: string): PointInput[] {
@@ -151,7 +150,7 @@ export default function BatchPointsModal({ projectId, open, onClose, onDone }: P
       width: 120,
       render: (v: PointType, r) =>
         r.status === 'valid' ? (
-          <Tag color={v === 'both' ? 'purple' : v === 'settlement' ? 'blue' : 'orange'}>{TYPE_LABEL[v]}</Tag>
+          <Tag color={POINT_TYPE_TAG_COLOR[v]}>{POINT_TYPE_LABEL[v]}</Tag>
         ) : (
           '-'
         ),

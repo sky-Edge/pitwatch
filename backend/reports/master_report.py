@@ -27,17 +27,8 @@ from sqlalchemy.orm import Session
 from backend.models.export_template import ExportTemplate
 from backend.reports.export_cleanup import clear_stale_stat_tables
 from backend.reports.export_options import EXPORT_SHOW_WARNING_LEVEL
-from backend.reports.master_learn import is_period_slot_text, learn_master_layout
+from backend.reports.master_learn import is_period_slot_text
 from backend.services.project_service import get_project
-
-
-def learn_from_master(db: Session, project_id: int, master_path: Path, obs_date: date | None = None) -> dict:
-    """学习母版：识别变量槽 + 期次。母版通常是已填好的某一期整卷。
-
-    返回学习报告（变量槽定位），存入 ExportTemplate.layout_json。
-    """
-    layout = learn_master_layout(master_path)
-    return layout
 
 
 def build_master_report(
@@ -343,13 +334,15 @@ def _sync_project_name(wb, project_name: str) -> int:
 
 
 def _cn_period(no: int) -> str:
-    """数字转中文期次：1→一 … 21→二十一。"""
+    """数字转中文期次：1→一 … 21→二十一；100 期以上用阿拉伯数字。"""
     digits = "零一二三四五六七八九"
-    units = ["", "十", "百"]
     if no < 10:
         return digits[no]
     if no < 100:
-        return ("一" if no >= 20 and no // 10 == 1 else (digits[no // 10] if no >= 20 else "")) + "十" + (digits[no % 10] if no % 10 else "")
+        # 10~19 的"十"前面不写"一"（十、十一 …），20 以上才带个位数字
+        tens = "" if no < 20 else digits[no // 10]
+        ones = "" if no % 10 == 0 else digits[no % 10]
+        return f"{tens}十{ones}"
     return str(no)
 
 

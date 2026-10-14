@@ -18,6 +18,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { PlusOutlined } from '@ant-design/icons'
 import { pointApi, type MeasurementPoint, type PointType, type Project } from '../api/client'
+import { POINT_TYPE_LABEL, POINT_TYPE_TAG_COLOR } from '../labels'
 import BatchPointsModal from '../components/BatchPointsModal'
 import { WARNING_LEVEL } from '../theme/tokens'
 
@@ -26,12 +27,6 @@ interface FormValues {
   point_type: PointType
   initial_value_mm?: number | null
   location_desc?: string
-}
-
-const TYPE_LABEL: Record<PointType, string> = {
-  settlement: '沉降',
-  displacement: '水平位移',
-  both: '沉降+位移',
 }
 
 export default function PointsPage({
@@ -160,7 +155,7 @@ export default function PointsPage({
       title: '类型',
       dataIndex: 'point_type',
       width: 110,
-      render: (v: PointType) => <Tag color="blue">{TYPE_LABEL[v]}</Tag>,
+      render: (v: PointType) => <Tag color={POINT_TYPE_TAG_COLOR[v]}>{POINT_TYPE_LABEL[v]}</Tag>,
     },
     {
       title: '初始值(mm)',

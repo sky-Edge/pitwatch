@@ -387,20 +387,11 @@ def _detect_raw_data_block(ws, max_row: int, max_col: int) -> dict | None:
     if not point_c_rows:
         return None
 
-    # 起点推断：取首个出现的点号作为基准，间距 = 第二个 - 第一个；若仅一个点则间距 = 3
-    first_r = point_c_rows[0][0]
-    if len(point_c_rows) >= 2:
-        step = point_c_rows[1][0] - point_c_rows[0][0]
-    else:
-        step = 3
-    left_points = []
-    for r, no in point_c_rows:
-        # 该点起点 = r；按 step=3 布局 X/Y/Z
-        if step == 3 and all(r > head_r for r in (r,)):
-            left_points.append((r, no))
-        elif step >= 1:
-            left_points.append((r, no))
-    left_points.sort()
+    # 学到的每个点号行都算左列起点。此处**不加过滤**：原写法
+    # `if step == 3 and all(r > head_r for r in (r,))` 是在只有一个元素的元组上
+    # 迭代自身（等价于 `r > head_r`），且 else 分支做的是同一件事 —— 两个分支恒同，
+    # 只会让人误以为这里筛选过什么。连带 `step`（行间距）也只算不用，一并删掉。
+    left_points = sorted(point_c_rows)
     # 验证右侧列间距（如果只有 step 个点，左列填满 6 个则是另一回事）—— 保留探测到的真实起点即可
 
     # 4) 右侧点号列：找是否有右列也有"点号/坐标数据"表头

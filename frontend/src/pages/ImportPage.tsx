@@ -32,6 +32,7 @@ import {
   type Project,
   type SheetDateOverride,
 } from '../api/client'
+import { POINT_TYPE_LABEL, seriesLabel } from '../labels'
 import { WARNING_LEVEL } from '../theme/tokens'
 
 const { Dragger } = Upload
@@ -43,8 +44,6 @@ interface Props {
 
 /** 录入单位显示：预览统一显示 m 便于核对 */
 const fmtM = (mm: number | null): string => (mm == null ? '缺测' : `${(mm / 1000).toFixed(4)} m`)
-
-const TYPE_LABEL: Record<PointType, string> = { settlement: '沉降', displacement: '水平位移', both: '沉降+位移' }
 
 /** 列号 → Excel 列字母（1→A） */
 const colLetter = (n: number): string => {
@@ -592,7 +591,7 @@ export default function ImportPage({ project, onBack }: Props) {
       width: 120,
       render: (_, r) => (
         <Tag>
-          {r.series_type === 'settlement' ? '沉降' : '水平位移'} / {r.component}
+          {seriesLabel(r.series_type)} / {r.component}
         </Tag>
       ),
     },
@@ -651,7 +650,7 @@ export default function ImportPage({ project, onBack }: Props) {
     {
       title: '观测项',
       width: 130,
-      render: (_, r) => <Tag>{r.series_type === 'settlement' ? '沉降' : '水平位移'} / {r.component}</Tag>,
+      render: (_, r) => <Tag>{seriesLabel(r.series_type)} / {r.component}</Tag>,
     },
     {
       title: '所属数据表',
@@ -675,7 +674,7 @@ export default function ImportPage({ project, onBack }: Props) {
       title: '推断类型',
       dataIndex: 'infer_point_type',
       width: 110,
-      render: (v: PointType) => <Tag color="purple">{TYPE_LABEL[v]}</Tag>,
+      render: (v: PointType) => <Tag color="purple">{POINT_TYPE_LABEL[v]}</Tag>,
     },
     {
       title: '候选已有测点',
@@ -713,7 +712,7 @@ export default function ImportPage({ project, onBack }: Props) {
                 else updateFile(k, { resolutions: { ...curResolutions, [issue.point_no]: { mode: 'map', mapTo: v } } })
               }}
               options={[
-                { value: '__create__', label: `自动建点（${TYPE_LABEL[issue.infer_point_type]}）` },
+                { value: '__create__', label: `自动建点（${POINT_TYPE_LABEL[issue.infer_point_type]}）` },
                 ...issue.suggested.map((s) => ({ value: s.point_no, label: `映射到 ${s.point_no}` })),
               ]}
             />

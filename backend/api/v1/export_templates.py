@@ -27,7 +27,7 @@ from backend.core.db import get_db
 from backend.models.export_template import ExportTemplate
 from backend.schemas.export_template import ExportTemplateRead, TemplateScopeUpdate, TemplateUpdate
 from backend.services import export_template_service
-from backend.services.project_service import get_project
+from backend.services.project_service import get_project, project_name_map
 
 tpl_router = APIRouter(prefix="/export-templates", tags=["export-template"])
 upload_router = APIRouter(prefix="/projects/{project_id}/export-templates", tags=["export-template"])
@@ -36,7 +36,7 @@ upload_router = APIRouter(prefix="/projects/{project_id}/export-templates", tags
 def _to_read(db: Session, tpl: ExportTemplate, names: dict[int, str] | None = None) -> ExportTemplateRead:
     """补上"适用范围"两个派生字段（模型里没有这两个属性，不能靠 from_attributes）。"""
     pids = export_template_service.bound_project_ids(db, tpl.id)
-    name_of = names if names is not None else _project_names(db)
+    name_of = names if names is not None else project_name_map(db)
     return ExportTemplateRead(
         id=tpl.id,
         project_id=tpl.project_id,
@@ -53,20 +53,12 @@ def _to_read(db: Session, tpl: ExportTemplate, names: dict[int, str] | None = No
     )
 
 
-def _project_names(db: Session) -> dict[int, str]:
-    from sqlalchemy import select
-
-    from backend.models.project import Project
-
-    return {int(i): str(n) for i, n in db.execute(select(Project.id, Project.name))}
-
-
 @upload_router.get("", response_model=list[ExportTemplateRead])
 def list_templates(project_id: int, db: Session = Depends(get_db)):
     """项目可用模板：内置 + 通用 + 绑定到本项目的。附带 file_ok（原件是否存在）。"""
     get_project(db, project_id)
     items = export_template_service.list_templates(db, project_id)
-    names = _project_names(db)
+    names = project_name_map(db)
     return [_to_read(db, t, names) for t in items]
 
 
@@ -74,7 +66,7 @@ def list_templates(project_id: int, db: Session = Depends(get_db)):
 def list_library(db: Session = Depends(get_db)):
     """模板库全量清单（含通用、含当前没绑任何项目的）——管理视角用。"""
     items = export_template_service.list_library(db)
-    names = _project_names(db)
+    names = project_name_map(db)
     return [_to_read(db, t, names) for t in items]
 
 

@@ -6,6 +6,7 @@
 - 删除保护（V1：项目一律走归档；物理删除需后续 Phase 引入"无观测数据"校验后开放）
 """
 from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.models.project import Project
@@ -15,6 +16,11 @@ from backend.schemas.project import ProjectCreate, ProjectUpdate
 
 def list_projects(db: Session, include_inactive: bool = True) -> list[Project]:
     return project_repo.list_all(db, include_inactive=include_inactive)
+
+
+def project_name_map(db: Session) -> dict[int, str]:
+    """一次查出全部「项目 id → 名称」，供规则库/母版库标注归属。"""
+    return {int(i): str(n) for i, n in db.execute(select(Project.id, Project.name))}
 
 
 def get_project(db: Session, project_id: int) -> Project:

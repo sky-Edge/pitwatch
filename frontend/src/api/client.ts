@@ -321,11 +321,6 @@ export const warningRuleApi = {
   /** 该项目**当前生效**的规则（绑定套 / 通用套） */
   list: (projectId: number) =>
     http.get<WarningRule[]>(`/projects/${projectId}/warning-rules`).then((r) => r.data),
-  /** 从项目侧改规则。若这套规则还被别的项目共用，后端会**自动新建一套只给本项目**。 */
-  upsert: (projectId: number, rules: RuleInput[], sourceNote?: string | null) =>
-    http
-      .put<WarningRule[]>(`/projects/${projectId}/warning-rules`, { rules, source_note: sourceNote })
-      .then((r) => r.data),
   /** 该项目用的是哪套规则、被几个项目共用 */
   projectSet: (projectId: number) =>
     http.get<ProjectRuleSetInfo>(`/projects/${projectId}/warning-rules/set`).then((r) => r.data),
@@ -390,10 +385,6 @@ export interface ProjectWarningSummary {
 }
 
 export const calcApi = {
-  computed: (pointId: number, seriesType: SeriesType, component: Component) =>
-    http
-      .get<ComputedRow[]>(`/points/${pointId}/computed`, { params: { series_type: seriesType, component } })
-      .then((r) => r.data),
   warningStatus: (projectId: number, obsDate?: string) =>
     http
       .get<WarningStatusRow[]>(`/projects/${projectId}/warning-status`, {
@@ -632,7 +623,6 @@ export const importApi = {
         sync_control_values: syncControlValues,
       }, { timeout: LONG_TIMEOUT, timeoutHint: '导入超时。行数很多时等久一点是正常的，可以重试（重复的行会跳过、不会写两遍）' })
       .then((r) => r.data),
-  batches: () => http.get<ImportBatchInfo[]>('/import/batches').then((r) => r.data),
 }
 
 // ---------- 批量建项目（一份「点号 + X/Y/Z」清单 → 拆多个基坑项目） ----------
@@ -1202,9 +1192,6 @@ export interface HolidayYearResponse {
 export const holidayApi = {
   /** 取某年安排（服务端会缓存，重复调用很快） */
   get: (year: number) => http.get<HolidayYearResponse>(`/holidays/${year}`).then((r) => r.data),
-  /** 强制联网刷新（安排刚公布时用） */
-  refresh: (year: number) =>
-    http.post<HolidayYearResponse>(`/holidays/${year}/refresh`).then((r) => r.data),
 }
 
 // ---------- 全站设置（主界面「项目默认值」） ----------

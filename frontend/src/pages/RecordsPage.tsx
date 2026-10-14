@@ -40,6 +40,7 @@ import {
   type SeriesType,
   type WarningStatusRow,
 } from '../api/client'
+import { POINT_TYPE_LABEL, POINT_TYPE_TAG_COLOR } from '../labels'
 import { levelBg, WARNING_LEVEL } from '../theme/tokens'
 import type { RecordsFocus } from '../navigation'
 
@@ -666,8 +667,8 @@ export default function RecordsPage({
   const baselineCards = groupedBaselines.map((g) => (
     <Card key={g.point.id} size="small" style={{ width: 260 }}>
       <Typography.Text strong>{g.point.point_no}</Typography.Text>
-      <Tag style={{ marginLeft: 6 }} color={g.point.point_type === 'both' ? 'purple' : g.point.point_type === 'settlement' ? 'blue' : 'orange'}>
-        {g.point.point_type === 'both' ? '沉降+位移' : g.point.point_type === 'settlement' ? '沉降' : '水平位移'}
+      <Tag style={{ marginLeft: 6 }} color={POINT_TYPE_TAG_COLOR[g.point.point_type]}>
+        {POINT_TYPE_LABEL[g.point.point_type]}
       </Tag>
       <div style={{ marginTop: 6 }}>
         {g.items.map((b) => (

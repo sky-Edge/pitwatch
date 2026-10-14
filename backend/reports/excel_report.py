@@ -94,11 +94,17 @@ class _SeriesView:
         return None
 
 
-def _period_number(db, project_id: int, obs_date: date) -> str:
-    """期次命名：全部观测日期（含初始值）升序，目标日期的序号 → 初始值/第N期。"""
+def _period_number(db, project_id: int, obs_date: date) -> tuple[str, date]:
+    """期次命名：全部观测日期（含初始值）升序，目标日期的序号 → 初始值/第N期。
+
+    返回 (期次文案, 实际取数的观测日期) —— 目标日期不是观测日时两者会不同，
+    调用方需要用后者去取数，不能只拿文案。
+    """
     dates = sorted({r.obs_date for p in list_points(db, project_id, include_inactive=True) for r in observation_repo.list_by_point(db, p.id, active_only=True)})
     if not dates:
-        return ""
+        # 必须回成元组：调用处是 `label, eff = _period_number(...)`，
+        # 返回裸 str "" 会在解包时抛 ValueError（走不到是运气，不是设计）。
+        return "", obs_date
     if obs_date not in dates:
         # 目标日期非观测日 → 找最近早于它的
         before = [d for d in dates if d <= obs_date]

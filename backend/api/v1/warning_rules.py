@@ -29,6 +29,7 @@ from backend.schemas.warning_rule import (
     WarningRuleSetUpdate,
 )
 from backend.services import warning_service
+from backend.services.project_service import project_name_map
 from backend.services.standards import PRESETS
 
 project_rules_router = APIRouter(prefix="/projects/{project_id}/warning-rules", tags=["warning-rules"])
@@ -36,17 +37,9 @@ sets_router = APIRouter(prefix="/warning-rule-sets", tags=["warning-rules"])
 standards_router = APIRouter(prefix="/warning-rules", tags=["warning-rules"])
 
 
-def _project_names(db: Session) -> dict[int, str]:
-    from sqlalchemy import select
-
-    from backend.models.project import Project
-
-    return {int(i): str(n) for i, n in db.execute(select(Project.id, Project.name))}
-
-
 def _to_read(db: Session, s: WarningRuleSet, names: dict[int, str] | None = None) -> WarningRuleSetRead:
     pids = warning_service.bound_project_ids(db, s.id)
-    name_of = names if names is not None else _project_names(db)
+    name_of = names if names is not None else project_name_map(db)
     return WarningRuleSetRead(
         id=s.id,
         name=s.name,
@@ -66,7 +59,7 @@ def _to_read(db: Session, s: WarningRuleSet, names: dict[int, str] | None = None
 @sets_router.get("", response_model=list[WarningRuleSetRead])
 def list_rule_sets(db: Session = Depends(get_db)):
     """全部预警规则（含通用、含当前没绑任何项目的）。"""
-    names = _project_names(db)
+    names = project_name_map(db)
     return [_to_read(db, s, names) for s in warning_service.list_rule_sets(db)]
 
 
