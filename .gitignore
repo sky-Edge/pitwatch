@@ -1,0 +1,33 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# ---- 运行数据（用户上传/生成的成果，不是源码，绝不进版本库）----
+# 依据 backend/core/config.py：这些目录全部可用 MONITOR_*_ENV 覆盖，
+# tests/conftest.py 已把它们隔离到临时目录 —— 说明仓库里根本不需要它们。
+# database/uploads 实测 532 MB，templates/ 实测 30 MB，收进来会让仓库废掉。
+database/
+templates/
+logs/
+导出/
+
+# ---- 打包产物 ----
+release/
+build_pyi/
+
+# ---- Node ----
+node_modules/
+frontend/dist/
+# vite 崩溃残留的时间戳临时文件
+frontend/vite.config.ts.timestamp-*.mjs
+
+# ---- 本地会话/验证草稿 ----
+.verify_tmp/
+.workbuddy/
+
+# ---- IDE ----
+.idea/
+.vscode/

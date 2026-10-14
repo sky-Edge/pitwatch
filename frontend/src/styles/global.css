@@ -1,0 +1,53 @@
+/**
+ * 全局样式 —— 只放 antd 覆盖不到的规则（组件级样式优先写在组件里）。
+ *
+ * 收口说明：原先全局样式被拆成两处内联 `<style>`（main.tsx 一条、
+ * RecordsPage 组件内两条），既无法被工具检查，也让「项目里有哪些全局规则」
+ * 需要靠翻代码才能说清。现在集中到这里，由 main.tsx 统一引入。
+ *
+ * 颜色一律用 `var(--wm-*)`。变量值写在下面的 `:root`，
+ * 与 `theme/tokens.ts` 的一致性由 `tests/test_frontend_theme.py` 强制校验 ——
+ * 改了 tokens.ts 就必须同步改这里，否则测试会直接指出不一致的键。
+ */
+
+:root {
+  --wm-brand-primary: #185FA5;
+  --wm-brand-on-primary: #FFFFFF;
+  --wm-level-normal-fg: #52C41A;
+  --wm-level-normal-bg: #F6FFED;
+  --wm-level-control-fg: #D48806;
+  --wm-level-control-bg: #FFFBE6;
+  --wm-level-alarm-fg: #CF1322;
+  --wm-level-alarm-bg: #FFF1F0;
+  --wm-neutral-white: #FFFFFF;
+  --wm-neutral-muted: #888888;
+  --wm-neutral-ignored-bg: #FAFAFA;
+  --wm-focus-bg: #EAF2FA;
+}
+
+/* Excel 导入预览：被排除（跳过）的行。
+   antd 的 rowClassName 只负责挂类名，置灰效果必须自己写规则。 */
+.ant-table-row-ignore td {
+  opacity: 0.45;
+  background: var(--wm-neutral-ignored-bg) !important;
+  text-decoration: line-through;
+}
+
+/* 观测记录页：预警行底色（报警红 / 预警金）。
+   同样是因为 rowClassName 只挂类名，底色得自己写。 */
+.warning-row-alarm td {
+  background: var(--wm-level-alarm-bg) !important;
+}
+.warning-row-control td {
+  background: var(--wm-level-control-bg) !important;
+}
+
+/* 「定位到这一行」的高亮：左侧主色竖条 + 浅底。
+   底色**不加 !important** —— 这样报警/预警行（上面两条带 !important）保持自己的底色，
+   但竖条仍然出现，用户在满屏红/金行里也能一眼找到被定位的那一行。 */
+.focus-row td {
+  background: var(--wm-focus-bg);
+}
+.focus-row td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--wm-brand-primary);
+}

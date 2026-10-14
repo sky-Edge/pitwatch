@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="基坑监测观测系统">
+  <!-- 底色取项目主色（theme/tokens.ts 的 brandPrimary），有测试校验两者一致 -->
+  <rect width="32" height="32" rx="7" fill="#185FA5" />
+  <!-- 沉降观测曲线 + 测点标记 -->
+  <path d="M5 22 L10.5 15.5 L16 18.5 L21.5 10.5 L27 14"
+        fill="none" stroke="#FFFFFF" stroke-width="2.2"
+        stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="21.5" cy="10.5" r="2.4" fill="#FFFFFF" />
+</svg>

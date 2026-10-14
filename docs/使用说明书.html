@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基坑拉森钢板桩沉降与水平位移观测系统 · 使用说明书</title>
+<style>
+  :root{
+    --brand:#185FA5; --brand-dark:#0F4276; --brand-soft:#EAF2FA;
+    --ink:#1F2733; --ink-2:#4A5568; --ink-3:#7A8699;
+    --line:#DCE3EC; --bg:#F5F7FA; --card:#FFFFFF;
+    --warn:#B45309; --warn-bg:#FFF7E6; --warn-line:#FADFA8;
+    --ok:#1B7A43; --ok-bg:#EDF7F0; --ok-line:#BFE3CB;
+    --danger:#B42318; --danger-bg:#FEF3F2;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Microsoft YaHei","PingFang SC","Hiragino Sans GB","Source Han Sans SC",sans-serif;
+    font-size:15px; line-height:1.85;
+  }
+  .page{max-width:940px; margin:0 auto; background:var(--card); padding:0 0 64px;
+        box-shadow:0 1px 24px rgba(20,40,70,.08);}
+  /* ---------- 封面 ---------- */
+  .cover{background:linear-gradient(135deg,var(--brand-dark),var(--brand)); color:#fff; padding:46px 56px 38px;}
+  .cover h1{margin:0 0 10px; font-size:29px; letter-spacing:.5px; line-height:1.4;}
+  .cover .sub{font-size:15px; opacity:.92;}
+  .cover .meta{margin-top:22px; padding-top:16px; border-top:1px solid rgba(255,255,255,.28);
+               font-size:13.5px; opacity:.92; display:flex; flex-wrap:wrap; gap:8px 34px;}
+  .body{padding:0 56px;}
+  h2{font-size:21px; margin:46px 0 14px; padding-bottom:9px; border-bottom:2px solid var(--brand-soft);
+     color:var(--brand-dark);}
+  h2 .num{display:inline-block; min-width:30px; height:30px; line-height:30px; text-align:center;
+          background:var(--brand); color:#fff; border-radius:8px; font-size:15px; margin-right:11px;
+          vertical-align:2px;}
+  h3{font-size:16.5px; margin:28px 0 9px; color:var(--ink);}
+  h4{font-size:15px; margin:20px 0 7px; color:var(--brand-dark);}
+  p{margin:9px 0;}
+  ul,ol{margin:9px 0; padding-left:24px;}
+  li{margin:5px 0;}
+  code{background:#F1F4F8; padding:1.5px 6px; border-radius:4px; font-size:13.5px;
+       font-family:Consolas,"Courier New",monospace; color:#25405F;}
+  b,strong{color:var(--ink);}
+  .lead{font-size:15.5px; color:var(--ink-2);}
+  /* ---------- 提示框 ---------- */
+  .box{border-radius:10px; padding:13px 18px; margin:14px 0; border-left:4px solid;}
+  .box p:first-child{margin-top:0;} .box p:last-child{margin-bottom:0;}
+  .tip{background:var(--brand-soft); border-color:var(--brand);}
+  .warn{background:var(--warn-bg); border-color:var(--warn);}
+  .ok{background:var(--ok-bg); border-color:var(--ok);}
+  .danger{background:var(--danger-bg); border-color:var(--danger);}
+  .box .t{font-weight:700; margin-right:6px;}
+  .tip .t{color:var(--brand-dark);} .warn .t{color:var(--warn);}
+  .ok .t{color:var(--ok);} .danger .t{color:var(--danger);}
+  /* ---------- 表格 ---------- */
+  table{width:100%; border-collapse:collapse; margin:14px 0; font-size:14px;}
+  th,td{border:1px solid var(--line); padding:9px 12px; text-align:left; vertical-align:top;}
+  th{background:#F0F4F9; font-weight:700; color:var(--brand-dark); white-space:nowrap;}
+  tbody tr:nth-child(even){background:#FAFCFE;}
+  /* ---------- 流程图 ---------- */
+  .flow{background:#F7FAFD; border:1px dashed #B9D0E8; border-radius:10px; padding:16px 20px;
+        margin:16px 0; text-align:center; font-size:14.5px; line-height:2.1;}
+  .flow .step{display:inline-block; background:#fff; border:1px solid #C7DCEF; color:var(--brand-dark);
+              border-radius:7px; padding:3px 12px; margin:3px 2px; white-space:nowrap;}
+  .flow .arrow{color:#8FAFCC; margin:0 5px;}
+  /* ---------- 四步卡片 ---------- */
+  .steps{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:16px 0;}
+  .stepcard{border:1px solid var(--line); border-radius:10px; padding:14px 18px; background:#FCFDFE;}
+  .stepcard .h{font-weight:700; color:var(--brand-dark); margin-bottom:6px; font-size:15.5px;}
+  .stepcard .d{font-size:14px; color:var(--ink-2);}
+  /* ---------- 目录 ---------- */
+  .toc{background:#F7FAFD; border:1px solid #DCE7F2; border-radius:10px; padding:18px 26px; margin:26px 0 6px;}
+  .toc h3{margin:0 0 10px; color:var(--brand-dark); font-size:15.5px;}
+  .toc ol{columns:2; column-gap:34px; margin:0; padding-left:20px; font-size:14.5px;}
+  .toc a{color:var(--ink-2); text-decoration:none;}
+  .toc a:hover{color:var(--brand); text-decoration:underline;}
+  /* ---------- 常见问题 ---------- */
+  .qa{border-bottom:1px solid var(--line); padding:13px 0;}
+  .qa:last-child{border-bottom:none;}
+  .qa .q{font-weight:700; color:var(--brand-dark); margin-bottom:4px;}
+  .qa .a{color:var(--ink-2); font-size:14.5px;}
+  .kbd{display:inline-block; border:1px solid var(--line); border-bottom-width:2px; border-radius:5px;
+       padding:0 7px; font-size:13px; background:#fff;}
+  hr{border:none; border-top:1px solid var(--line); margin:34px 0;}
+  .foot{color:var(--ink-3); font-size:13px; text-align:center; margin-top:38px;}
+  /* ---------- 打印 ---------- */
+  @media print{
+    body{background:#fff; font-size:11.5pt;}
+    .page{box-shadow:none; max-width:none; padding-bottom:0;}
+    .cover{padding:30px 34px;}
+    .cover h1{font-size:21pt;}
+    .body{padding:0 34px;}
+    h2{font-size:15pt; page-break-after:avoid;} h3{font-size:12.5pt; page-break-after:avoid;}
+    table,.box,.stepcard,.flow{page-break-inside:avoid;}
+    .toc{page-break-after:always;}
+    .no-print{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="cover">
+  <h1>基坑拉森钢板桩沉降与水平位移观测系统</h1>
+  <div class="sub">使用说明书 · 测试版</div>
+  <div class="meta">
+    <span>适用对象：现场技术员 / 监测人员 / 技术负责人</span>
+    <span>配套版本：免安装测试包</span>
+    <span>更新日期：2026-10-05</span>
+  </div>
+</div>
+
+<div class="body">
+
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#s1">它能帮你做什么</a></li>
+    <li><a href="#s2">打开与关闭</a></li>
+    <li><a href="#s3">第一次使用：先看个示例</a></li>
+    <li><a href="#s4">完整工作流：四步走</a></li>
+    <li><a href="#tips">这些地方能帮你省事（小技巧）</a></li>
+    <li><a href="#s5">建项目与建测点</a></li>
+    <li><a href="#s6">录入观测数据（三种方式）</a></li>
+    <li><a href="#s7">看结果：曲线、对比、预警</a></li>
+    <li><a href="#s8">预警规则与一键修正</a></li>
+    <li><a href="#s9">出成果：导出日报</a></li>
+    <li><a href="#s10">数据安全与备份</a></li>
+    <li><a href="#s11">常见问题</a></li>
+    <li><a href="#s12">关于这个测试版</a></li>
+  </ol>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s1"><span class="num">1</span>它能帮你做什么</h2>
+
+<p class="lead">把现场每天都在重复的那套活——<b>录入 → 计算 → 判断 → 画曲线 → 做日报 → 归档</b>——全部自动化。你只管把读数录进去，剩下的系统算。</p>
+
+<div class="flow">
+  <span class="step">录入 / 导入观测读数</span><span class="arrow">→</span>
+  <span class="step">自动算本次变化</span><span class="arrow">→</span>
+  <span class="step">自动算累计变化</span><span class="arrow">→</span>
+  <span class="step">自动算速率</span><br>
+  <span class="arrow">↓</span><br>
+  <span class="step">自动判断预警</span><span class="arrow">→</span>
+  <span class="step">生成曲线</span><span class="arrow">→</span>
+  <span class="step">逐期对比</span><span class="arrow">→</span>
+  <span class="step">一键导出日报</span><span class="arrow">→</span>
+  <span class="step">自动备份</span>
+</div>
+
+<h3>四条设计原则（为什么不担心数据被弄乱）</h3>
+<table>
+  <tbody>
+    <tr><th style="width:150px">原始数据只增不改</th><td>填错了只能走「更正」，<b>旧值永久保留、可追溯</b>，任何操作都不会覆盖或删除原始读数。</td></tr>
+    <tr><th>计算可复算</th><td>同一批原始数据，任何时候重新计算结果都一样，不存在"算一次变一次"。</td></tr>
+    <tr><th>规则可配置</th><td>预警阈值、正负号方向都按项目和规范配置，不是写死在程序里。</td></tr>
+    <tr><th>绝不静默覆盖</th><td>重复导入、日期冲突的数据一律<b>跳过并明确报告</b>，不会偷偷盖掉。</td></tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="s2"><span class="num">2</span>打开与关闭</h2>
+
+<h3>打开</h3>
+<ol>
+  <li>解压后，双击文件夹里的 <b>「启动系统.bat」</b>（或直接双击 <code>MonitorSystem.exe</code>）。</li>
+  <li>会弹出一个黑色窗口，几秒后<b>浏览器自动打开</b>系统页面。</li>
+  <li>如果浏览器没有自动打开，手工在地址栏输入：<code>http://127.0.0.1:8000</code></li>
+</ol>
+
+<div class="tip box"><span class="t">提示</span>第一次启动稍慢（约 5～10 秒）属正常。黑色窗口里滚动的是运行日志，<b>不用管它，但不要关</b>。</div>
+
+<h3>关闭</h3>
+<p><b>直接关闭那个黑色窗口</b>（点右上角 ✕，或在窗口里按 Ctrl+C）：</p>
+<ul>
+  <li>全部服务随之停止，不会残留后台进程；</li>
+  <li><b>每次退出会自动备份一次数据库</b>，存在 <code>database\backups\</code> 里，保留最近 30 份。</li>
+</ul>
+
+<div class="warn box"><span class="t">注意</span>页面报「网络错误」或打不开，通常就是黑色窗口被关掉了。重新双击启动即可，<b>数据不会丢</b>。</div>
+
+<!-- ============================================================ -->
+<h2 id="s3"><span class="num">3</span>第一次使用：先看个示例</h2>
+
+<p>刚打开时系统里是空的。想先看看它长什么样、能出什么成果，最快的办法是：</p>
+<p style="font-size:15.5px">项目列表页 → 点 <b>「先看个示例」</b></p>
+<p>系统会自动建好一个演示项目（含测点、预警规则和几期观测数据），你可以直接点开看曲线、逐期对比、导出一份日报——<b>熟悉完可以直接把它删掉</b>。</p>
+
+<div class="tip box"><span class="t">提示</span>示例项目里的数据都标记为「自动生成」，和你的真实录入数据严格区分，清理时不会碰到真实数据。</div>
+
+<!-- ============================================================ -->
+<h2 id="s4"><span class="num">4</span>完整工作流：四步走</h2>
+
+<p class="lead">项目内部的页面按顺序分成四步，界面顶部的导航条会一直告诉你「现在在第几步、下一步该点什么」。</p>
+
+<div class="steps">
+  <div class="stepcard">
+    <div class="h">① 测点与初始值</div>
+    <div class="d">把基坑的测点建好，录一次初始值（基准）。<br>页面：<b>测点管理</b></div>
+  </div>
+  <div class="stepcard">
+    <div class="h">② 观测数据</div>
+    <div class="d">每天录入，或用现成的 Excel 台账批量导入。<br>页面：<b>逐日录入</b> / <b>Excel 导入</b></div>
+  </div>
+  <div class="stepcard">
+    <div class="h">③ 分析与预警</div>
+    <div class="d">看曲线、逐期对比、查看预警事件。<br>页面：<b>曲线图</b> / <b>逐期对比</b> / <b>预警事件</b></div>
+  </div>
+  <div class="stepcard">
+    <div class="h">④ 成果导出</div>
+    <div class="d">一键导出整卷日报，直接报送。<br>页面：<b>成果导出</b></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="tips"><span class="num">5</span>这些地方能帮你省事</h2>
+
+<p class="lead">系统里藏着不少"顺手"的设计。提前知道能少点几下鼠标、少犯几个错。最实用的集中放在这一节。</p>
+
+<h3>5.1 录入用键盘，手不用离开键盘</h3>
+<p>「逐日录入」页有两种录入方式（页面顶部可切换）。现场读数多的时候用 <b>「顺序录入」</b>：一屏只显示一个测点，全程键盘操作。</p>
+<table>
+  <thead><tr><th style="width:200px">操作</th><th>作用</th></tr></thead>
+  <tbody>
+    <tr><td><span class="kbd">Enter</span></td><td>跳到下一格；在本测点的<b>最后一格</b>按回车 = 直接跳到下一个测点</td></tr>
+    <tr><td><span class="kbd">↑</span> <span class="kbd">↓</span></td><td>上一个 / 下一个测点（敲错了就地回退，不用去表格里找）</td></tr>
+    <tr><td>刚进页面</td><td>光标<b>自动落在第一个输入框</b>，不用先点一下</td></tr>
+    <tr><td>留空</td><td>= 当天没测（缺测），<b>不会当成 0</b></td></tr>
+  </tbody>
+</table>
+<div class="tip box"><span class="t">还有个细节</span>切到某个测点时，<b>之前录过的值会自动预填</b>进输入框，方便你对着核对、微调，而不是空白重敲；输入框旁边还会显示这个测点已录的值。顶部有"第 N / 总数"的进度，知道还剩多少。</div>
+
+<h3>5.2 从"待办"点进去，直接落到那一条</h3>
+<p>项目列表顶部那块 <b>「需要关注」</b>（哪些测点报警/预警了），点右边的「<b>去处理</b>」——不是把你丢到录入页让你自己找，而是：</p>
+<ul>
+  <li>自动切到<b>那一天</b>的录入界面；</li>
+  <li>那条测点整行用<b>蓝色竖条标出来</b>，并自动滚动到它；</li>
+  <li>页面顶部同时说明是哪一项触发的，以及"读数有误可直接修改，改完点保存"。</li>
+</ul>
+
+<h3>5.3 日历上的横条 = 那天有数据</h3>
+<p>所有日期选择器里：<b>带横条的日子 = 有观测数据</b>，灰色的 = 没有数据、点不动，面板底部有图例说明。</p>
+<p>导出页如果选了一段"里面一期都没有"的区间，会直接提示你，而不是默默什么都不发生。</p>
+
+<h3>5.4 Excel 导入：几处省事的做法</h3>
+<table>
+  <thead><tr><th style="width:220px">遇到的情况</th><th>可以这样处理</th></tr></thead>
+  <tbody>
+    <tr><td>要补好几期历史数据</td><td>一次<b>多选几个文件</b>（每期一个），系统逐个核对后列成一张总清单，确认一次全部导入</td></tr>
+    <tr><td>点号写法对不上</td><td>预览页的「测点匹配」中，相似点号直接<b>下拉选映射</b>；系统里确实没有的可以选「自动建点」；不想导的选「跳过」</td></tr>
+    <tr><td>台账里没写观测日期</td><td>预览页会提示，你<b>补选一个日期</b>即可导入（不选就不导入——系统不替你猜日期）</td></tr>
+    <tr><td>该日期已经录过数据</td><td>默认<b>跳过、不覆盖</b>，并在清单里标成"冲突"给你看</td></tr>
+    <tr><td>改了观测日期</td><td>系统<b>自动按新日期重新核对</b>（冲突关系会变）；同时重置你之前勾的"排除"并明确告诉你——避免错位排除掉别的行</td></tr>
+    <tr><td>表头认不出来</td><td>页面会直说"把该文件的表头文字发我，我加识别规则"，而不是只报一个错</td></tr>
+  </tbody>
+</table>
+
+<h3>5.5 导出：一次操作出多期</h3>
+<ul>
+  <li><b>选一天</b> = 导出单份文件；<b>选一段日期</b> = 把这几期<b>打包成一个 ZIP</b> 一次下载；</li>
+  <li>母版只上传一次，之后每期自动套用；<b>同名上传会自动替换</b>旧版，下拉里不会堆一堆重复项；</li>
+  <li><b>一份母版可以给好几个项目用</b>：上传时勾好"作用于哪些项目"（或设为通用），不用每个项目各传一遍；改版式时同名重传一次，原先绑定的项目自动继承；</li>
+  <li>测点比母版多时<b>自动补行/补块</b>，导出后还会弹提示告诉你在哪张表补了哪几个点；</li>
+  <li>Word 日报只支持单期（要导几天就把起止日期选成同一天）。</li>
+</ul>
+
+<h3>5.6 防呆设计（不是限制，是保护）</h3>
+<table>
+  <thead><tr><th style="width:240px">你可能担心的事</th><th>系统的做法</th></tr></thead>
+  <tbody>
+    <tr><td>手滑重复保存</td><td>数据没变化时直接提示「本期数据无变化，无需保存」，不会产生重复记录</td></tr>
+    <tr><td>改错了值</td><td>弹「原值 → 新值」让你确认；改完<b>旧值标记为"已更正"永久保留</b>，随时可查</td></tr>
+    <tr><td>误删项目 / 测点</td><td>常规操作只有「归档 / 停用」，数据全留着；「彻底删除」需要<b>手动输入编号</b>确认，且<b>删除前自动备份</b></td></tr>
+    <tr><td>还原备份会盖掉现在的数据</td><td>还原前系统<b>自动再快照一次</b>，等于留了后悔药</td></tr>
+    <tr><td>演示数据混进真实数据</td><td>演示数据单独标记、可一键清理，<b>真实录入与导入的数据不受影响</b></td></tr>
+  </tbody>
+</table>
+
+<h3>5.7 生成演示数据：先预检，再决定怎么处理</h3>
+<p>「自动生成数据」不是直接闷头开干：先<b>预检</b>范围内哪些日期已经有数据，由你决定——跳过 / 只替换之前自动生成的那些 / 连真实数据一起替换（最后一种对真实数据<b>只作废、不删除</b>）。</p>
+<p>生成完还会给一张 <b>「旧值 → 新值」对照表</b>。因为替换前后读数只差一两毫米、记录条数完全一样，不给对照你根本看不出到底换没换。</p>
+
+<h3>5.8 看数据时的小参照</h3>
+<ul>
+  <li><b>逐期对比</b>的「速率」列，鼠标悬停会显示算式：本次变化 ÷ 间隔天数——除数是多少一目了然；</li>
+  <li><b>曲线图</b>里报警点红标、预警点黄标，一眼看到问题点在哪；</li>
+  <li><b>预警规则</b>是"双控"：累计值和变化速率<b>任一项超标即触发</b>，与规范口径一致；预设值只是起点，<b>实际以设计文件为准，可直接修改</b>；</li>
+  <li>预警事件是<b>派生数据</b>，可以随时「重新计算预警」整体重建，不会影响原始读数。</li>
+</ul>
+
+<h2 id="s5"><span class="num">6</span>建项目与建测点</h2>
+
+<h3>5.1 建项目</h3>
+<p>项目列表页 →「<b>新建项目</b>」，填三项即可：</p>
+<table>
+  <thead><tr><th style="width:170px">项目编号</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>项目编号</td><td>如 <code>PRJ002</code>，全系统唯一、不可重复</td></tr>
+    <tr><td>项目名称</td><td>如 <code>8号基坑</code></td></tr>
+    <tr><td>地点</td><td>工程位置 / 标段</td></tr>
+    <tr><td>正负号规则（可选）</td><td>决定"方向"的说法：沉降正值表示下沉还是隆起、位移正值表示向坑内还是向坑外。<b>不填就按行业惯例</b>（沉降正=下沉，位移正=向坑内）</td></tr>
+  </tbody>
+</table>
+
+<h4>一次要建好几个基坑？用「批量建项目」</h4>
+<p>项目列表页 →「<b>批量建项目</b>」：</p>
+<ol>
+  <li>选一张「点号 + X / Y / Z」的清单文件（Excel）；</li>
+  <li>在预览表里把点<b>分组</b>——哪些点属于哪个基坑，直接在下拉里选或输入基坑名；</li>
+  <li>给每组选<b>初始值日期</b>（也可统一设成同一天）；</li>
+  <li>需要的话设「点号规则」（前缀 + 起始序号 + 是否补零），系统按清单顺序自动编号，界面里并排显示"生成后的点号 / 原表里的名字"；</li>
+  <li>点「分组建项目」，一次把项目、测点、初始值全部建好。</li>
+</ol>
+
+<div class="tip box"><span class="t">提示</span>项目编号已存在时会<b>复用</b>那个项目；项目内已有点号相同时会<b>跳过并报出来</b>，绝不会覆盖已有初始值。</div>
+
+<h3>5.2 建测点</h3>
+
+<h4>方式一：单个新建</h4>
+<p>项目内 →「测点管理」→「<b>新建测点</b>」：填编号（如 <code>JJC1</code>）、选类型（沉降 / 水平位移 / <b>沉降+位移</b>——同一根桩两项都测选这个）。<br>
+初始值可以现在填，也可以<b>留空</b>——留空时系统自动取第一次有效读数作为基准（V0）。</p>
+
+<h4>方式二：批量新建（几十个测点一次搞定）</h4>
+<p>「测点管理」→「<b>批量新建</b>」→ 从 Excel 里复制多行粘贴进去，每行一个：</p>
+<p><code>编号,类型[,初始值mm][,位置]</code>　例如：<code>JJC1,沉降+位移,4907000,1#钢板桩桩顶</code></p>
+<p>点「校验并预览」后会自动分成三组：<b>可创建 / 跳过（编号已存在）/ 错误（格式不对）</b>，确认无误再一次性创建。</p>
+
+<div class="tip box"><span class="t">什么是初始值（V0）</span>它是后续所有"累计变化"的基准——累计变化 = 本次读数 − 初始值。所以初始值那一期很关键，通常取开挖前的首次观测。</div>
+
+<!-- ============================================================ -->
+<h2 id="s6"><span class="num">7</span>录入观测数据（三种方式）</h2>
+
+<h3>方式一：用 Excel 台账导入（推荐，尤其补历史数据）</h3>
+<p>项目列表 →「<b>Excel 导入</b>」→ 把当天填好的台账文件拖进去（<b>可以一次选多个</b>，每期一个文件）。</p>
+<p>系统会自动识别数据表、观测日期和列含义，并把读数从 <b>米（m）换算成毫米（mm）</b> 入库。全程<b>先预览、后落库</b>，你确认了才会写进系统。</p>
+
+<h4>预览页你要看一下三件事</h4>
+<table>
+  <thead><tr><th style="width:190px">看什么</th><th>含义与处理</th></tr></thead>
+  <tbody>
+    <tr><td>✓ 可导入</td><td>正常数据，确认后一起入库</td></tr>
+    <tr><td>⚠ 冲突</td><td>该日期该测点<b>已有数据</b> → 默认跳过、不覆盖（避免手滑把真实数据盖掉）</td></tr>
+    <tr><td>✗ 错误</td><td>例如类型不匹配、点号找不到，需要处理或排除</td></tr>
+  </tbody>
+</table>
+
+<h4>点号和系统里的对不上？有「测点匹配」面板</h4>
+<ul>
+  <li>写法相近的（如台账里是 <code>JJC-01</code>、系统里是 <code>JJC1</code>）→ 系统给出候选，你下拉选「映射到已有测点」即可；</li>
+  <li>系统里确实没有的点号 → 可以选「<b>自动建点</b>」（类型按该点的数据自动推断）；</li>
+  <li>不想导入的点 → 切到「跳过」。</li>
+</ul>
+
+<h4>台账里没写观测日期？</h4>
+<p>预览页会提示「未识别观测日期」，你<b>选一个日期</b>（比如该批数据的采集日）就能正常导入。<br>
+<b>不选就不会导入</b>——系统不会替你猜日期。</p>
+
+<div class="warn box"><span class="t">注意</span>改了日期之后要重新核对：换了日期，"会不会和已有数据冲突"可能就变了，界面会自动重算。另外<b>改了日期会清空你之前勾的"排除"选择</b>，这是有意的（免得错位排除掉别的行）。</div>
+
+<h3>方式二：页面上逐日录入</h3>
+<p>项目内 →「<b>逐日录入</b>」→ 选日期 → 每个测点填读数（单位 <b>m</b>）→「<b>保存本期观测</b>」。页面提供「顺序录入」（一屏一个测点、全键盘）与「总览表格」（一屏看全部）两种方式，顶部可切换。</p>
+<div class="tip box"><span class="t">省事提示</span>读数多的时候用「顺序录入」：<b>回车跳下一格、↑↓ 切换测点</b>，切到某个测点还会自动预填该点已录的值。完整清单见 <a href="#tips">第 5 章「这些地方能帮你省事」</a>。</div>
+<ul>
+  <li><b>留空 = 缺测</b>：保存后自动标记"缺测"，不参与计算，曲线也不会断；</li>
+  <li>保存后立即显示每个测点的预警状态；</li>
+  <li>页面上的日历里，<b>有横条的日子表示那天已录入</b>，灰色表示没有数据。</li>
+</ul>
+
+<h4>填错了怎么办？</h4>
+<p>直接在输入框里改成正确值 → 弹窗会列出「原值 → 新值」让你确认 → 确认后<b>新值生效、旧值标记为"已更正"并永久保留</b>。<br>
+整条误录的，可以用「<b>作废</b>」——作废后不参与计算，但记录仍在，随时可查。</p>
+
+<h3>方式三：自动生成演示数据（给试算和汇报用）</h3>
+<p>「逐日录入」页 →「自动生成数据」：选一个日期范围即可生成一段观测数据。</p>
+<ul>
+  <li>生成的数据标记为「自动生成」，与真实录入严格区分，<b>可一键整批清理</b>；</li>
+  <li>遇到范围内已有数据的日期，会先问你怎么处理（默认<b>跳过</b>；也可只替换掉之前自动生成的那些，或连真实数据一起替换——后者对真实数据<b>只作废、不删除</b>）；</li>
+  <li>生成完成后页面会给出「旧值 → 新值」对照，方便确认真的换了。</li>
+</ul>
+
+<h4>「全站仪观测模式」是什么？</h4>
+<p>打开这个开关后，生成的数据会模拟<b>全站仪每次架站的误差</b>：对中偏差、后视定向偏差<b>由当期所有测点共同承担</b>，所以同一期的各个点会"一起偏一点"——这正是真实全站仪数据的特征，比各跳各的更接近现场。</p>
+<p>三个参数按你现场的实际情况填（默认值按普通现场水平给）：</p>
+<table>
+  <thead><tr><th style="width:150px">参数</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td>对中误差</td><td>每次架站的对中+整平偏差（极限值）。三脚架+光学对中器一般 2mm；有强制对中装置可填 0.5</td></tr>
+    <tr><td>定向误差</td><td>后视定向的中误差。正倒镜取中约 2～3″；单盘观测 5″ 很常见</td></tr>
+    <tr><td>工作距离</td><td>仪器到基坑的平均距离，只用于把角度误差折算成毫米</td></tr>
+  </tbody>
+</table>
+<div class="tip box"><span class="t">提示</span>这个模式只影响<b>位移</b>。沉降是水准仪测的，每站独立、和架站位置无关，所以不受影响。</div>
+
+<!-- ============================================================ -->
+<h2 id="s7"><span class="num">8</span>看结果：曲线、对比、预警</h2>
+
+<p>这些全部是系统自动算的，你不需要手工做任何计算。</p>
+
+<table>
+  <thead><tr><th style="width:150px">想看什么</th><th style="width:130px">去哪儿看</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>单个测点最新状态</td><td>逐日录入页</td><td>「预警状态」列：红 = 报警、黄 = 预警、绿 = 正常</td></tr>
+    <tr><td>项目整体情况</td><td>项目列表页</td><td>每行显示报警 / 预警数量，顶部横幅点名有报警的项目，点「去处理」可直接定位</td></tr>
+    <tr><td>变化趋势</td><td>曲线图</td><td>多个测点的累计变化曲线，报警点红标、预警点黄标；沉降曲线与水平位移曲线可切换</td></tr>
+    <tr><td>逐期明细</td><td>逐期对比</td><td>每一期的读值、本次变化、累计变化、速率、变化方向、间隔天数、预警状态</td></tr>
+    <tr><td>历史预警</td><td>预警事件</td><td>预警 / 报警事件清单，可随时「重新计算预警」</td></tr>
+    <tr><td>数据质量</td><td>预警事件页顶部</td><td>「突变疑似」（单期变化异常大）、缺测统计 —— <b>只提示，不删数据</b></td></tr>
+  </tbody>
+</table>
+
+<div class="tip box"><span class="t">缺测了怎么看</span>某天没测，下次观测的"本次变化"会自动与<b>最近一次有效值</b>比较，并标注间隔了多少天，速率按实际间隔天数折算——曲线不会断，速率也不会失真。</div>
+
+<!-- ============================================================ -->
+<h2 id="s8"><span class="num">9</span>预警规则与一键修正</h2>
+
+<h3>8.1 配置预警规则</h3>
+<p>项目列表 →「预警规则」（在项目行的「更多」里）：</p>
+<ul>
+  <li>内置<b>规范预设库</b>：<br>
+      · GB 50497-2019《建筑基坑工程监测技术标准》（钢板桩一 / 二 / 三级）<br>
+      · 八号基坑实测模板（沉降 30mm / 10mm·d⁻¹，位移 20mm / 3mm·d⁻¹）<br>
+      · 自定义空白</li>
+  <li>选预设后会带出<b>控制值（预警）</b>和<b>报警值</b>两档；</li>
+  <li>每档都是<b>双控</b>：累计变化限值（mm）+ 变化速率限值（mm/d），<b>任一项超标就触发</b>；</li>
+  <li>数值都可以直接改——<b>以设计文件为准</b>；</li>
+  <li>每个项目独立配置，互不影响。</li>
+</ul>
+<div class="tip box"><span class="t">这里的「控制值」就是报表上那两列</span>
+  规则里的<b>控制值（累计变化量 / 变化速率）</b>，和导出报表里「<b>控制值</b>」两列是<b>同一个数</b>：
+  在这里改限值，导出的报表跟着变（母版里原来印的旧数字会被覆盖掉）；
+  项目没配规则时，报表才保留母版自带的那组数字。两处永远对得上，不会出现"表里写 30/10、系统按 20/2 判"。
+</div>
+<div class="tip box"><span class="t">台账里已经印着控制值？可以一键搬过来</span>
+  导入 Excel 时，如果识别到台账上写着控制值（如沉降 30mm / 10mm·d⁻¹、位移 20mm / 3mm·d⁻¹），
+  系统会把它和当前规则<b>并排显示</b>，对不上会标出来；勾上「导入时把台账里的控制值同步到本项目预警规则」，
+  导入的同时就把限值配好（<b>只改「控制值」，报警值不动</b> —— 台账上没有报警值的依据）。
+  默认<b>不勾</b>：导入数据就只是导数据，判定口径要你点头才改。
+</div>
+
+<h3>8.2 一键修正报警值</h3>
+<p>项目内 →「预警事件」页 →「<b>一键修正报警值</b>」。</p>
+<p class="lead">用途：当报警是因为<b>读数抄录错误</b>（或现场数据本身需要按限值整理）时，一次性把触发报警的那几条读数更正到限值以内，不用一条条手改。</p>
+
+<p>点按钮后的流程：</p>
+<ol>
+  <li><b>先预检</b>（这一步只看不改）：告诉你要改多少条，并给出每条的「旧读数 → 新读数」对照；</li>
+  <li>你可选范围：<b>只修报警</b>，或<b>预警 + 报警一起修</b>；</li>
+  <li>点确认后才真正落库；修完的结果会<b>留在页面上</b>（不是弹窗里一闪而过），可以直接看到改了多少条、当前还剩几条。</li>
+</ol>
+
+<div class="ok box"><span class="t">原值不会丢</span>每条修正都走「更正」：<b>原读数标记为作废并永久保留</b>，新记录备注里写清「旧值 → 新值（原来触发的是哪条限值）」。一条都不删。</div>
+<div class="tip box"><span class="t">为什么条数会比事件数多</span>把前一期的值往下调之后，后一期相对"新的上一期"的变化量就变大了，可能带出新的超限期。系统会自动算到收敛为止，所以"78 条事件 → 改了 115 条"是正常现象。</div>
+
+<!-- ============================================================ -->
+<h2 id="s9"><span class="num">10</span>出成果：导出日报</h2>
+
+<h3>9.1 先上传一份「母版」（每个报送版式只做一次）</h3>
+<p>项目列表 →「<b>导出日报</b>」→「<b>上传报送母版</b>」→ 直接点「<b>选择整卷文件上传</b>」，挑一份你<b>已经填好的整卷日报</b>（比如上期的报送文件）就行。</p>
+<p><b>名字不用先想好</b>：不填就用文件名当名字；想改的话，在上传前的输入框里填，或者上传之后在导出页选中这份母版、点旁边的「<b>重命名</b>」再改。先挑文件还是先起名字都行，顺序随意。</p>
+<p>系统会自动"学会"这份母版里哪些格子会变、怎么填——封面日期、签字期次、天气、两张数据表的数据区等等。之后每期一键产出的就是<b>和母版一模一样的整卷</b>。</p>
+<div class="tip box"><span class="t">换版式不用改程序</span>换基坑或换报送格式时，再上传一份新母版即可，新旧模板可以并存；同名上传会<b>自动替换</b>旧版，不会堆积重复项。</div>
+<div class="tip box"><span class="t">一份母版可以给多个基坑用（不用每个项目各传一遍）</span>
+上传时下面有一个「<b>这份母版作用于哪些项目</b>」：几个基坑版式一样，就一次性把它们勾上（或者直接勾「<b>所有项目通用</b>」）。
+传完之后，这些项目在导出页都能选到这份母版。<br>
+想改范围：导出页选中这份母版 → 点「<b>设置适用项目</b>」。<br>
+<b>改了版式怎么办？</b>把改进后的母版用<b>同一个名字</b>重新上传就行 —— 它原先绑定的项目会<b>自动继承</b>，
+不用一个个重新勾。这就是"改一次、全体跟随"。</div>
+<div class="tip box"><span class="t">重命名只改显示名称</span>改的是模板列表里显示的名字，<b>母版文件和已识别好的版式都不受影响</b>，改名后直接导出即可。名字不能和已有的母版重名（否则下拉框里两个一模一样的名字分不清）。</div>
+
+<h3>9.2 每期导出</h3>
+<p>「成果导出」页 → 选报告模板（选你上传的母版，或不选=内置标准日报）→ 选天气 →「<b>导出观测日报</b>」。</p>
+<ul>
+  <li>日期选择器里，<b>带横条的日子表示那天有观测数据</b>，灰色的表示没有数据、不可选；</li>
+  <li>可以选一段区间批量导出（多期打包成一个压缩包）；</li>
+  <li>导出时数据表里的<b>初始值 / 上次测值 / 本次测值 / 累计 / 变化 / 速率全部由系统算成数值写入</b>，换台电脑打开也不会变；</li>
+  <li>概况、分析、成果提交三页的<b>整段文字按本期数据自动重写</b>（见下方专条）；其他固定版式内容原样保留；</li>
+  <li><b>工程名称除外</b>：母版里凡是写着<b>别的基坑名</b>的地方（封面工程名称、签字栏、
+      两张表的"监测工程名称／工点名称"、以及"本次监测工作为××基坑…"这类叙述文字），
+      导出时都会自动换成<b>你项目的名字</b>——母版是拿别的基坑那期报表存下来的也不会串名。</li>
+</ul>
+
+<div class="tip box"><span class="t">概况 / 分析 / 成果提交：这三页的文字系统自动生成</span>
+  母版是从别的工程那期报表另存来的，这三页里往往<b>整段都是别人的内容</b>（比如分析页写的是
+  "地表沉降 DBC05-01""测斜 QCX1"，结论页写的是别的工地名）。每期手工改十几段不现实，所以导出时系统会<b>按本期真实数据重写</b>：<br>
+  · <b>分析页</b>：每个监测类别一段——本期累积变化量极值、极值出现在哪个测点、达到预警/报警指标的测点有几个、分别是谁；<br>
+  · <b>成果提交页</b>：结论按"有没有超限点"分两种写法；成果清单只列<b>你项目实际有的类别</b>（母版多列的几种不会跟着印出来）；<br>
+  · <b>概况页</b>：本周监测日期、类别、次数，以及工作量表里的项目名与点次。<br>
+  母版里<b>多出来的旧段落会被清空</b>（这是关键：不清就是在发别人的内容）。<br>
+  ⚠ <b>现场巡视那句不写"未发现异常"</b>——是否发现异常要靠现场人员判断，系统没有巡视数据，不替你下结论；
+  导出后如需补充，直接在 Excel 里改那一句即可。
+</div>
+
+<div class="tip box"><span class="t">数值显示与列宽</span>
+  报表里的数按两套格式写，不会出现 <b>20.00000</b>、<b>3413192.92900</b> 这种拖着一串零的样子：<br>
+  · <b>初始值 / 上次测值 / 本次测值 / 控制值</b> → 常规格式：整数就是整数（<b>20</b>、<b>30</b>），有小数才带小数（<b>3.119</b>）；<br>
+  · <b>上次累计变化量 / 本次累计变化量 / 本次变化量 / 变化速率</b> → <b>带小数点</b>：整数也写成 <b>0.0</b>、<b>-4.0</b>，有小数就照实写（<b>-1.5</b>、<b>0.125</b>），多余位数不补零。<br>
+  列宽只在<b>内容放不下时自动加宽</b>（比如水平位移表里的坐标），母版自己定好的列宽一律不动 —— 免得把 A4 版式撑破。
+</div>
+
+<div class="tip box"><span class="t">测点比母版多怎么办</span>比如母版是 8 个点、你现在的基坑有 12 个点：系统会<b>自动补行</b>，把多出来的测点接着往下排，位置不够时自动把下面的说明、结论、签字栏整块下移——<b>不会再把多出来的点悄悄丢掉</b>。表右侧的「原始数据区」（X/Y/Z 坐标小表）同样会自动补。</div>
+
+<div class="warn box"><span class="t">报表里看不到"预警"？这是有意的</span>导出的报表<b>不显示预警等级</b>，母版里自带的、别的基坑的「预警统计」旧数据也会被清空（那些不属于你的项目）。<b>预警信息请在本系统的「预警事件」页面查看</b>。</div>
+
+<h3>9.3 Word 日报</h3>
+<p>「成果导出」页还提供 Word 日报导出，内容与页面数据一致。</p>
+
+<!-- ============================================================ -->
+<h2 id="s10"><span class="num">11</span>数据安全与备份</h2>
+
+<table>
+  <thead><tr><th style="width:190px">规则</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>原始数据只增不改</td><td>观测记录不允许被覆盖或物理删除，填错走「更正」，旧值永久保留</td></tr>
+    <tr><td>有数据就不能随便删</td><td>已有观测数据的项目 / 测点默认只能「归档 / 停用」，历史数据永久保留</td></tr>
+    <tr><td>彻底删除要二次确认</td><td>确需清理时用「彻底删除…」，需要输入项目编号确认，且<b>删除前自动备份一份</b>，可回退</td></tr>
+    <tr><td>重复导入有保护</td><td>同一天同一测点已有数据 → 跳过并报告，绝不静默覆盖</td></tr>
+    <tr><td>异常数据不删除</td><td>突变、缺测只做标记提示，交由人工核对</td></tr>
+    <tr><td>备份可还原</td><td>关闭系统时自动备份；顶栏「数据备份」也能手动「立即备份」，列表里可对任一备份点「还原」（还原前自动再快照一次）</td></tr>
+  </tbody>
+</table>
+
+<div class="tip box"><span class="t">建议</span>定期把 <code>database\backups\</code> 文件夹拷到 U 盘或网盘，多一层保险。</div>
+
+<!-- ============================================================ -->
+<h2 id="s11"><span class="num">12</span>常见问题</h2>
+
+<div class="qa">
+  <div class="q">Q1　浏览器打不开页面 / 提示网络错误？</div>
+  <div class="a">多半是那个黑色窗口被关掉了（服务已停）。重新双击「启动系统.bat」，等几秒再刷新页面。数据不会丢。</div>
+</div>
+<div class="qa">
+  <div class="q">Q2　导入时提示点号不存在 / 对不上？</div>
+  <div class="a">预览页会出现「测点匹配」面板：相似的点号可以从候选里选「映射到已有测点」，确实没有的点号可以选「自动建点」，不想导入的切「跳过」。</div>
+</div>
+<div class="qa">
+  <div class="q">Q3　同一天录了两遍会不会冲突？</div>
+  <div class="a">不会。第一遍保留，第二遍（无论手工录入还是 Excel 导入）会被识别为冲突并跳过，可以放心操作。</div>
+</div>
+<div class="qa">
+  <div class="q">Q4　某天没测（缺测）怎么办？</div>
+  <div class="a">录入时把那一格留空保存即可，系统记为"缺测"。下次观测的本次变化会自动与最近一次有效值比较，并标注间隔天数，速率按实际间隔折算。</div>
+</div>
+<div class="qa">
+  <div class="q">Q5　预警一直在，怎么消掉？</div>
+  <div class="a">先核实数据：如果是抄录错误 → 更正读数后预警自动重算消失；如果是现场确实超限 → 那是真实情况，应当按方案处置；如果确认是阈值设得不合适 → 到「预警规则」调整。批量处理可用「一键修正报警值」。</div>
+</div>
+<div class="qa">
+  <div class="q">Q6　导出的 Excel 里累计变化和母版里的对不上？</div>
+  <div class="a">系统按"读数之差"严格计算（初始值那期就是基准）。母版里若是人工填的数可能有出入——<b>以系统计算的为准</b>，它与「逐期对比」页显示的一致。</div>
+</div>
+<div class="qa">
+  <div class="q">Q7　导出的报表里没有预警列 / 有别人基坑的数据？</div>
+  <div class="a">报表<b>有意不显示预警</b>；母版自带的「预警统计」等内容如果来自别的基坑，会在导出时被清空（保留标题表头）。预警请看系统的「预警事件」页。</div>
+</div>
+<div class="qa">
+  <div class="q">Q8　数据存在哪里？会不会联网上传？</div>
+  <div class="a">全部存在程序文件夹里的 <code>database\monitor.db</code> 这一个文件里，<b>纯本地、不联网、不上传</b>。备份在 <code>database\backups\</code>。换电脑时把整个文件夹拷过去即可。</div>
+</div>
+<div class="qa">
+  <div class="q">Q9　母版原件能删吗？</div>
+  <div class="a">不能。上传的母版存放在 <code>templates\</code> 目录里（新传的在 <code>templates\_library\</code> 下），它是导出的底模，删了导出会失败。如果下拉里提示"原件缺失"，重新上传一份即可。另外：<b>删除项目不会删掉被别的项目共用的母版</b>，只会解除这个项目的关联。</div>
+</div>
+<div class="qa">
+  <div class="q">Q10　怎么把某个基坑的活干完、不再显示在列表里？</div>
+  <div class="a">用项目行「更多」里的「<b>归档</b>」——项目从常用列表里收起（可切换"全部（含已归档）"查看），数据全部保留。需要时「恢复在用」。</div>
+</div>
+<div class="qa">
+  <div class="q">Q11　导出的分析/结论页里那几句话是谁写的？能改吗？</div>
+  <div class="a">是<b>系统按本期数据自动生成</b>的（母版里原本那几段是别的工程的，已经不再使用）。想改口径请把母版里那几页的<b>版式</b>调整后重新上传（比如多加几段的位置），文字内容每期都会被本期数据覆盖。<br>
+  现场巡视那句只写"现场巡视 1 次"，<b>不写"未发现异常"</b>——需要的话导出后在 Excel 里补一句即可。</div>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="s12"><span class="num">13</span>关于这个测试版</h2>
+
+<h3>它不需要安装任何东西</h3>
+<p>这个测试版把运行环境和页面全部打包在一起了，<b>不需要装 Python、不需要装 Node，也不需要联网</b>。解压后双击就能用；换电脑把整个文件夹拷过去即可。</p>
+
+<h3>第一次打开可能被系统拦一下</h3>
+<table>
+  <tbody>
+    <tr><th style="width:230px">Windows 蓝色提示<br>「已保护你的电脑」</th><td>点「<b>更多信息</b>」→「<b>仍要运行</b>」。</td></tr>
+    <tr><th>杀毒软件报警</th><td>属于误报（这类"未签名的自包含程序"常被拦截），选择「<b>允许运行 / 添加信任</b>」即可。</td></tr>
+  </tbody>
+</table>
+
+<h3>遇到问题怎么反馈</h3>
+<p>请把程序文件夹里 <code>logs\backend.log</code> 这个文件发回来——它记录了后端的完整运行信息，能直接定位问题。</p>
+
+<h3>版本说明</h3>
+<p>这是供试用与意见反馈的版本，功能以本说明书为准。你提出的问题会直接改到系统里。</p>
+
+<hr>
+<div class="foot">
+  基坑拉森钢板桩沉降与水平位移观测系统 · 使用说明书（测试版）<br>
+  打印建议：浏览器菜单 → 打印 → 目标选「另存为 PDF」，即可得到可转发、可存档的 PDF 版本
+</div>
+
+</div><!-- /body -->
+</div><!-- /page -->
+</body>
+</html>
