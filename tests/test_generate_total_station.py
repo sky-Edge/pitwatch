@@ -91,6 +91,17 @@ def test_build_station_offsets_direction_scales_with_distance():
 def _setup(client: TestClient, n_points: int = POINT_COUNT) -> tuple[int, list[int]]:
     """建项目 + n 个 both 测点，给出绕基坑中心的圆形布点坐标（照真实基坑）。"""
     p = client.post("/api/v1/projects", json={"code": "PRJ-TS", "name": "全站仪模式测试"}).json()
+    # 控制值必须配上：生成器按控制值划定波动范围，没配就拒绝生成（见 _require_limits）。
+    # 取八号基坑实测口径：沉降累计 30 / 速率 2，位移累计 20 / 速率 3。
+    client.put(
+        f"/api/v1/projects/{p['id']}/warning-rules",
+        json={"rules": [
+            {"indicator": "settlement", "level": "control",
+             "threshold_cumulative_mm": 30, "threshold_rate_mm_per_day": 2.0},
+            {"indicator": "displacement", "level": "control",
+             "threshold_cumulative_mm": 20, "threshold_rate_mm_per_day": 3.0},
+        ], "source_note": "测试规范"},
+    )
     ids = []
     for i in range(1, n_points + 1):
         ang = 2 * math.pi * i / n_points
@@ -284,6 +295,11 @@ def test_standard_mode_is_untouched(client):
 def test_no_xy_points_degrades_gracefully(client):
     """项目只测沉降（没有 X/Y 坐标）时开全站仪模式：不该崩，只是没有公共项。"""
     p = client.post("/api/v1/projects", json={"code": "PRJ-TS2", "name": "只测沉降"}).json()
+    client.put(
+        f"/api/v1/projects/{p['id']}/warning-rules",
+        json={"rules": [{"indicator": "settlement", "level": "control",
+                         "threshold_cumulative_mm": 30, "threshold_rate_mm_per_day": 2.0}]},
+    )
     pt = client.post(f"/api/v1/projects/{p['id']}/points",
                      json={"point_no": "JJC1", "point_type": "settlement"}).json()
     client.post(f"/api/v1/points/{pt['id']}/records",

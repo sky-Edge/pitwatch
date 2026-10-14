@@ -416,7 +416,9 @@ export default function RecordsPage({
       setConflict(null)
       setGenOpen(false)
     } catch (e) {
-      message.error((e as Error).message)
+      // 后端这句是"没配控制值 → 去预警规则填累计或速率"，七八十个字，
+      // 默认 3 秒根本读不完（同 App.tsx 对版本提示的处理）。
+      message.error({ content: (e as Error).message, duration: 10 })
     } finally {
       setGenLoading(false)
     }

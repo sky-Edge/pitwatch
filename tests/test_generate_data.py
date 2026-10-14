@@ -328,7 +328,7 @@ def test_generation_starts_from_value_before_range(client):
     用户只重做 08-10~08-14 时，第一天会接在 08-14 的读数后面 ——
     相当于让时间倒流，整段数据平移错位，还跟 08-09 断开。
     """
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-09", 5000.0)          # 范围前的一期（真正的起点）
     for i, d in enumerate(["2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14"]):
         _add_record(client, pt, d, 9990.0 + i)             # 范围内的旧值，故意离谱
@@ -359,7 +359,7 @@ def test_skip_keeps_sequence_continuous(client):
 
     否则"跳过 3 天、从第 4 天接着生成"会让数值跳回旧起点，序列断开。
     """
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-09", 5000.0)
     for d in ["2026-08-10", "2026-08-11", "2026-08-12"]:
         _add_record(client, pt, d, 5300.0)                 # 明显偏离起点，便于判断有没有接上
@@ -386,7 +386,7 @@ def test_changed_samples_exposes_old_and_new(client):
     替换前后读数只差 1~3mm，记录数/日期/测点数完全不变 ——
     只回报一个条数的话，用户会以为"点了替换没反应"。
     """
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-09", 5000.0)
     for d in ["2026-08-10", "2026-08-11"]:
         _add_record(client, pt, d, 5200.0)
@@ -408,7 +408,7 @@ def test_changed_samples_exposes_old_and_new(client):
 
 def test_changed_samples_empty_when_nothing_replaced(client):
     """只填补空白日期（skip）时不该有对照样例 —— 没有旧值可比。"""
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-09", 5000.0)
     _add_record(client, pt, "2026-08-10", 5000.0)
 
@@ -481,7 +481,7 @@ def test_no_long_monotonic_runs(client):
     判据直接取自真实台账（逐点最长同向游程 [3,3,4,4,4,4,5,6]，最长 6、平均 4.1）。
     生成的数据要落在这个量级 —— 比真实还"交替"就成了人造锯齿，比真实还长就是这次要修的问题。
     """
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-01", 5000.0)
     client.post(f"/api/v1/projects/{pid}/generate-data",
                 params={"start": "2026-08-02", "end": "2026-09-30", "seed": 6})
@@ -501,7 +501,7 @@ def test_cumulative_oscillates_around_baseline(client):
     ① 跨度落在真实量级（沉降 21 期 9~12mm）—— 太小说明被压平，太大说明跑飞；
     ② 序列要**穿过初值**（真的在两侧摆动）—— 单调趋势是一条穿不过去的。
     """
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-01", 5000.0)
     client.post(f"/api/v1/projects/{pid}/generate-data",
                 params={"start": "2026-08-02", "end": "2026-09-30", "seed": 5})
@@ -570,7 +570,7 @@ def test_injection_a_one_way_drift_would_be_caught(client, monkeypatch):
     （单调游程变长 / 累计不再穿过初值 / 跨度冲出合理范围）。
     """
     monkeypatch.setattr(gen, "_revert_mm", lambda cumulative, plan: 2.5)   # 每期固定 +2.5mm
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-01", 5000.0)
     client.post(f"/api/v1/projects/{pid}/generate-data",
                 params={"start": "2026-08-02", "end": "2026-09-30", "seed": 5})
@@ -615,7 +615,7 @@ def test_generated_deltas_look_like_real_ledger(client):
     这是用户"感觉全是正负 1、正负 2"的回归守卫 —— 而且**故意用「没配预警规则」的项目**：
     兜底限值 (30, 5) 正是当初把幅度压到 1.25mm 的那条路径。
     """
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-01", 5000.0)
     client.post(
         f"/api/v1/projects/{pid}/generate-data",
@@ -642,7 +642,7 @@ def test_generated_cumulative_keeps_wandering(client):
 
     触发点是用户在界面上看到"累计变化量一直是 0/±1"，以为没生成成功。
     """
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-01", 5000.0)
     client.post(
         f"/api/v1/projects/{pid}/generate-data",
@@ -664,7 +664,7 @@ def test_injection_old_small_noise_would_be_caught(client, monkeypatch):
     """
     monkeypatch.setattr(gen, "_NOISE_SPEC",
                         {"settlement": ("uniform", 1.25), "displacement": ("uniform", 1.25)})
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-01", 5000.0)
     client.post(
         f"/api/v1/projects/{pid}/generate-data",
@@ -683,6 +683,11 @@ def test_injection_old_small_noise_would_be_caught(client, monkeypatch):
 def test_generated_points_differ_from_each_other(client):
     """不同测点的曲线不该雷同（每点每分量独立给参数）。"""
     p = client.post("/api/v1/projects", json={"code": "PRJ-VAR", "name": "点间差异"}).json()
+    client.put(
+        f"/api/v1/projects/{p['id']}/warning-rules",
+        json={"rules": [{"indicator": "settlement", "level": "control",
+                         "threshold_cumulative_mm": 30, "threshold_rate_mm_per_day": 2.0}]},
+    )
     ids = []
     for no in ("JJC1", "JJC2", "JJC3"):
         pt = client.post(
@@ -761,7 +766,7 @@ def test_generated_displacement_warns_like_real_ledger(client):
 
 def test_generation_reproducible_with_same_seed(client):
     """同 seed 必须得到同一条曲线（可复算，便于复现问题）。"""
-    pid, pt = _setup(client, with_rules=False)
+    pid, pt = _setup(client)
     _add_record(client, pt, "2026-08-01", 5000.0)
 
     def run_and_read():
@@ -775,3 +780,97 @@ def test_generation_reproducible_with_same_seed(client):
     first = run_and_read()
     second = run_and_read()
     assert first == second, "同 seed 两次生成结果不同 —— 曲线不再是确定性的"
+
+
+# ───────── 控制值缺失时不许凭空编一个限值（2026-10-14 改）─────────
+# 原先 `_limits` 在没配规则时 `return 30.0, 5.0`。后果不只是"按错的数生成"：
+# 生成器用控制值划定累计上限与单期防呆限幅，于是**一条规则都没配的项目**会得到
+# 一批按从没配过的限值缩放出来的数据，而它会被拿去画曲线、导日报、进汇报材料。
+# 用户当天定的口径：拦住，不让生成。
+def test_generation_blocked_when_no_control_values(client):
+    """一条控制值都没配 → 422，且库里一条记录都不许多。"""
+    pid, pt = _setup(client, with_rules=False)
+    _add_record(client, pt, "2026-08-01", 5000.0)
+
+    r = client.post(f"/api/v1/projects/{pid}/generate-data",
+                    params={"start": "2026-08-02", "end": "2026-08-12", "seed": 7})
+
+    assert r.status_code == 422, f"没配控制值却生成成功了：{r.status_code} {r.text}"
+    detail = r.json()["detail"]
+    # 报错必须把"去哪儿配"说清楚 —— 只说"参数错误"等于把人逼回猜
+    assert "预警规则" in detail and "累计变化量" in detail, detail
+    assert "30" not in detail, f"不该把兜底数字暴露成依据：{detail}"
+
+    with SessionLocal() as db:
+        n = db.query(ObservationRecord).filter(ObservationRecord.point_id == pt).count()
+    assert n == 1, f"被拦住了却仍写进库：现有 {n} 条（只该有那 1 条手工初始值）"
+
+
+def test_only_the_series_that_will_be_generated_is_validated(client):
+    """只测沉降的基坑，不该因为没配「水平位移」规则被拦。"""
+    pid, pt = _setup(client, point_type="settlement", with_rules=True)
+    _add_record(client, pt, "2026-08-01", 5000.0)
+
+    r = client.post(f"/api/v1/projects/{pid}/generate-data",
+                    params={"start": "2026-08-02", "end": "2026-08-10", "seed": 3})
+
+    assert r.status_code == 200, r.text
+    assert r.json()["generated"] > 0
+
+
+def test_configured_control_value_actually_drives_the_bound(client):
+    """配了累计 8 就必须按 8 收口。
+
+    旧写法 `if rule and cum and rate` 会把**只填了累计**的半套规则整对丢弃、换成 30 ——
+    于是"我明明填了 8"生成的数据却能爬到 28。这里用同种子跑两遍对比：
+    上限 8 的那一轮必须明显比上限 30 的那一轮收得更紧，否则说明配置的数字没被用上。
+    """
+    pid, pt = _setup(client, point_type="settlement", with_rules=False)
+    _add_record(client, pt, "2026-08-01", 5000.0)
+
+    def put_rules(cum: float | None, rate: float | None) -> None:
+        client.put(
+            f"/api/v1/projects/{pid}/warning-rules",
+            json={"rules": [{"indicator": "settlement", "level": "control",
+                             "threshold_cumulative_mm": cum,
+                             "threshold_rate_mm_per_day": rate}]},
+        )
+
+    def run() -> float:
+        r = client.post(f"/api/v1/projects/{pid}/generate-data",
+                        params={"start": "2026-08-02", "end": "2026-09-10",
+                                "seed": 99, "on_conflict": "replace_all"})
+        assert r.status_code == 200, r.text
+        cums = [abs(x["cumulative_mm"]) for x in _series(client, pt)
+                if x["cumulative_mm"] is not None]
+        return max(cums)
+
+    put_rules(8.0, None)          # 半套：只填累计
+    peak_tight = run()
+    # cum_cap = 8×0.95 = 7.6，而落库前是 `round(cand)` 取整到整毫米 → 实测峰值就是 8.0。
+    # 所以容差按"取整 ±1mm"给，不能按 7.6 卡；重点是它**远低于**旧兜底 30 允许的 28.5。
+    assert peak_tight <= round(8.0 * 0.95) + 1.0, (
+        f"累计控制值填 8，生成数据却达到 {peak_tight:.1f}mm —— 填进去的数没生效"
+    )
+
+    put_rules(30.0, None)         # 同一批点、同一种子，只把上限放宽
+    peak_loose = run()
+    assert peak_loose > peak_tight, (
+        f"放宽控制值后峰值没变（{peak_tight:.1f} vs {peak_loose:.1f}）"
+        " —— 说明累计上限是写死的，与项目配置无关"
+    )
+
+
+def test_missing_cumulative_leaves_that_dimension_unbounded():
+    """没配累计 ⇒ cum_cap=inf（这一维不设限），而不是拿 30 去"保护"合规。
+
+    速率缺失时防呆限幅改锚该系列自己的日波动量级：量级要与配了速率时同档，
+    所以这里断言的是"仍在合理范围内"，不是"没有上限"。
+    """
+    plan = gen._walk_plan(None, 2.0, 0.0, 2.3)
+    assert plan["cum_cap"] == float("inf")
+
+    # 累计与速率都缺时不该走到这里（_require_limits 已拦），
+    # 但纯函数本身也要能站住：防呆上限由量级给出，不能是 inf 或 0
+    plan2 = gen._walk_plan(None, None, 0.0, 2.6)
+    assert 3.0 <= plan2["ceiling"] <= 12.0, plan2

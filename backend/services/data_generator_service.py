@@ -94,6 +94,9 @@ _NOISE_SPEC: dict[str, tuple[str, float]] = {
 }
 _NOISE_FALLBACK: tuple[str, float] = ("uniform", 2.3)
 
+#: 报错文案用的中文指标名（与界面口径一致：写「水平位移」，不简写成「位移」）
+_INDICATOR_CN = {"settlement": "竖向位移（沉降）", "displacement": "水平位移"}
+
 # 偶发扰动（降雨 / 邻近施工）：真实沉降里 ±3 只占 1%，所以概率低、幅度小。
 _FLAKE_CHANCE = 0.04
 _FLAKE_MIN_MM = 1.0
@@ -120,14 +123,18 @@ _MAX_RUN = 3
 _RUN_FLIP_CHANCE = 0.7
 
 
-def _safety_ceiling_mm(limit_rate: float) -> float:
+def _safety_ceiling_mm(limit_rate: float | None, noise_scale_mm: float) -> float:
     """整体单期变化的**防呆**软限幅（不再是"不触发预警"的步长上限）。
 
     真实台账里位移 ±3 占 20%、±4 占 9%、±5 占 5% —— 按 3mm/d 的控制速率，
     这些在系统里全是"预警"。用户明确要真实，所以这里只留 3 倍控制速率的宽松兜底
     （位移 → 9mm，实测极值 ±8，几乎不生效），防止配置写错生成出天文数字。
+
+    没配速率时，这个防呆上限锚在**该系列自己的日波动量级**上（同样取 3 倍，
+    沉降 2.3 → 6.9mm、位移 2.6 → 7.8mm，与配了速率的项目同一档），
+    而不是替项目编一个速率限值 —— 这条纯粹防天文数字，不承担"合规"含义。
     """
-    return max(3.0, limit_rate * 3.0)
+    return max(3.0, (noise_scale_mm if limit_rate is None else limit_rate) * 3.0)
 
 
 def _squash(x: float, cap: float) -> float:
@@ -326,21 +333,28 @@ def _flake_mm(rng: random.Random) -> float:
     return amp if rng.random() < 0.5 else -amp
 
 
-def _walk_plan(limit_cum: float, limit_rate: float, used_cum: float) -> dict:
+def _walk_plan(
+    limit_cum: float | None, limit_rate: float | None, used_cum: float, noise_scale_mm: float
+) -> dict:
     """为一个分量规划"围绕初值波动"的参数（纯函数，便于测试）。
 
     `used_cum`：这一段起点已经累计了多少（续测 / 替换场景下不为 0）。
+    `limit_cum` / `limit_rate`：项目配了的控制值，**没配的那项传 None**。
 
     已经没有"曲线"了 —— 值由噪声驱动，围着初值来回走；这里只定三件事：
     · **回复强度** `_MEAN_REVERT`（全局常量，单独列出来是为了让测试能引用同一个数）；
     · **防呆限幅**（3 倍控制速率，实测极值几乎不触及）；
     · **累计硬上限**，随已有数据上浮（导入的真实数据本身可能已超限，
       死守 V0 会把新数据往回拽、整段序列断开）。
+
+    没配累计 ⇒ `cum_cap = inf`，即这一维**不设限**（均值回复本身已经把累计稳住，
+    量级见 `_revert_mm`），而不是拿一个凭空来的数去"保护"合规。
     """
     return {
         "revert": _MEAN_REVERT,
-        "ceiling": _safety_ceiling_mm(limit_rate),
-        "cum_cap": max(limit_cum * 0.95, abs(used_cum) + limit_cum * 0.3),
+        "ceiling": _safety_ceiling_mm(limit_rate, noise_scale_mm),
+        "cum_cap": math.inf if limit_cum is None
+        else max(limit_cum * 0.95, abs(used_cum) + limit_cum * 0.3),
     }
 
 
@@ -402,13 +416,47 @@ def _v0_mm(db: Session, point, series_type: str, component: str) -> float | None
     return first.value_mm if first else None
 
 
-def _limits(db: Session, project_id: int, series_type: str) -> tuple[float, float]:
-    """返回该指标的 (控制累计 mm, 控制速率 mm/d)；无规则则给保守默认。"""
-    merged = effective_rules(db, project_id)
-    rule = merged.get(series_type, {}).get("control")
-    if rule and rule.threshold_cumulative_mm and rule.threshold_rate_mm_per_day:
-        return rule.threshold_cumulative_mm, rule.threshold_rate_mm_per_day
-    return 30.0, 5.0  # 保守兜底
+def _limits(db: Session, project_id: int, series_type: str) -> tuple[float | None, float | None]:
+    """该项目 `control` 级的 (控制累计 mm, 控制速率 mm/d)。**没填的那项返回 None。**
+
+    口径与 `warnings.engine.check_level` 一致：填了哪项就按哪项约束，缺的项不参与。
+    报表侧同理，见 `warning_service.report_control_values`（"绝不在这里瞎给 0"）。
+
+    ⚠ 原先这里在规则缺失时 `return 30.0, 5.0`，出过两回事：
+    · 09-29「生成的数据太假」——幅度曾按控制值折算，没配规则的项目走兜底 → 半幅 1.25mm
+      → `round()` 后只剩 {−1,0,+1}。幅度后来改成由 `_NOISE_SPEC`（真实台账标定）决定；
+    · 只填了累计 20 的项目，旧条件 `if a and b` 会把**已填的 20 一起丢弃**换成 30。
+    所以：0 与 None 都算"未填"（`ge=0` 的限值本身没有意义），但绝不再替用户编一个数。
+    """
+    rule = effective_rules(db, project_id).get(series_type, {}).get("control")
+    if rule is None:
+        return None, None
+    return rule.threshold_cumulative_mm or None, rule.threshold_rate_mm_per_day or None
+
+
+def _require_limits(db: Session, project_id: int, series_types: set[str]) -> dict[str, tuple[float | None, float | None]]:
+    """生成前校验：每个要生成的系列至少有一个控制值，否则**拒绝生成**（用户 2026-10-14 定）。
+
+    为什么不兜底着继续生成：生成器的累计保护与防呆限幅都由这两个数缩放。
+    按项目从没配过的限值生成，出来的是一批"看起来合规"的假台账 —— 而它会被拿去
+    做曲线图、导日报、进汇报材料，事后没人知道它按的是哪个口径。
+    """
+    limits = {st: _limits(db, project_id, st) for st in sorted(series_types)}
+    missing = [
+        _INDICATOR_CN[st] for st, (cum, rate) in limits.items() if cum is None and rate is None
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"{'、'.join(missing)}没有配置「控制值」，无法生成数据 —— "
+                "生成的数据要按控制值划定波动范围，没有控制值就只能凭空编一个限值，"
+                "那样出来的台账看着合规、其实和这个项目的口径无关。"
+                "请先到「预警规则」为该项目填写累计变化量或变化速率（至少一项），"
+                "或从标准预设（GB 50497-2019 一/二/三级）套用一套规则。"
+            ),
+        )
+    return limits
 
 
 def _occupying(
@@ -538,6 +586,13 @@ def generate_series(
     if not points:
         raise HTTPException(status_code=422, detail="该项目没有测点，请先建测点")
 
+    # 控制值校验放在**建点循环之前**：只查项目实际要生成的那些系列
+    # （只有沉降点的基坑，不该因为没配位移规则被拦住）。顺带避免下面逐点逐系列重复查规则。
+    needed = {st for p in points for st in (
+        ["settlement", "displacement"] if p.point_type == "both" else [p.point_type]
+    )}
+    limits = _require_limits(db, project_id, needed)
+
     # ── 全站仪观测模式：预抽"每期架站"参数 ──
     # 必须在测点循环**之前**算好：同一期的所有测点要共享同一套架站偏差 ——
     # 这是这个模式的全部意义（"每次架设备"的误差由这一期的所有点共同承担）。
@@ -582,7 +637,9 @@ def generate_series(
         series_types = ["settlement", "displacement"] if p.point_type == "both" else [p.point_type]
         for st in series_types:
             comps = ["value"] if st == "settlement" else ["X", "Y"]
-            limit_cum, limit_rate = _limits(db, project_id, st)
+            limit_cum, limit_rate = limits[st]
+            # 没配速率时防呆限幅要用的量级：全站仪模式下独立项被让出来过，取实际值
+            scale_mm = noise_scale[st] if st in noise_scale else _NOISE_SPEC.get(st, _NOISE_FALLBACK)[1]
             for comp in comps:
                 v0 = _v0_mm(db, p, st, comp)
                 if v0 is None:
@@ -607,7 +664,7 @@ def generate_series(
                 cumulative = cur - v0
 
                 # 本分量的波动参数（每点每分量各一套 → 点与点之间也有差异）
-                plan = _walk_plan(limit_cum, limit_rate, cumulative)
+                plan = _walk_plan(limit_cum, limit_rate, cumulative, scale_mm)
                 # 连涨 / 连跌计数（用户要求：不要出现持续单调递增或递减）
                 run, run_sign = 0, 0
                 # **变形累计**：只统计"真实变形"那部分，用来驱动均值回复力。
@@ -633,7 +690,7 @@ def generate_series(
                                 cumulative = cur - v0
                                 deform_cum = cumulative
                                 # 起点换了，累计保护线也要按新起点重算
-                                plan = _walk_plan(limit_cum, limit_rate, cumulative)
+                                plan = _walk_plan(limit_cum, limit_rate, cumulative, scale_mm)
                                 run, run_sign = 0, 0   # 中间夹了别的数据，连涨连跌从头算
                             kept_dates.add(d)
                             continue
