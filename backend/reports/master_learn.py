@@ -7,7 +7,9 @@
 - 数据 Sheet（竖向位移 / r.立柱结构水平位移）：
     - 表头行（含"点号"）、数据起始行
     - 点号列 A；初始值 B；C=上次测值 D=本次测值 E=上次累计 F=本次累计 G=本次变化 H=速率
-    - I/J 控制值（母版固定，不写）；K 预警等级（可写）；L 备注
+    - I/J 控制值（**每期按项目预警规则重写**；项目一类观测两个控制值都没配 → 整卷拦下不出，
+      见 `warning_service.ensure_control_rules`）；
+      K 预警等级（可写，但默认不出现在导出报表里，见 `reports/export_options.py`）；L 备注
     - 天气格（"天气："标签右侧格，如 K2）
 - 日期序列号 → 日期：Excel 序列 46254 ≈ 2026-08-20（1900 系统）
 
@@ -455,8 +457,10 @@ def _scan_meta_sheet(ws, ws_title: str, max_row: int, max_col: int, meta: dict) 
             if is_period_slot_text(t, ws_title):
                 period_candidates.append(ref)
                 continue
-            # 日期：Excel 序列号数字 (43000~47000) 或 ISO 日期
-            if re.fullmatch(r"\d{5}", t) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", t):
+            # 日期：Excel 序列号数字 (43000~47000)、ISO 日期文本，或 openpyxl 读出来直接是
+            # 日期对象的格 —— 母版把封面日期写成**真正带日期格式**的单元格时，
+            # 前两种文本形态一个也匹配不上，封面日期就永远学不到槽位、导出后一直停在母版那天。
+            if isinstance(v, date) or re.fullmatch(r"\d{5}", t) or re.fullmatch(r"\d{4}-\d{2}-\d{2}", t):
                 date_candidates.append(ref)
 
     # 封面日期 = 该 sheet 是封面且数字型；签字日期同理 —— 记录两个候选分别存

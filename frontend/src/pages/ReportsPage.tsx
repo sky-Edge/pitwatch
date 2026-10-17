@@ -1,17 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, DatePicker, Input, Modal, Select, Space, Typography, Upload, message } from 'antd'
+import { Alert, Button, Card, DatePicker, Input, Modal, Select, Space, Tooltip, Typography, Upload, message } from 'antd'
 import {
   EditOutlined,
+  EyeOutlined,
   FileExcelOutlined,
   FileWordOutlined,
   ReloadOutlined,
+  SafetyCertificateOutlined,
   SettingOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
 import dayjs, { type Dayjs } from 'dayjs'
-import { baselineApi, downloadBlob, projectApi, reportApi, settingsApi, type ExportTemplateInfo, type Project } from '../api/client'
+import {
+  baselineApi,
+  downloadBlob,
+  projectApi,
+  reportApi,
+  settingsApi,
+  type ExportTemplateInfo,
+  type Project,
+  type ReportPreviewDoc,
+  type TemplateCheckResult,
+} from '../api/client'
 import { observationCalendarPanel } from '../components/CalendarCell'
+import ExcelPreviewModal from '../components/ExcelPreviewModal'
+import MasterCheckAlert from '../components/MasterCheckAlert'
 import ScopePicker from '../components/ScopePicker'
+import WarningRulesModal from '../components/WarningRulesModal'
 
 interface Props {
   projectId: number
@@ -67,6 +82,15 @@ export default function ReportsPage({ projectId, onBack }: Props) {
   const [scopeProjectIds, setScopeProjectIds] = useState<number[]>([])
   const [scopeGlobal, setScopeGlobal] = useState(false)
   const [savingScope, setSavingScope] = useState(false)
+  /** 母版体检（换了母版就自动重查；有 error 时拦住导出按钮） */
+  const [check, setCheck] = useState<TemplateCheckResult | null>(null)
+  const [checking, setChecking] = useState(false)
+  /** 导出预览：后端按当前模板生成一份、把网格传回来（不落盘、不下载） */
+  const [previewDoc, setPreviewDoc] = useState<ReportPreviewDoc | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
+  /** 「去配预警规则」：没配控制值时后端导出本来会 422，直接在这里给入口 */
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   const loadAll = useCallback(async () => {
     try {
@@ -148,12 +172,70 @@ export default function ReportsPage({ projectId, onBack }: Props) {
    */
   const calendarPanel = useMemo(() => observationCalendarPanel(dates), [dates])
 
+  /**
+   * 母版体检：换母版就自动查一次（后端只读母版与 layout，一个字节都不写回去）。
+   *
+   * 内置标准版式不查 —— 它没有原件，报表每行都直接取自预警规则，没有"够不着的旧值"这种东西。
+   */
+  const runCheck = useCallback(
+    async (tid: number | undefined) => {
+      const tpl = templates.find((t) => t.id === tid)
+      if (!tpl || tpl.is_builtin || tpl.file_ok === false) {
+        setCheck(null)
+        return
+      }
+      setChecking(true)
+      try {
+        setCheck(await reportApi.checkTemplate(projectId, tpl.id))
+      } catch (e) {
+        // 体检失败不该拦住导出（导出自己还会再校验一遍），只是这次没提前看到问题
+        message.warning(`母版体检没成功：${(e as Error).message}`)
+        setCheck(null)
+      } finally {
+        setChecking(false)
+      }
+    },
+    [projectId, templates],
+  )
+
+  useEffect(() => {
+    void runCheck(templateId)
+  }, [runCheck, templateId])
+
+  /** 预览的是区间里的第一期（批量导出每期版式一样，只是数据不同） */
+  const previewDate = batchDates.length > 0 ? batchDates[0] : undefined
+  const blockedByCheck = (check?.errors ?? 0) > 0
+
+  const preview = async () => {
+    if (previewing) return
+    if (!previewDate) {
+      message.warning('请先选择要预览的期次')
+      return
+    }
+    setPreviewOpen(true)
+    setPreviewing(true)
+    try {
+      setPreviewDoc(await reportApi.preview(projectId, previewDate, templateId, weather))
+    } catch (e) {
+      message.error((e as Error).message, 6)
+      setPreviewOpen(false)
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
   /** 导出 Excel：选 1 期 → 单文件；选 N 期（N≥2）→ 打包 ZIP（单/多合一入口） */
   const excel = async () => {
     // 防连点。为什么必须显式挡一道：批量导出要十几秒，这段时间里"点了没反应、又报超时"
     // 会让人本能地再点几次 —— 2026-10-09 那次同一批导出被点了 5 遍，后端白算 5 遍（每次都是全 200）。
     // antd 的 loading 会禁用按钮，但它挡不住"上一次已经报错、用户马上再点"。
     if (loadingExcel) return
+    // 体检查出"这份文件发出去一定有问题"时不放行（用户 2026-10-16 选的就是"导出前拦"）。
+    // 后端的 422 也拦得住，但那要等它算完整卷、而且提示是一整句技术话术。
+    if (blockedByCheck) {
+      message.error('母版体检有必须先处理的问题 —— 按上方的红色提示改好，再点一次体检', 6)
+      return
+    }
     if (batchDates.length === 0) {
       message.warning('所选起止日期内没有观测期次，请重新选择')
       return
@@ -471,6 +553,14 @@ export default function ReportsPage({ projectId, onBack }: Props) {
             </Button>
           </Space>
 
+          {/* 体检结论紧跟在模板那一行下面：换母版第一眼就该看到"这份套到本项目上会怎样" */}
+          <MasterCheckAlert
+            result={check}
+            loading={checking}
+            onRecheck={() => void runCheck(templateId)}
+            onConfigRules={() => setRulesOpen(true)}
+          />
+
           <Space wrap>
             <span>
               选择期次（观测日期，起止选同一天=单期，框选区间=多期）：
@@ -533,14 +623,32 @@ export default function ReportsPage({ projectId, onBack }: Props) {
           )}
 
           <Space size="middle">
+            <Tooltip title={blockedByCheck ? '母版体检有必须先处理的问题，改好后才能导出' : undefined}>
+              <Button
+                type="primary"
+                icon={<FileExcelOutlined />}
+                loading={loadingExcel}
+                disabled={!range || batchDates.length === 0 || blockedByCheck}
+                onClick={() => void excel()}
+              >
+                {batchDates.length > 1 ? `批量导出 Excel（${batchDates.length} 期 → ZIP）` : '导出 Excel 日报（单文件）'}
+              </Button>
+            </Tooltip>
             <Button
-              type="primary"
-              icon={<FileExcelOutlined />}
-              loading={loadingExcel}
-              disabled={!range || batchDates.length === 0}
-              onClick={() => void excel()}
+              icon={<SafetyCertificateOutlined />}
+              loading={checking}
+              disabled={!selectedTpl || selectedTpl.is_builtin}
+              onClick={() => void runCheck(templateId)}
             >
-              {batchDates.length > 1 ? `批量导出 Excel（${batchDates.length} 期 → ZIP）` : '导出 Excel 日报（单文件）'}
+              体检这份母版
+            </Button>
+            <Button
+              icon={<EyeOutlined />}
+              loading={previewing}
+              disabled={!previewDate}
+              onClick={() => void preview()}
+            >
+              预览{previewDate && batchDates.length > 1 ? `（第一期 ${previewDate}）` : ''}
             </Button>
             <Button icon={<FileWordOutlined />} loading={loadingWord} disabled={!singleDate} onClick={() => void word()}>
               导出 Word 日报{!singleDate && batchDates.length > 0 ? '（仅单期）' : ''}
@@ -644,6 +752,23 @@ export default function ReportsPage({ projectId, onBack }: Props) {
           </Typography.Text>
         </Space>
       </Modal>
+
+      <ExcelPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        doc={previewDoc}
+        loading={previewing}
+      />
+
+      {/* 体检里「没配控制值」这类问题，导出的数就来自这里 —— 就地开弹窗改，别让人去别页找 */}
+      <WarningRulesModal
+        projectId={projectId}
+        open={rulesOpen}
+        onClose={() => {
+          setRulesOpen(false)
+          void runCheck(templateId)
+        }}
+      />
     </Space>
   )
 }

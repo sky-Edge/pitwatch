@@ -87,6 +87,7 @@ app.include_router(baselines.baseline_router, prefix=settings.api_prefix)
 app.include_router(baselines.dates_router, prefix=settings.api_prefix)
 app.include_router(imports.import_upload_router, prefix=settings.api_prefix)
 app.include_router(imports.batch_router, prefix=settings.api_prefix)
+app.include_router(imports.multi_router, prefix=settings.api_prefix)
 app.include_router(batch_import.batch_import_router, prefix=settings.api_prefix)
 app.include_router(chart.chart_router, prefix=settings.api_prefix)
 app.include_router(diagnostics.diag_router, prefix=settings.api_prefix)
@@ -146,6 +147,12 @@ BACKEND_FEATURES = [
     "bulk_project_ops",
     # 导出文件检查：扫一个文件夹，把导出的日报和系统逐项比（旧后端没有 /audit/*）
     "export_file_audit",
+    # 母版体检：导出前把"这份母版会印出什么毛病"提前说出来（旧后端没有 /export-templates/{id}/check）
+    "master_template_check",
+    # 导出 Excel 预览：导出前先看整卷长什么样（旧后端没有 /reports/preview）
+    "export_preview",
+    # 跨项目导入：一次上传多份台账、按表内工程名称自动分到各项目（旧后端没有 /import/multi/*）
+    "multi_project_import",
 ]
 
 

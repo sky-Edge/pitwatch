@@ -5,8 +5,13 @@
 输出：预警等级 normal / control(预警) / alarm(报警)。
 
 判断（双控，任一超标即触发，等级取高）：
-- |累计变化量| ≥ alarm.threshold_cumulative_mm → alarm；≥ control → control
-- |变化速率|   ≥ alarm.threshold_rate_mm_per_day → alarm；≥ control → control
+- |累计变化量|   ≥ alarm.threshold_cumulative_mm → alarm；≥ control → control
+- |本次变化量 ΔV| ≥ alarm.threshold_delta_mm      → alarm；≥ control → control
+- |变化速率|     ≥ alarm.threshold_rate_mm_per_day → alarm；≥ control → control
+
+三维都是"填了才判这一维"：某维两个阈值都是 None → 该维不判（绝不拿 0 当阈值，
+也绝不因为另一维有值就把它顶上去）。ΔV 与速率的分工：ΔV 不看观测间隔，
+隔几天测都按同一个上限卡；速率 = ΔV/天数，间隔一长就被摊薄。
 """
 from dataclasses import dataclass
 
@@ -20,8 +25,11 @@ LEVEL_ALARM = "alarm"
 @dataclass(frozen=True)
 class RuleLimits:
     control_cumulative_mm: float | None = None
+    #: 本次变化量 ΔV 上限（2026-10-16 加）。表上**不印**这一格，只参与判定与 Word 文案。
+    control_delta_mm: float | None = None
     control_rate_mm_per_day: float | None = None
     alarm_cumulative_mm: float | None = None
+    alarm_delta_mm: float | None = None
     alarm_rate_mm_per_day: float | None = None
 
 
@@ -43,16 +51,21 @@ def check_level(value: float | None, control: float | None, alarm: float | None)
 
 
 def evaluate(result: PeriodResult, limits: RuleLimits) -> dict:
-    """对单期结果做双控判断。"""
+    """对单期结果做双控判断（三维取高）。"""
     cum = check_level(result.cumulative_mm, limits.control_cumulative_mm, limits.alarm_cumulative_mm)
+    delta = check_level(result.delta_mm, limits.control_delta_mm, limits.alarm_delta_mm)
     rate = check_level(result.rate_mm_per_day, limits.control_rate_mm_per_day, limits.alarm_rate_mm_per_day)
-    level = max(cum, rate)
+    level = max(cum, delta, rate)
 
     triggers: list[str] = []
     if cum == 2:
         triggers.append("累计变化量达到报警值")
     elif cum == 1:
         triggers.append("累计变化量达到控制值")
+    if delta == 2:
+        triggers.append("本次变化量达到报警值")
+    elif delta == 1:
+        triggers.append("本次变化量达到控制值")
     if rate == 2:
         triggers.append("变化速率达到报警值")
     elif rate == 1:
@@ -61,6 +74,7 @@ def evaluate(result: PeriodResult, limits: RuleLimits) -> dict:
     return {
         "level": (LEVEL_NORMAL, LEVEL_CONTROL, LEVEL_ALARM)[level],
         "cumulative_check": (LEVEL_NORMAL, LEVEL_CONTROL, LEVEL_ALARM)[cum],
+        "delta_check": (LEVEL_NORMAL, LEVEL_CONTROL, LEVEL_ALARM)[delta],
         "rate_check": (LEVEL_NORMAL, LEVEL_CONTROL, LEVEL_ALARM)[rate],
         "triggers": triggers,
     }

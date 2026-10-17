@@ -117,7 +117,8 @@ export default function WarningEventsPage({ projectId, onBack }: Props) {
       title: '触发项',
       dataIndex: 'trigger_type',
       width: 110,
-      render: (v: string) => (v === 'cumulative' ? '累计变化量' : '变化速率'),
+      render: (v: string) =>
+        ({ cumulative: '累计变化量', delta: '本次变化量', rate: '变化速率' })[v] ?? v,
     },
     {
       title: '值(mm)',

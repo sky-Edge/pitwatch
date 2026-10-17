@@ -14,6 +14,7 @@ import uuid
 from datetime import date, datetime
 from pathlib import Path
 
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
@@ -22,6 +23,7 @@ from backend.importers.point_matcher import suggest_match
 from backend.models.import_batch import ImportBatch
 from backend.models.observation_record import ObservationRecord
 from backend.repositories import point_repo
+from backend.schemas.warning_rule import batch_error_text
 
 
 def save_upload(file_bytes: bytes, filename: str) -> Path:
@@ -52,6 +54,31 @@ def record_file_path(batch: ImportBatch, path: str | Path) -> None:
     """
     mapping = dict(batch.field_mapping or {})
     mapping["file_path"] = str(path)
+    batch.field_mapping = mapping
+
+
+def sheets_of_batch(batch: ImportBatch, sheets: list[ParsedSheet]) -> list[ParsedSheet]:
+    """只留下**属于这个批次**的数据表。
+
+    为什么需要它：一份台账里可能有好几个基坑的表（跨项目导入就是按表分组的），
+    而 `recheck_with_dates` 是**重解析整个文件**的 —— 不过滤就会把别的项目的表
+    一起拉进这个批次的预览，用户改了日期点确认，别人的数据也跟着进了这个项目。
+    全程不报错，等发现时已经串了。
+
+    批次里没记 `sheet_names` = 这个批次就是整份文件（老批次与单项目导入都是这样），
+    原样返回，行为一个字不变。
+    """
+    wanted = (batch.field_mapping or {}).get("sheet_names")
+    if not wanted:
+        return sheets
+    keep = set(wanted)
+    return [s for s in sheets if s.sheet_name in keep]
+
+
+def record_sheet_names(batch: ImportBatch, sheets: list[ParsedSheet]) -> None:
+    """把这个批次管的数据表名记进批次（见 `sheets_of_batch`）。"""
+    mapping = dict(batch.field_mapping or {})
+    mapping["sheet_names"] = [s.sheet_name for s in sheets]
     batch.field_mapping = mapping
 
 
@@ -93,7 +120,15 @@ def recheck_with_dates(
         raise FileNotFoundError(
             "这个批次没有保留原始文件，无法按新日期重新核对，请重新上传该文件"
         )
-    sheets = parse_workbook(path)
+    parsed = parse_workbook(path)
+    sheets = sheets_of_batch(batch, parsed)
+    if not sheets:
+        wanted = (batch.field_mapping or {}).get("sheet_names") or []
+        raise ValueError(
+            "原始文件里已经找不到这个批次的数据表（"
+            + "、".join(str(w) for w in wanted)
+            + "）—— 文件被换过或表被改名了，请重新上传"
+        )
     originals = {s.sheet_name: (s.obs_date.isoformat() if s.obs_date else None) for s in sheets}
     sheets = apply_sheet_dates(sheets, overrides)
     mapping = dict(batch.field_mapping or {})
@@ -444,6 +479,7 @@ def confirm_batch(
     # 「把台账里的控制值同步到预警规则」—— 用户勾了才做（默认不勾，见前端）。
     # 台账里只有控制值这一对数字，报警值毫无依据 → 只动 control 级（见 sync_control_rules）。
     control_changes: list[dict] = []
+    control_sync_error: str | None = None
     if sync_control_values:
         values = {
             ind: (v.get("control_cum_mm"), v.get("control_rate_mm_d"))
@@ -452,9 +488,15 @@ def confirm_batch(
         if values:
             from backend.services.warning_service import sync_control_rules
 
-            _, control_changes = sync_control_rules(
-                db, batch.project_id, values, note="自导入台账「控制值」同步"
-            )
+            try:
+                _, control_changes = sync_control_rules(
+                    db, batch.project_id, values, note="自导入台账「控制值」同步"
+                )
+            except ValidationError as exc:
+                # 台账的控制值比系统里的**报警值**还大（倒挂）→ 这套规则本身是废的，
+                # 但观测数据**上一步已经 commit 落库了**，此时把接口炸成 500 会让用户
+                # 以为"导入失败"，而记录其实一条没丢。所以：规则原样不动，把原因带回前端。
+                control_sync_error = batch_error_text(exc)
 
     return {
         "imported": imported,
@@ -462,4 +504,5 @@ def confirm_batch(
         "skipped_dup": skipped_dup,
         "skipped_no_date": skipped_no_date,
         "control_changes": control_changes,
+        "control_sync_error": control_sync_error,
     }

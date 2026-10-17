@@ -10,10 +10,12 @@
 - 坐标 3413192.929 → 显示 `3413192.92900`；
 - 而且水平位移表的 C/D 列（测值/坐标）母版没设宽度 → 默认 9，11 个字符的坐标根本放不下。
 
-**现在两条规则**（`backend/reports/export_format.py`）：
+**现在三条规则**（`backend/reports/export_format.py`）：
 1. 写数值的格子一律「常规」格式 —— 整数显示整数、小数按实际精度；
 2. 列宽**只加宽、不放窄**，且**跳过自动换行的表头** —— 否则会把表头文字算进去，
-   实测能把 A 列算到 70 宽（A 列 9 宽是母版为了 A4 版式定的）。
+   实测能把 A 列算到 70 宽（A 列 9 宽是母版为了 A4 版式定的）；
+3. 写进去的数一律先收到**纸上口径**（毫米 1 位 = 米 4 位），且累计/变化/速率由
+   "纸上那个读数"反算 —— 甲方拿计算器逐行核也必须对得上（2026-10-16 用户报障）。
 """
 import openpyxl
 import pytest
@@ -204,6 +206,149 @@ def test_mm_columns_keep_a_decimal_point(client, tmp_path):
     std.close()
 
 
+# ---------- 纸上口径：读数(m) 与 累计/变化(mm) 必须能手算复核 ----------
+
+
+def test_paper_values_reconcile_by_hand() -> None:
+    """同一行里米列和毫米列必须能用计算器对上（2026-10-16 用户报"手算对不上"）。
+
+    拿用户台账上真实出现过的数：初始 4908.83mm、本次 4909.23mm。
+    老口径把米列 round 到 3 位 → 纸上印 `4.909 / 4.909`，而累计那格印 `0.4`，
+    (4.909−4.909)×1000 = 0 ≠ 0.4 —— 报表自己打自己脸。
+    """
+    from decimal import Decimal
+
+    from backend.reports.export_format import paper_values
+
+    p = paper_values(4908.83, 4909.06, 4909.23, skipped_days=1)
+    assert (p["v0_m"], p["prev_m"], p["current_m"]) == (4.9088, 4.9091, 4.9092)
+    assert (p["prev_cum_mm"], p["cum_mm"], p["delta_mm"], p["rate"]) == (0.3, 0.4, 0.1, 0.1)
+
+    # 用 Decimal 复核 —— 人拿计算器就是这么算的；float 会把差 1e-13 判成"约等于"
+    d = {k: Decimal(str(v)) for k, v in p.items()}
+    assert (d["current_m"] - d["prev_m"]) * 1000 == d["delta_mm"]
+    assert (d["current_m"] - d["v0_m"]) * 1000 == d["cum_mm"]
+    assert (d["prev_m"] - d["v0_m"]) * 1000 == d["prev_cum_mm"]
+
+    # 首期：没有"上次"，变化量/上次累计留空，累计 = 0（不是 None）
+    first = paper_values(4908.83, None, 4908.83, None)
+    assert first["prev_m"] is None and first["delta_mm"] is None
+    assert first["prev_cum_mm"] is None and first["cum_mm"] == 0.0
+    assert first["rate"] is None
+
+    # 微小回弹不许在纸上印出 "-0.0"
+    assert str(paper_values(4908.8, 4908.84, 4908.8, 1)["cum_mm"]) == "0.0"
+
+
+def _dec(ws, row: int, col: int):
+    from decimal import Decimal
+
+    v = ws.cell(row=row, column=col).value
+    if not isinstance(v, (int, float)) or isinstance(v, bool):
+        return None
+    return Decimal(str(v))
+
+
+def _has_col(ws, col: int) -> bool:
+    """这张表有没有这一列（表头两行里有没有字）—— 测试母版是精简版，水平位移表
+    就没排「上次累计 / 本次变化」两列；表上没有的列不能拿来判"对不上"。"""
+    for r in (5, 6):
+        v = ws.cell(row=r, column=col).value
+        if isinstance(v, str) and v.strip():
+            return True
+    return False
+
+
+def _hand_check_ledger(ws, label: str, first_row: int = 7) -> int:
+    """逐行做甲方那笔手算。返回核到的行数（0 行说明这条测试等于没写）。"""
+    cols = {c: _has_col(ws, c) for c in (3, 5, 7)}   # 上次测值 / 上次累计 / 本次变化
+    checked = 0
+    for r in range(first_row, (ws.max_row or 0) + 1):
+        v0, prev, cur = _dec(ws, r, 2), _dec(ws, r, 3), _dec(ws, r, 4)
+        prev_cum, cum, delta = _dec(ws, r, 5), _dec(ws, r, 6), _dec(ws, r, 7)
+        if cur is None or v0 is None or cum is None:
+            continue
+        assert (cur - v0) * 1000 == cum, f"{label} {r}行：本次累计 {cum} ≠ (本次 {cur} − 初始 {v0})×1000"
+        if cols[3] and prev is not None:
+            if cols[7]:
+                assert (cur - prev) * 1000 == delta, (
+                    f"{label} {r}行：本次变化量 {delta} ≠ (本次 {cur} − 上次 {prev})×1000"
+                )
+            if cols[5]:
+                assert (prev - v0) * 1000 == prev_cum, (
+                    f"{label} {r}行：上次累计 {prev_cum} ≠ (上次 {prev} − 初始 {v0})×1000"
+                )
+        checked += 1
+    return checked
+
+
+def _seed_sub_mm_project(client, pno="PRJ-SUBMM"):
+    """三期读数，期期都带 0.01mm 级的零头 —— 就是"手算对不上"的最小复现。"""
+    pid = client.post("/api/v1/projects", json={"code": pno, "name": "口径测试"}).json()["id"]
+    _put_rules(client, pid, [_rules("settlement", 30, 10), _rules("displacement", 20, 3)])
+    readings = {
+        "JJC1": {"value": [4908.83, 4909.06, 4909.23], "X": [3413055119.37, 3413055119.61, 3413055119.84],
+                 "Y": [510174159.42, 510174159.18, 510174159.07]},
+        "JJC2": {"value": [4912.27, 4912.27, 4912.61], "X": [3413056233.05, 3413056233.44, 3413056233.92],
+                 "Y": [510175002.66, 510175002.71, 510175002.35]},
+    }
+    for no, comps in readings.items():
+        pt = client.post(f"/api/v1/projects/{pid}/points", json={"point_no": no, "point_type": "both"}).json()["id"]
+        for comp, series in (("value", "settlement"), ("X", "displacement"), ("Y", "displacement")):
+            for i, d in enumerate(("2026-08-19", "2026-08-20", "2026-08-21")):
+                r = client.post(f"/api/v1/points/{pt}/records",
+                                json={"series_type": series, "component": comp,
+                                      "obs_date": d, "value_mm": comps[comp][i]})
+                assert r.status_code == 201, r.text
+    return pid
+
+
+def test_exported_ledger_reconciles_by_hand(client, tmp_path) -> None:
+    """**导出的纸面上**逐行手算复核 —— 母版套打与标准版式两条路都要过。
+
+    判据写在导出件上（而不是写在 `_series_rows` 的返回值上）：用户看的是纸，
+    中间层对得上、落到 Excel 又被格式或二次 round 改掉，一样是错。
+    """
+    import io
+
+    pid = _seed_sub_mm_project(client)
+
+    tid = _upload_master(client, pid, _master_with_legacy_format(tmp_path))
+    wb = _download_master(client, pid, tid)
+    total = 0
+    for sn in ("竖向位移", "r.立柱结构水平位移"):
+        total += _hand_check_ledger(wb[sn], f"母版套打/{sn}")
+    wb.close()
+    assert total >= 4, f"只核到 {total} 行，这条测试等于没写"
+
+    resp = client.get(f"/api/v1/projects/{pid}/reports/excel", params={"obs_date": "2026-08-21"})
+    assert resp.status_code == 200, resp.text
+    std = openpyxl.load_workbook(io.BytesIO(resp.content), data_only=True)
+    total = 0
+    for sn in ("竖向位移", "r.立柱结构水平位移"):
+        total += _hand_check_ledger(std[sn], f"标准版式/{sn}")
+    std.close()
+    assert total >= 4, f"只核到 {total} 行，这条测试等于没写"
+
+
+def test_rate_is_derivable_from_the_printed_delta(client, tmp_path) -> None:
+    """速率那一格必须能用纸上的「本次变化量 ÷ 间隔天数」复核出来（隔 1 天时应完全相等）。"""
+    pid = _seed_sub_mm_project(client)
+    tid = _upload_master(client, pid, _master_with_legacy_format(tmp_path))
+    wb = _download_master(client, pid, tid)
+    ws = wb["竖向位移"]
+    checked = 0
+    for r in range(7, (ws.max_row or 0) + 1):
+        delta, rate = _dec(ws, r, 7), _dec(ws, r, 8)
+        if delta is None or rate is None:
+            continue
+        # 三期都是隔天观测 → Δt = 1 天，速率就该等于变化量
+        assert rate == delta, f"{r}行：速率 {rate} ≠ 变化量 {delta} ÷ 1 天"
+        checked += 1
+    wb.close()
+    assert checked >= 2, f"只核到 {checked} 行，这条测试等于没写"
+
+
 # ---------- 源码守卫 ----------
 
 
@@ -223,3 +368,26 @@ def test_all_export_paths_share_the_format_helpers() -> None:
         if p.name != "export_format.py" and "number_format =" in p.read_text(encoding="utf-8")
     ]
     assert not others, f"这些文件自己设了 number_format，应统一走 export_format：{others}"
+
+
+def test_paper_caliber_has_a_single_source() -> None:
+    """「读数 + 派生量」只能出自 `paper_values`，mm→m 只能出自 `mm_to_m`。
+
+    这次的病根就是各条路各写一份：母版套打/旧模板把米列 round 到 3 位，
+    毫米列却直接抄引擎原值 —— 两份都"对"，摆在一行里就是错的。
+    """
+    import re
+
+    for name in ("template_excel.py", "excel_report.py"):
+        src = (SRC / "reports" / name).read_text(encoding="utf-8")
+        assert "paper_values" in src, f"{name} 没走 paper_values，纸上会手算对不上"
+
+    offenders = [
+        p.name for p in (SRC / "reports").glob("*.py")
+        if p.name != "export_format.py" and re.search(r"/\s*1000", p.read_text(encoding="utf-8"))
+    ]
+    assert not offenders, f"这些文件自己把 mm 换成 m，应统一走 export_format.mm_to_m：{offenders}"
+
+    # 口径常量也只有一处；报表文字（text_blocks）用的是同一个数
+    tb = (SRC / "reports" / "text_blocks.py").read_text(encoding="utf-8")
+    assert "MM_DECIMALS" in tb, "分析段落里的小数位必须与数据表同口径"

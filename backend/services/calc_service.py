@@ -13,8 +13,8 @@ from backend.models.observation_record import ObservationRecord
 from backend.models.point import MeasurementPoint
 from backend.repositories import observation_repo
 from backend.services.point_service import get_point
-from backend.services.warning_service import effective_rules
-from backend.warnings.engine import RuleLimits, evaluate
+from backend.services.warning_service import rule_limits
+from backend.warnings.engine import evaluate
 
 
 def _record_to_period(r: ObservationRecord) -> PeriodInput:
@@ -28,13 +28,7 @@ def compute_point_series(db: Session, point: MeasurementPoint, series_type: str,
     periods = [_record_to_period(r) for r in records]
     results = compute_series(periods, initial_value_mm=point.initial_value_mm)
 
-    limits_map = effective_rules(db, point.project_id).get(series_type, {})
-    limits = RuleLimits(
-        control_cumulative_mm=limits_map.get("control").threshold_cumulative_mm if limits_map.get("control") else None,
-        control_rate_mm_per_day=limits_map.get("control").threshold_rate_mm_per_day if limits_map.get("control") else None,
-        alarm_cumulative_mm=limits_map.get("alarm").threshold_cumulative_mm if limits_map.get("alarm") else None,
-        alarm_rate_mm_per_day=limits_map.get("alarm").threshold_rate_mm_per_day if limits_map.get("alarm") else None,
-    )
+    limits = rule_limits(db, point.project_id, series_type)
 
     out = []
     value_by_date = {r.obs_date: r.value_mm for r in records}

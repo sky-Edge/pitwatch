@@ -16,8 +16,8 @@ from backend.calculation.engine import PeriodInput, compute_series
 from backend.models.observation_record import ObservationRecord
 from backend.models.point import MeasurementPoint
 from backend.repositories import observation_repo
-from backend.services.warning_service import effective_rules
-from backend.warnings.engine import RuleLimits, evaluate
+from backend.services.warning_service import rule_limits
+from backend.warnings.engine import evaluate
 
 
 def _direction(sign_config: dict | None, series_type: str, delta_mm: float | None) -> dict:
@@ -61,13 +61,7 @@ def compare_point_series(
     results = compute_series(periods, initial_value_mm=point.initial_value_mm)
     value_by_date: dict[date, float | None] = {r.obs_date: r.value_mm for r in records}
 
-    limits_map = effective_rules(db, point.project_id).get(series_type, {})
-    limits = RuleLimits(
-        control_cumulative_mm=limits_map.get("control").threshold_cumulative_mm if limits_map.get("control") else None,
-        control_rate_mm_per_day=limits_map.get("control").threshold_rate_mm_per_day if limits_map.get("control") else None,
-        alarm_cumulative_mm=limits_map.get("alarm").threshold_cumulative_mm if limits_map.get("alarm") else None,
-        alarm_rate_mm_per_day=limits_map.get("alarm").threshold_rate_mm_per_day if limits_map.get("alarm") else None,
-    )
+    limits = rule_limits(db, point.project_id, series_type)
 
     def _period_no(obs: date, idx: int) -> int:
         """期次 = 全局观测日序号（0=初始值日）；日期不在全局列表时退回序列内序号。"""

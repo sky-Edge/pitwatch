@@ -51,6 +51,8 @@ const RAW = {
   neutralWhite: '#FFFFFF',
   neutralMuted: '#888888',
   neutralIgnoredBg: '#FAFAFA',
+  /** 导出预览网格的细线：比 antd 表格线更淡，让 Excel 自带的底色/文字成为主角 */
+  gridLine: '#DDE3EA',
 
   /** 「定位到某条记录」时该行的浅底（比预警底色更弱，不抢报警/预警的视觉） */
   focusBg: '#EAF2FA',
@@ -91,6 +93,7 @@ const CSS_VAR_KEYS = [
   'neutralWhite',
   'neutralMuted',
   'neutralIgnoredBg',
+  'gridLine',
   'focusBg',
 ] as const
 

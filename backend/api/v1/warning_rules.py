@@ -13,7 +13,8 @@
 
 用户 2026-10-09：「把预警规则提出来 直接作用于系统 用预警规则来选择项目」
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
@@ -27,6 +28,7 @@ from backend.schemas.warning_rule import (
     WarningRuleSetRead,
     WarningRuleSetScopeUpdate,
     WarningRuleSetUpdate,
+    batch_error_text,
 )
 from backend.services import warning_service
 from backend.services.project_service import project_name_map
@@ -56,6 +58,20 @@ def _to_read(db: Session, s: WarningRuleSet, names: dict[int, str] | None = None
 # ─────────────────────────── 规则库 ───────────────────────────
 
 
+def _batch(rules, source_note: str | None) -> WarningRuleBatchWrite:
+    """整组限值入口校验 → 422 + 人话。
+
+    ⚠ 必须在端点里手动转：`WarningRuleBatchWrite` 是在**函数体内**构造的（规则库的
+    rules 只是套的一个字段），FastAPI 的请求体校验接不到它，ValidationError 会一路冒到
+    顶、变成 500 —— 用户看到的是一坨 input dump，而不是"报警值 40 < 控制值 50"这句
+    本来就说清楚了他该改哪的话。
+    """
+    try:
+        return WarningRuleBatchWrite(rules=rules, source_note=source_note)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=batch_error_text(exc)) from exc
+
+
 @sets_router.get("", response_model=list[WarningRuleSetRead])
 def list_rule_sets(db: Session = Depends(get_db)):
     """全部预警规则（含通用、含当前没绑任何项目的）。"""
@@ -69,7 +85,7 @@ def create_rule_set(payload: WarningRuleSetCreate, db: Session = Depends(get_db)
     s = warning_service.create_rule_set(
         db,
         name=payload.name,
-        data=WarningRuleBatchWrite(rules=payload.rules, source_note=payload.source_note),
+        data=_batch(payload.rules, payload.source_note),
         project_ids=payload.project_ids,
         is_global=payload.is_global,
         source_note=payload.source_note,
@@ -80,11 +96,7 @@ def create_rule_set(payload: WarningRuleSetCreate, db: Session = Depends(get_db)
 @sets_router.put("/{set_id}", response_model=WarningRuleSetRead)
 def update_rule_set(set_id: int, payload: WarningRuleSetUpdate, db: Session = Depends(get_db)):
     """改名 / 改依据 / 改限值。**改限值会影响所有绑定了这套规则的项目**（这正是共用规则的意义）。"""
-    data = (
-        WarningRuleBatchWrite(rules=payload.rules, source_note=payload.source_note)
-        if payload.rules is not None
-        else None
-    )
+    data = _batch(payload.rules, payload.source_note) if payload.rules is not None else None
     s = warning_service.update_rule_set(
         db, set_id, data=data, name=payload.name, source_note=payload.source_note
     )

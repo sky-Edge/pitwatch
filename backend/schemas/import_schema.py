@@ -141,3 +141,85 @@ class ImportBatchRead(BaseModel):
     conflict_rows: int
     error_summary: dict[str, Any]
     created_at: datetime
+
+
+# ─────────────── 跨项目导入（一次上传、自动分到各项目）───────────────
+
+
+class MultiImportSheet(BaseModel):
+    """一张数据表 + 它认到了哪个项目（`project_id=None` = 没认出来，要用户手选）。"""
+
+    sheet_name: str
+    series_type: str = ""
+    kind: str = "ledger"
+    obs_date: str | None = None
+    row_count: int = 0
+    #: 表里读到的工程名称候选（界面上要能回答"你凭什么认成它"）
+    name_texts: list[str] = Field(default_factory=list)
+    project_id: int | None = None
+    project_code: str = ""
+    project_name: str = ""
+    project_archived: bool = False
+    how: str = ""
+    score: float = 0.0
+    #: 只是"相近"（不是完全一致）→ 提醒核一眼
+    close: bool = False
+    #: 表里没写名称、只按文件名认的 → 更要提醒核一眼
+    from_filename: bool = False
+    ambiguous: bool = False
+    reason: str = ""
+    candidates: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class MultiImportGroup(BaseModel):
+    """认到同一个项目的一批表 = 一个批次（「全部导入」里的一项）。"""
+
+    batch_id: int
+    project_id: int
+    project_code: str = ""
+    project_name: str = ""
+    project_archived: bool = False
+    filename: str
+    sheets: list[MultiImportSheet] = Field(default_factory=list)
+    preview: ImportPreviewResponse
+    #: 有哪张表是"按文件名认的"或只是"相近"→ 界面上提醒核一眼
+    needs_eyeball: bool = False
+
+
+class MultiImportPending(BaseModel):
+    """认不出是哪个项目的表：**不建批次**，等用户手选后走 /multi/assign。
+
+    `upload_name` 是暂存目录里的文件名（不是完整路径 —— 服务端路径不该发给前端），
+    指派时后端只在暂存目录里找这个名字，找不到就报错，绝不按前端给的字符串拼路径。
+    """
+
+    upload_name: str
+    filename: str
+    sheet: MultiImportSheet
+
+
+class MultiImportPointList(BaseModel):
+    """点位清单（「点号 + 坐标/高程」）—— 那是「批量建项目」的活，这里只挑出来说明。"""
+
+    filename: str
+    sheet_name: str
+    row_count: int = 0
+
+
+class MultiImportUploadResponse(BaseModel):
+    groups: list[MultiImportGroup] = Field(default_factory=list)
+    pending: list[MultiImportPending] = Field(default_factory=list)
+    point_lists: list[MultiImportPointList] = Field(default_factory=list)
+    #: 解析失败的文件（一份坏了不该拖住其余的）—— 绝不静默少一个文件
+    errors: list[str] = Field(default_factory=list)
+
+
+class MultiImportAssignRequest(BaseModel):
+    """把"认不出"的表指派给某个项目 → 建批次 + 出预览。"""
+
+    upload_name: str
+    sheet_names: list[str] = Field(default_factory=list)
+    project_id: int
+    #: 原始文件名（只为界面上好看；不传就用暂存名）
+    filename: str | None = None
+

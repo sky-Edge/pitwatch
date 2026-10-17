@@ -30,8 +30,14 @@ _RULES = [
 
 
 def _rules_with(settle_control_cum: float) -> list[dict]:
+    """把沉降「控制值·累计」换成指定值，**报警值同步抬到不低于它**。
+
+    报警值低于控制值是废配置（一超限直接落「报警」，「预警」这一级永远出不来），
+    2026-10-16 起保存时被校验拒收 → 放宽控制值必须连报警值一起放宽。
+    """
     out = [dict(r) for r in _RULES]
     out[0]["threshold_cumulative_mm"] = settle_control_cum
+    out[1]["threshold_cumulative_mm"] = max(40, settle_control_cum)
     return out
 
 
@@ -341,6 +347,12 @@ def test_effective_rules_signature_is_stable():
 
     上面这条守卫锁住签名；这里再锁住"那几个调用方仍然经过它"——
     一旦有人在别处直接查 warning_rules 表判预警，规则库改造就会漏改那一处。
+
+    2026-10-14：调用方现在可以通过 `warning_service` 的两个出口间接读
+    （`rule_limits` = 判定用的六阈值（累计/ΔV/速率 × 控制/报警）、
+    `report_control_values` = 报表控制值两列）。
+    出口仍然只有一个文件，所以这条守卫要断的是**不许绕过 warning_service**，
+    而不是"每个文件都得亲手写 effective_rules"。
     """
     import inspect
 
@@ -350,16 +362,22 @@ def test_effective_rules_signature_is_stable():
     assert list(sig.parameters) == ["db", "project_id"], "签名变了会波及 6 个调用方"
 
     backend = SRC.parent.parent / "backend"
-    consumers = [
-        "services/calc_service.py",              # 算预警等级
-        "services/comparison_service.py",        # 逐期对比
-        "services/data_generator_service.py",    # 生成数据
-        "services/project_brief_service.py",     # 项目一句话结论
-        "services/warning_event_service.py",     # 预警事件
-        "services/warning_service.py",           # 报表控制值
-    ]
-    missing = [c for c in consumers if "effective_rules" not in (backend / c).read_text(encoding="utf-8")]
-    assert not missing, f"这些文件不再走 effective_rules（规则可能有两套出处）：{missing}"
+    consumers = {
+        "services/calc_service.py": "算预警等级",
+        "services/comparison_service.py": "逐期对比",
+        "services/data_generator_service.py": "生成数据",
+        "services/project_brief_service.py": "项目一句话结论",
+        "services/warning_event_service.py": "预警事件",
+        "services/warning_service.py": "报表控制值",
+    }
+    gates = ("effective_rules", "rule_limits", "report_control_values")
+    for rel, what in consumers.items():
+        text = (backend / rel).read_text(encoding="utf-8")
+        assert any(g in text for g in gates), f"{rel}（{what}）不再经过 warning_service 读规则"
+        # 直接查表 = 第二套出处（会漏掉规则库的绑定/通用/遗留四层解析）
+        assert "WarningRule)" not in text or rel == "services/warning_service.py", (
+            f"{rel} 自己查了 warning_rules 表"
+        )
 
 
 def test_frontend_exposes_scope_picker() -> None:
@@ -376,3 +394,152 @@ def test_capability_flag_declared_both_sides() -> None:
     app = (SRC / "App.tsx").read_text(encoding="utf-8")
     assert "warning_rule_library" in BACKEND_FEATURES
     assert "warning_rule_library" in app
+
+
+# ─────────────── 7. 「本次变化量 ΔV」这一档（2026-10-16） ───────────────
+#
+# 用户原话：「报警值和预警值都是来控制变化速率的 我想的一个是控制系统每期变化的值的上限」。
+# 落地口径：**判定三维 = 累计 / 本次变化量 ΔV / 速率**，各判一次取最严；ΔV 只看这一期跳了多少，
+# 不被观测间隔摊薄。**报表上印的仍是累计 + 速率两格**（ΔV 不上表）—— 用户定的是
+# "表里印的数 = 系统判预警的数"，多印一格反而多出一个对不上号的数。
+
+_RULES_WITH_DELTA = [
+    {"indicator": "settlement", "level": "control", "threshold_cumulative_mm": 40,
+     "threshold_delta_mm": 20, "threshold_rate_mm_per_day": 3},
+    {"indicator": "settlement", "level": "alarm", "threshold_cumulative_mm": 50,
+     "threshold_delta_mm": 35, "threshold_rate_mm_per_day": 4},
+    {"indicator": "displacement", "level": "control", "threshold_cumulative_mm": 20,
+     "threshold_delta_mm": None, "threshold_rate_mm_per_day": 3},
+    {"indicator": "displacement", "level": "alarm", "threshold_cumulative_mm": 30,
+     "threshold_delta_mm": None, "threshold_rate_mm_per_day": 4},
+]
+
+
+def _delta_of(client, pid: int) -> dict[str, float | None]:
+    rows = client.get(f"/api/v1/projects/{pid}/warning-rules").json()
+    return {f"{r['indicator']}/{r['level']}": r["threshold_delta_mm"] for r in rows}
+
+
+def test_delta_threshold_round_trips(client):
+    """ΔV 存得进、读得出；没填的那一维读回来就是 null（= 不判，不当 0）。"""
+    pid = _mk_project(client, "A", "甲基坑")
+    sid = _create_set(client, "带ΔV的方案", rules=_RULES_WITH_DELTA, project_ids=[pid]).json()["id"]
+
+    d = _delta_of(client, pid)
+    assert d["settlement/control"] == 20 and d["settlement/alarm"] == 35
+    assert d["displacement/control"] is None, "没填 ΔV 不许补 0"
+
+    r = client.put(f"/api/v1/warning-rule-sets/{sid}", json={"rules": _RULES})
+    assert r.status_code == 200, r.text
+    assert _delta_of(client, pid)["settlement/control"] is None, "改回不填 ΔV 的规则后该清零"
+
+
+def test_delta_limit_judges_where_rate_is_diluted(client):
+    """**行为级**：同一份数据，只因为填了 ΔV 才判出预警。
+
+    数据是相隔 29 天累计 +30mm → 速率只有约 1mm/d（限 3）、累计 30（限 40）都不超；
+    但这一期实实在在跳了 30mm，ΔV 控制值 20 → 判预警。
+    """
+    pid = _mk_project_with_data(client, "A", "甲基坑")
+    _create_set(client, "带ΔV的方案", rules=_RULES_WITH_DELTA, project_ids=[pid])
+    assert _warning_levels(client, pid)[-1] == "control", "ΔV 该把这期顶成预警"
+
+    # 把 ΔV 撤掉（只留累计/速率）→ 同一份数据立刻变回正常，证明判级真的来自这一维
+    sid = client.get(f"/api/v1/projects/{pid}/warning-rules/set").json()["set_id"]
+    loose = [dict(r) for r in _RULES_WITH_DELTA]
+    for r in loose:
+        r["threshold_delta_mm"] = None
+    client.put(f"/api/v1/warning-rule-sets/{sid}", json={"rules": loose})
+    assert _warning_levels(client, pid)[-1] in (None, "normal")
+
+
+def test_delta_only_rule_still_blocks_export(client):
+    """只填 ΔV、累计/速率两格都空 → 导出照样拦 422。
+
+    ΔV 不上报表，所以它**不算**"这个项目配了控制值"：拦不拦的口径不能因为它而变，
+    否则报表上会出现一栏没有出处的控制值，而判定用的那一格反倒没人看见。
+    """
+    pid = _mk_project_with_data(client, "A", "甲基坑")
+    only_delta = [
+        {"indicator": "settlement", "level": "control", "threshold_delta_mm": 20},
+        {"indicator": "settlement", "level": "alarm", "threshold_delta_mm": 35},
+    ]
+    _create_set(client, "只有ΔV的方案", rules=only_delta, project_ids=[pid])
+    r = client.get(f"/api/v1/projects/{pid}/reports/excel")
+    assert r.status_code == 422, r.text
+    assert "控制值" in r.json()["detail"]
+
+
+def test_inverted_limits_rejected_with_a_readable_message(client):
+    """报警值 < 控制值 → 三个入口一律 422，并且把话说清楚（**不是 500**）。
+
+    500 是本条测试真正在防的东西：`WarningRuleBatchWrite` 是在端点函数体**里面**构造的，
+    FastAPI 的请求校验接不到它，ValidationError 冒到顶就成了一片天书 —— 用户必须读到
+    "报警值 20 < 控制值 30"，而不是 "Internal Server Error"。
+    """
+    pid = _mk_project(client, "A", "甲基坑")
+    bad = [dict(r) for r in _RULES]
+    bad[0]["threshold_cumulative_mm"] = 60  # 控制 60 > 报警 40
+
+    r = _create_set(client, "倒挂方案", rules=bad, project_ids=[pid])
+    assert r.status_code == 422, f"新建套应 422，实际 {r.status_code}：{r.text[:200]}"
+    assert "报警值不能低于控制值" in r.json()["detail"]
+    assert "累计变化量" in r.json()["detail"] and "60" in r.json()["detail"]
+
+    good = _create_set(client, "正常方案", project_ids=[pid]).json()["id"]
+    r = client.put(f"/api/v1/warning-rule-sets/{good}", json={"rules": bad})
+    assert r.status_code == 422, r.text
+    assert "报警值不能低于控制值" in r.json()["detail"]
+    assert _effective(client, pid)["settlement/control"] == [30, 10], "被拒的这次不许已经写进库"
+
+    r = client.put(f"/api/v1/projects/{pid}/warning-rules", json={"rules": bad})
+    assert r.status_code == 422, r.text
+
+
+def test_delta_column_added_without_inventing_thresholds(client):
+    """迁移**只加列、不回填**：老规则这一维读到的是 NULL（= 不判），不是某个"合理默认值"。
+
+    给老库统一填一个数 = 替每个基坑编阈值，这正是 2026-10-14 生成数据兜底那件事的毛病。
+    顺带确认迁移幂等（重复 ALTER 会直接抛错、把启动弄崩，2026-10-09 踩过）。
+    """
+    from backend.core.db import migrate_rule_delta_limit
+
+    pid = _mk_project(client, "A", "甲基坑")
+    _insert_legacy_project_rules(pid, 30)  # 直接写库，绕开 ORM → 模拟"这列刚加上的老行"
+
+    assert migrate_rule_delta_limit() == {"added_column": False}, "列已存在时不该再 ALTER"
+    assert migrate_rule_delta_limit() == {"added_column": False}, "必须可重复执行"
+
+    with engine.begin() as conn:
+        cols = {r[1] for r in conn.exec_driver_sql("PRAGMA table_info(warning_rules)").fetchall()}
+        nulls = conn.exec_driver_sql(
+            "SELECT COUNT(*) FROM warning_rules WHERE threshold_delta_mm IS NULL"
+        ).fetchone()[0]
+    assert "threshold_delta_mm" in cols
+    assert int(nulls) >= 4, f"老规则的 ΔV 必须留空，实际有值：{nulls}"
+
+
+def test_delta_migration_registered_in_init_db() -> None:
+    """迁移必须挂在 `init_db()` 里，否则免安装包/老库升级后读这一列直接报错。"""
+    src = (Path(__file__).resolve().parent.parent / "backend" / "core" / "db.py").read_text(
+        encoding="utf-8"
+    )
+    assert "migrate_rule_delta_limit()" in src.split("def init_db", 1)[1], (
+        "migrate_rule_delta_limit 没被 init_db 调用"
+    )
+
+
+def test_frontend_shows_the_third_limit() -> None:
+    """界面上第三格必须存在，而且要说清它**不上报表**（口径不一致就又是一次"表和系统两个数"）。"""
+    page = (SRC / "components" / "WarningRulesModal.tsx").read_text(encoding="utf-8")
+    assert "本次变化量限值(mm)" in page and "threshold_delta_mm" in page, "弹窗里没有 ΔV 这一格"
+    assert "只参与判定" in page, "没说明 ΔV 不印到报表上"
+    assert "报警值比控制值还低" in page, "倒挂在界面上没有提示（只等后端 422）"
+
+    events = (SRC / "pages" / "WarningEventsPage.tsx").read_text(encoding="utf-8")
+    assert "'delta'" in events or "delta:" in events, "预警事件页不认得 delta 触发项"
+    assert "本次变化量" in events, "预警事件页里 ΔV 那一档显示成英文/速率"
+
+    api = (SRC / "api" / "client.ts").read_text(encoding="utf-8")
+    assert "threshold_delta_mm" in api, "出入参类型没跟上，界面填的数会被当成多余字段丢掉"
+    assert "control_sync_error" in api, "导入页读不到「控制值没同步成功」的原因"

@@ -11,6 +11,7 @@
 - DELETE /export-templates/{tid}                  删除模板
 - GET    /export-templates/{tid}/file             下载模板原件（可选）
 - GET    /projects/{pid}/export-templates         该项目**可用**的模板（导出页下拉用）
+- GET    /projects/{pid}/export-templates/{tid}/check  母版体检（导出前查，只读）
 - POST   /projects/{pid}/export-templates/upload  兼容入口（内部转调上传，自动绑定本项目）
 """
 from datetime import datetime
@@ -198,6 +199,37 @@ def upload_template(
         is_global=False,
         legacy_project_id=project_id,
     )
+
+
+@upload_router.get("/{template_id}/check")
+def check_template_for_project(project_id: int, template_id: int, db: Session = Depends(get_db)):
+    """母版体检（导出**前**查）：只读母版原件与 layout，一个字节都不写回去。
+
+    存在的理由：导出只会重写它**认得**的那些行，母版上够不着的旧值会原样发出去
+    （2026-10-16 那次是预留空白行上的旧控制值）。与其让用户事后对着 Excel 找，
+    不如在点导出之前就把话说清楚。
+    """
+    from backend.services.template_check_service import check_master_template
+
+    get_project(db, project_id)
+    tpl = db.get(ExportTemplate, template_id)
+    if tpl is None:
+        raise HTTPException(status_code=404, detail="模板不存在")
+    if not tpl.is_builtin and not export_template_service.is_usable_by(db, tpl, project_id):
+        # 与导出端点同一道闸：拿别的基坑的母版本项目导出，查出来的问题也不作数
+        raise HTTPException(
+            status_code=400,
+            detail=f"这份母版「{tpl.name}」没有绑定本项目 —— 先在「设置适用项目」里加进来（或设为通用）",
+        )
+    issues = check_master_template(db, project_id, tpl)
+    return {
+        "template_id": tpl.id,
+        "template_name": tpl.name,
+        "project_id": project_id,
+        "issues": issues,
+        "errors": sum(1 for i in issues if i["level"] == "error"),
+        "warnings": sum(1 for i in issues if i["level"] == "warn"),
+    }
 
 
 @tpl_router.put("/{template_id}", response_model=ExportTemplateRead)

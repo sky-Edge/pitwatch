@@ -18,9 +18,9 @@ from sqlalchemy.orm import Session
 from backend.models.export_template import ExportTemplate
 from backend.repositories import observation_repo
 from backend.reports.export_cleanup import clear_stale_stat_tables
-from backend.reports.export_format import autofit_numeric_columns
+from backend.reports.export_format import autofit_numeric_columns, paper_values, round_m
 from backend.reports.export_options import EXPORT_SHOW_WARNING_LEVEL
-from backend.services.warning_service import report_control_values
+from backend.services.warning_service import ensure_control_rules, report_control_values
 from backend.services import calc_service
 from backend.services.point_service import list_points
 from backend.services.project_service import get_project
@@ -60,19 +60,20 @@ def _series_rows(db: Session, project_id: int, obs_date: date) -> list[dict]:
                 if v0_any is None:
                     first = next((r for r in rows if not r["is_missing"]), None)
                     v0_any = first["value_mm"] if first else None
+                # 读数与派生量一律走 `paper_values` 收到纸上口径：报表上
+                # (本次测值 − 上次测值)×1000 必须恒等于「本次变化量」那一格。
                 out.append(
                     {
                         "point_no": p.point_no,
                         "series_type": st,
                         "component": comp,
                         "obs_date": obs_date,
-                        "v0_m": (v0_any or 0) / 1000 if v0_any is not None else None,
-                        "prev_m": (prev["value_mm"] / 1000) if prev and prev.get("value_mm") is not None else None,
-                        "current_m": (target["value_mm"] / 1000) if target.get("value_mm") is not None else None,
-                        "prev_cum_mm": prev.get("cumulative_mm") if prev else None,
-                        "cum_mm": target.get("cumulative_mm"),
-                        "delta_mm": target.get("delta_mm"),
-                        "rate": target.get("rate_mm_per_day"),
+                        **paper_values(
+                            v0_any,
+                            prev["value_mm"] if prev else None,
+                            target["value_mm"],
+                            target.get("skipped_days"),
+                        ),
                         "warning_level": target.get("warning_level"),
                     }
                 )
@@ -111,6 +112,8 @@ def build_from_template(db: Session, project_id: int, tpl: ExportTemplate, obs_d
         raise ValueError("模板原件缺失，请重新上传")
     layout = tpl.layout_json or {}
     sheets_cfg = layout.get("sheets") or []
+    # 与母版套打、标准版式同一个口径：项目没配「控制值」就拦住，不拿底模上印的旧数顶（用户 2026-10-14）。
+    ensure_control_rules(db, project_id, {s.get("kind") for s in sheets_cfg if s.get("kind")})
 
     # 目标日期：默认取"数据最完整的最近观测日"（避免取到只录了部分点的零散日期）
     points = list_points(db, project_id, include_inactive=False)
@@ -275,15 +278,18 @@ def _write_point_row(ws, row: int, f: dict, point_no: str, rec: dict,
     from backend.reports.export_format import MM_DELTA_FORMAT
 
     _set_cell(ws, row, f.get("point_col"), point_no or None)
-    _set_num_cell(ws, row, f.get("v0_m"), round(rec["v0_m"], 3) if rec.get("v0_m") is not None else None)
-    _set_num_cell(ws, row, f.get("prev_m"), round(rec["prev_m"], 3) if rec.get("prev_m") is not None else None)
-    _set_num_cell(ws, row, f.get("current_m"), round(rec["current_m"], 3) if rec.get("current_m") is not None else None)
+    _set_num_cell(ws, row, f.get("v0_m"), round_m(rec.get("v0_m")))
+    _set_num_cell(ws, row, f.get("prev_m"), round_m(rec.get("prev_m")))
+    _set_num_cell(ws, row, f.get("current_m"), round_m(rec.get("current_m")))
     # 累计/变化/速率四列要小数点（整数也显示成 2.0），与母版套打、标准版式一致
     _set_num_cell(ws, row, f.get("prev_cum_mm"), rec.get("prev_cum_mm"), MM_DELTA_FORMAT)
     _set_num_cell(ws, row, f.get("cum_mm"), rec.get("cum_mm"), MM_DELTA_FORMAT)
     _set_num_cell(ws, row, f.get("delta_mm"), rec.get("delta_mm"), MM_DELTA_FORMAT)
     _set_num_cell(ws, row, f.get("rate"), rec.get("rate"), MM_DELTA_FORMAT)
-    # 控制值 I/J：与母版套打/标准版式同一个出处（预警规则的 control 级）
+    # 控制值 I/J：与母版套打/标准版式同一个出处（预警规则的 control 级）。
+    # 每条路都必须给同一种情况同一个结果：**没配规则的那一维一律留空**，
+    # 既不写 0（会让所有点变成超限），也不留底模上印着的旧设计限值（那是别的基坑的数）。
+    # 一类观测两个都没配时，整份文档已在 `ensure_control_rules` 被拦下。
     _set_num_cell(ws, row, f.get("control_cum"), control_cum)
     _set_num_cell(ws, row, f.get("control_rate"), control_rate)
     # 预警等级：默认不写（用户要求"导出的 Excel 不要显示预警"），见 export_options.py

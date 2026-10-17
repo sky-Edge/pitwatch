@@ -48,11 +48,12 @@ _SAFETY_MARGIN = 0.9
 _MAX_SAMPLES = 20
 
 
-def _safe_limits(limits: RuleLimits) -> tuple[float | None, float | None]:
-    """(单期速率安全上限, 累计安全上限)。control 缺失时退回 alarm —— 否则无从定义"安全"。"""
+def _safe_limits(limits: RuleLimits) -> tuple[float | None, float | None, float | None]:
+    """(单期速率上限, 单期变化量 ΔV 上限, 累计上限)。control 缺失时退回 alarm —— 否则无从定义"安全"。"""
     rate = limits.control_rate_mm_per_day or limits.alarm_rate_mm_per_day
+    delta = limits.control_delta_mm or limits.alarm_delta_mm
     cum = limits.control_cumulative_mm or limits.alarm_cumulative_mm
-    return rate, cum
+    return rate, delta, cum
 
 
 def _fix_value(
@@ -62,15 +63,17 @@ def _fix_value(
     v0: float | None,
     skipped_days: int | None,
     rate_limit: float | None,
+    delta_limit: float | None,
     cum_limit: float | None,
     integral: bool,
 ) -> float:
     """算一个「尽量少动、但一定安全」的新读数。
 
     两步限幅，顺序不能反：
-    ① 先按单期速率压（这是"这一期相对上一期"的约束）；
+    ① 先压单期上限 ——「速率 × 间隔天数」和「本次变化量 ΔV」谁更严按谁（ΔV 不看间隔，
+       隔 3 天测一次时速率会被摊薄，只有 ΔV 还卡得住）；
     ② 再按累计压（这是"相对 V0"的约束）——
-       压累计可能又冲破单期速率，所以 ② 之后要**再走一遍 ①**。
+       压累计可能又冲破单期上限，所以 ② 之后要**再走一遍 ①**。
     """
     def quantize(step: float) -> float:
         """步长取整：整 mm 的数据取整数步，且**向下取整**（只会更安全）。"""
@@ -78,13 +81,21 @@ def _fix_value(
             return float(math.floor(step))
         return math.floor(step * 1000.0) / 1000.0
 
+    def cap_step(step: float) -> float:
+        allowed: list[float] = []
+        if rate_limit is not None and skipped_days:
+            allowed.append(rate_limit * skipped_days)
+        if delta_limit is not None:
+            allowed.append(delta_limit)
+        if not allowed:
+            return step
+        lim = min(allowed) * _SAFETY_MARGIN
+        return math.copysign(quantize(lim), step) if abs(step) > lim else step
+
     step = raw_value - prev_value
 
-    # ① 单期速率上限
-    if rate_limit is not None and skipped_days:
-        allowed = rate_limit * skipped_days * _SAFETY_MARGIN
-        if abs(step) > allowed:
-            step = math.copysign(quantize(allowed), step)
+    # ① 单期上限（速率 / ΔV 取严）
+    step = cap_step(step)
 
     # ② 累计上限
     if cum_limit is not None and v0 is not None:
@@ -92,11 +103,8 @@ def _fix_value(
         landing = prev_value + step
         if abs(landing - v0) > safe_cum:
             step = (v0 + math.copysign(safe_cum, landing - v0)) - prev_value
-            # ② 之后回到 ① 复核：拉累计的那一步本身也不能超速率
-            if rate_limit is not None and skipped_days:
-                allowed = rate_limit * skipped_days * _SAFETY_MARGIN
-                if abs(step) > allowed:
-                    step = math.copysign(quantize(allowed), step)
+            # ② 之后回到 ① 复核：拉累计的那一步本身也不能超单期上限
+            step = cap_step(step)
 
     return prev_value + step
 
@@ -117,7 +125,7 @@ def _scan_series(db: Session, point, series_type: str, component: str,
     if not records:
         return [], []
 
-    rate_limit, cum_limit = _safe_limits(limits)
+    rate_limit, delta_limit, cum_limit = _safe_limits(limits)
     v0 = point.initial_value_mm
     if v0 is None:
         v0 = next((r.value_mm for r in records if r.value_mm is not None), None)
@@ -149,7 +157,7 @@ def _scan_series(db: Session, point, series_type: str, component: str,
                 raw_value=values[rec.id],
                 prev_value=prev_value if prev_value is not None else (v0 if v0 is not None else values[rec.id]),
                 v0=v0, skipped_days=row.skipped_days,
-                rate_limit=rate_limit, cum_limit=cum_limit,
+                rate_limit=rate_limit, delta_limit=delta_limit, cum_limit=cum_limit,
                 # 按**这一条读数**的精度取整：读数记到整 mm 就给整数步（现场就是 1mm 精度）
                 integral=float(rec.value_mm).is_integer(),
             )

@@ -32,6 +32,7 @@ from datetime import date
 
 from openpyxl.cell.cell import MergedCell
 
+from backend.reports.export_format import MM_DECIMALS
 from backend.warnings.engine import LEVEL_ALARM, LEVEL_CONTROL
 
 # ── 用途（存在 layout_json["text_blocks"][*]["purpose"]）──
@@ -45,8 +46,9 @@ PURPOSE_WORKTABLE = "worktable"          # 概况页 1.3 下方「工作量」�
 #: 系统里的监测类别 → 报表里的中文名（与数据表 Sheet 名对齐）
 KIND_LABEL = {"settlement": "竖向位移", "displacement": "立柱结构水平位移"}
 
-#: 分析段落里极值保留的小数位（现场惯例；数据表里另有精确值）
-_MM_DECIMALS = 1
+#: 分析段落里极值保留的小数位 —— 与数据表**同一个口径**（`export_format.MM_DECIMALS`）。
+#: 数据行已在 `paper_values` 收过口径，这里只负责把它排成固定 1 位小数的字符串。
+_MM_DECIMALS = MM_DECIMALS
 
 
 @dataclass

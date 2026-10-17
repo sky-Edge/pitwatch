@@ -110,6 +110,33 @@ def test_warning_by_rate():
     assert any("速率" in t for t in ev["triggers"])
 
 
+def test_warning_by_delta_when_rate_is_diluted():
+    """ΔV 这一档存在的理由：**隔得久的观测会把速率摊薄，ΔV 不会**（用户 2026-10-16 要的"每期变化上限"）。
+
+    隔 3 天跳 6mm → 速率只有 2mm/d，没超 3；但单期实实在在跳了 6mm。
+    只按速率判，这里一声不响；填了 ΔV 上限 5 → 判预警，且触发语点名「本次变化量」。
+    """
+    limits = RuleLimits(control_rate_mm_per_day=3, control_delta_mm=5)
+    res = compute_series([_p("2026-07-28", 4907.0), _p("2026-07-31", 4901.0)])
+    assert res[1].skipped_days == 3
+    ev = evaluate(res[1], limits)
+    assert ev["level"] == LEVEL_CONTROL
+    assert ev["rate_check"] == "normal", "速率被摊薄，这一维不该触发"
+    assert ev["triggers"] == ["本次变化量达到控制值"]
+
+
+def test_delta_empty_means_that_dimension_not_judged():
+    """ΔV 两格都留空 → 这一维完全不参与判定（与累计/速率同一口径，不拿 0 当阈值）。"""
+    limits = RuleLimits(control_cumulative_mm=30, alarm_cumulative_mm=40)
+    # 单期跳 25mm（累计才 25，未到控制 30）→ 只填了累计/速率时就是 normal
+    res = compute_series([_p("2026-07-30", 4907.0), _p("2026-07-31", 4882.0)])
+    ev = evaluate(res[1], limits)
+    assert ev["level"] == "normal"
+    assert ev["delta_check"] == "normal"
+    # 同一份数据把 ΔV 上限收到 20 → 立刻出报警，证明"填了才判"确实生效
+    assert evaluate(res[1], RuleLimits(alarm_delta_mm=20))["level"] == LEVEL_ALARM
+
+
 def test_warning_normal():
     limits = RuleLimits(control_cumulative_mm=30, alarm_cumulative_mm=40)
     res = compute_series([_p("2026-07-30", 4907.0), _p("2026-07-31", 4906.0)])

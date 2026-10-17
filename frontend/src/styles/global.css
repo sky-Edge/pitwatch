@@ -22,7 +22,16 @@
   --wm-neutral-white: #FFFFFF;
   --wm-neutral-muted: #888888;
   --wm-neutral-ignored-bg: #FAFAFA;
+  --wm-grid-line: #DDE3EA;
   --wm-focus-bg: #EAF2FA;
+}
+
+/* 导出 Excel 预览的网格线。
+   一张表几百到几千格，边框写在类里比每格挂一个 inline style 省得多；
+   淡灰色取自令牌，让 Excel 自带的底色（预警绿/黄）与文字成为主角。 */
+.excel-preview-grid th,
+.excel-preview-grid td {
+  border: 1px solid var(--wm-grid-line);
 }
 
 /* Excel 导入预览：被排除（跳过）的行。

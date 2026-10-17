@@ -6,7 +6,7 @@
 
 - project_id：所属项目（冗余，便于项目级查询/清理）
 - point_id / obs_date：事件点位与日期
-- indicator / level / trigger_type：指标 / 等级 / 触发项（cumulative=累计 / rate=速率）
+- indicator / level / trigger_type：指标 / 等级 / 触发项（cumulative=累计 / delta=本次变化 / rate=速率）
 - value_mm：触发时对应的值（累计值或速率值）
 - message：人类可读描述
 - recompute_batch：重算批次号（留痕，与 calculation_results 一致）
@@ -33,7 +33,7 @@ class WarningEvent(Base):
     obs_date: Mapped[date] = mapped_column(Date, nullable=False)
     indicator: Mapped[str] = mapped_column(String(16), nullable=False)
     level: Mapped[str] = mapped_column(String(16), nullable=False)        # control/alarm
-    trigger_type: Mapped[str] = mapped_column(String(16), nullable=False)  # cumulative/rate
+    trigger_type: Mapped[str] = mapped_column(String(16), nullable=False)  # cumulative/delta/rate
     value_mm: Mapped[float | None] = mapped_column(Float)
     rate_mm_per_day: Mapped[float | None] = mapped_column(Float)
     message: Mapped[str] = mapped_column(String(300), default="")

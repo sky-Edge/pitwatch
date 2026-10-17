@@ -29,6 +29,7 @@ from openpyxl import Workbook, load_workbook
 from backend.core.config import settings
 from backend.core.db import SessionLocal
 from backend.models.export_template import ExportTemplate
+from tests.conftest import put_control_rules
 from backend.reports.text_blocks import (
     PURPOSE_ANALYSIS,
     PURPOSE_CONCLUSION,
@@ -280,6 +281,7 @@ def _build_master(path: Path) -> None:
 def _mk_project(client, n_points: int = 2) -> int:
     p = client.post("/api/v1/projects", json={"code": "PRJ-TXT", "name": PROJECT_NAME}).json()
     pid = p["id"]
+    put_control_rules(client, pid)
     for i in range(1, n_points + 1):
         pt = client.post(f"/api/v1/projects/{pid}/points",
                          json={"point_no": f"JJC{i}", "point_type": "settlement"}).json()

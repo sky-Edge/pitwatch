@@ -405,6 +405,7 @@ export default function ImportPage({ project, onBack }: Props) {
     let skippedNoDate = 0
     let skippedDup = 0
     const ruleChanges: string[] = []
+    const syncRefused: string[] = []
     const details: string[] = []
     for (const fp of ready) {
       const rowsToImport = buildRows(fp)
@@ -429,6 +430,9 @@ export default function ImportPage({ project, onBack }: Props) {
           const before = c.created ? '（原来没配）' : `（原 ${fmtCtl(c.old_cum)} / ${fmtCtl(c.old_rate)}）`
           ruleChanges.push(`${label} 控制值 → ${fmtCtl(c.new_cum)} / ${fmtCtl(c.new_rate)} mm·d⁻¹${before}`)
         }
+        // 台账控制值比系统报警值还大 → 后端拒绝同步（数据照样入库）。这句话必须让用户看到，
+        // 否则"勾了同步、规则却没变"又变成一次"改了没反应"。
+        if (res.control_sync_error) syncRefused.push(`${fp.filename}：${res.control_sync_error}`)
         updateFile(fp.key, { status: 'imported', importedRows: res.imported_rows })
         details.push(
           `${fp.filename}：成功 ${res.imported_rows} 条${
@@ -443,10 +447,12 @@ export default function ImportPage({ project, onBack }: Props) {
     if (skippedNoDate > 0) details.push(`另有 ${skippedNoDate} 条因缺观测日期未入库，请指定日期后重新导入`)
     if (skippedDup > 0) details.push(`另有 ${skippedDup} 条当天已有记录，自动跳过未覆盖`)
     for (const c of ruleChanges) details.push(`预警规则已同步：${c}`)
+    for (const s of syncRefused) details.push(`预警规则未同步：${s}`)
     setSummary({ ok, fail, rows, replaced, details })
     setConfirming(false)
     setStep(2)
-    if (fail === 0) message.success(`导入完成：${ok} 个文件、共 ${rows} 条`)
+    if (fail === 0 && syncRefused.length === 0) message.success(`导入完成：${ok} 个文件、共 ${rows} 条`)
+    else if (fail === 0) message.warning(`数据已导入 ${rows} 条，但有 ${syncRefused.length} 个文件的控制值没能同步进预警规则，详见下方`)
     else message.warning(`导入结束：成功 ${ok} 个文件、失败 ${fail} 个`)
   }
 

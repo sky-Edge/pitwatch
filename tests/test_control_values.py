@@ -82,6 +82,23 @@ def _master_with_control(tmp_path: Path, s=(30, 10), d=(20, 3)) -> Path:
     return out
 
 
+def _master_with_reserved_rows(tmp_path: Path, s=(30, 10)) -> Path:
+    """十号母版那种形状：点位行下面还有几行**没点号的预留空行**，可 I/J 印着旧的 30/10。
+
+    再在下面放一行「变化量正负号说明」——它是数据区的界线，本身没有控制值。
+    """
+    wb = openpyxl.load_workbook(_make_master())
+    ws = wb["竖向位移"]
+    for r in range(7, 13):  # 7~8 是点位行，9~12 是空白预留行
+        ws.cell(row=r, column=9, value=s[0])
+        ws.cell(row=r, column=10, value=s[1])
+    ws.cell(row=13, column=1, value="变化量正负号说明：“-”为上升“+”为下沉")
+    out = tmp_path / "master_with_reserved_rows.xlsx"
+    wb.save(out)
+    wb.close()
+    return out
+
+
 def _ctl(ws, row: int, col: int):
     """读出控制值（统一成 float 比较，能同时覆盖整数与非整数限值）。"""
     v = ws.cell(row=row, column=col).value
@@ -151,23 +168,55 @@ def test_master_export_writes_control_from_rules(client, tmp_path):
     wb.close()
 
 
-def test_master_export_keeps_master_control_when_project_has_no_rule(client, tmp_path):
-    """项目没配规则 → **保留母版原值**，绝不能写 0 或留空。
+def test_master_export_writes_rule_values_even_on_added_rows(client, tmp_path):
+    """母版上印的 30/10 与规则里的 30/10 数值相同 —— 但**出处已经换了**，逐行按规则写。
 
-    写 0 会让所有测点瞬间变成"超限"；留空则把母版上印着的设计限值抹掉了 ——
-    两种都比"照抄母版"更糟。
+    这条原来是断"没配规则时保留母版原值"；用户 2026-10-14 把口径改成
+    「空规则和生成数据一样，一律拦住」（拦不住地留一个系统里查不到的数在成果文件上），
+    拦不住的那个 case 见 `test_rule_change_in_documents`。
+    这里改成验"逐行都按规则"：改一次限值，母版固有行和**自动补出来的行**必须一起变 ——
+    补出来的行当初是抄母版那一行的 I/J 来的，那是同一张表里的第二个数值出处。
     """
-    pid = _seed_project(client)
-    # 不调 /warning-rules：新项目默认没有任何规则
+    pid = _seed_project(client)  # 默认规则 30/10、20/3，与母版上印的一致
     tid = _upload_master(client, pid, _master_with_control(tmp_path))
 
     wb = _download_master(client, pid, tid)
+    assert (_ctl(wb["竖向位移"], 7, 9), _ctl(wb["竖向位移"], 7, 10)) == (30, 10)
+    assert (_ctl(wb["竖向位移"], 14, 9), _ctl(wb["竖向位移"], 14, 10)) == (30, 10)  # 补出来的行
+    assert (_ctl(wb["r.立柱结构水平位移"], 7, 9), _ctl(wb["r.立柱结构水平位移"], 7, 10)) == (20, 3)
+    wb.close()
+
+    _put_rules(client, pid, [_rules("settlement", 22, 7), _rules("displacement", 15, 2)])
+    wb2 = _download_master(client, pid, tid)
+    for row in (7, 14):  # 固有行与补出来的行一起跟着改 = 没有第二个出处
+        assert (_ctl(wb2["竖向位移"], row, 9), _ctl(wb2["竖向位移"], row, 10)) == (22, 7), row
+    assert (_ctl(wb2["r.立柱结构水平位移"], 7, 9), _ctl(wb2["r.立柱结构水平位移"], 7, 10)) == (15, 2)
+    wb2.close()
+
+
+def test_master_reserved_blank_rows_also_follow_the_rule(client, tmp_path):
+    """母版点位行下面**没点号的预留空行**也印着控制值 —— 必须一起按规则重写。
+
+    用户 2026-10-16 报障：项目叫十号基坑，导出的表里 I/J 上半是规则里的 35/5、
+    下半还是原来的 30/10。母版实测：竖向位移表 7~18 行有点号，19~26 行是空着的预留行，
+    可**这 8 行每一行都印着 30/10**。`_master_point_blocks` 靠点号认行、扫到第一个空点号就停，
+    所以那 8 行从来没被写过 —— 同一列出现两个数值出处，正是"表里写 30、系统按 35 判"的老毛病。
+    """
+    pid = client.post("/api/v1/projects", json={"code": "PRJ-BLANK", "name": "预留行测试"}).json()["id"]
+    pt = client.post(f"/api/v1/projects/{pid}/points", json={"point_no": "JJC1", "point_type": "both"}).json()
+    for d, v in (("2026-08-20", 4909.0), ("2026-08-21", 4910.0)):
+        for st, comp in (("settlement", "value"), ("displacement", "X"), ("displacement", "Y")):
+            client.post(f"/api/v1/points/{pt['id']}/records",
+                        json={"series_type": st, "component": comp, "obs_date": d, "value_mm": v})
+    _put_rules(client, pid, [_rules("settlement", 25, 8), _rules("displacement", 18, 2.5)])
+
+    tid = _upload_master(client, pid, _master_with_reserved_rows(tmp_path))
+    wb = _download_master(client, pid, tid)
     ws = wb["竖向位移"]
-    assert _ctl(ws, 7, 9) == 30 and _ctl(ws, 7, 10) == 10, "母版原值应被保留"
-    wsd = wb["r.立柱结构水平位移"]
-    assert _ctl(wsd, 7, 9) == 20 and _ctl(wsd, 7, 10) == 3
-    # 补出来的新行也照母版那一行的口径（不是 0、不是空）
-    assert _ctl(ws, 14, 9) == 30 and _ctl(ws, 14, 10) == 10
+    for r in range(7, 13):  # 7~8 点位行 + 9~12 母版预留的空白点位行
+        assert (_ctl(ws, r, 9), _ctl(ws, r, 10)) == (25, 8), f"竖向位移 r{r} 还是母版上印的 30/10"
+    # 界线：数据区结束在「变化量正负号说明」那一行，它没有控制值、也不许被写上一个
+    assert (ws.cell(row=13, column=9).value, ws.cell(row=13, column=10).value) == (None, None)
     wb.close()
 
 
@@ -253,6 +302,10 @@ def test_sync_only_touches_control_level(client):
     """同步**只动「控制值」**：报警值、别的指标一概不碰。
 
     台账里只有控制值这一对数字，报警值毫无依据 —— 凭它推算是编数据。
+
+    ⚠ 这里的报警值（40/12、30/4）**必须比台账的控制值（30/10、20/3）大**：
+    控制值涨到报警值之上 = 倒挂，同步会被整组拒收（见 `test_sync_refused_when_control_would_outrank_alarm`），
+    这条用例要测的是"只动 control 级"，别让校验先把请求拦掉。
     """
     pid = _setup_points(client)
     _put_rules(
@@ -260,9 +313,9 @@ def test_sync_only_touches_control_level(client):
         pid,
         [
             _rules("settlement", 20, 2),
-            _rules("settlement", 40, 4, level="alarm"),
+            _rules("settlement", 40, 12, level="alarm"),
             _rules("displacement", 18, 2),
-            _rules("displacement", 30, 3, level="alarm"),
+            _rules("displacement", 30, 4, level="alarm"),
         ],
     )
     data = _upload_ledger(client, pid).json()
@@ -278,11 +331,45 @@ def test_sync_only_touches_control_level(client):
             rules[("displacement", "control")]["threshold_rate_mm_per_day"]) == (20, 3)
     # 报警值原样
     assert (rules[("settlement", "alarm")]["threshold_cumulative_mm"],
-            rules[("settlement", "alarm")]["threshold_rate_mm_per_day"]) == (40, 4)
+            rules[("settlement", "alarm")]["threshold_rate_mm_per_day"]) == (40, 12)
     assert (rules[("displacement", "alarm")]["threshold_cumulative_mm"],
-            rules[("displacement", "alarm")]["threshold_rate_mm_per_day"]) == (30, 3)
+            rules[("displacement", "alarm")]["threshold_rate_mm_per_day"]) == (30, 4)
     # 规则条数没变多（没被"整组重建"成只剩 control）
     assert len(rules) == 4
+
+
+def test_sync_refused_when_control_would_outrank_alarm(client):
+    """台账控制值比系统报警值还大 → **规则一条不改**，但数据照常入库、原因如实带回前端。
+
+    倒挂的规则是废的（一超限直接落「报警」，「预警」这一级永远出不来），不能悄悄写进去。
+    可数据在前一步已经 commit 了：接口不能因此报 500 —— 那会让人以为导入失败，
+    而记录其实一条没丢（这正是本仓库踩过两次的"改了没反应 / 说有错其实没错"）。
+    """
+    pid = _setup_points(client)
+    _put_rules(
+        client,
+        pid,
+        [
+            _rules("settlement", 20, 2),
+            _rules("settlement", 40, 4, level="alarm"),  # 报警速率 4 < 台账控制速率 10
+            _rules("displacement", 18, 2),
+            _rules("displacement", 30, 3, level="alarm"),
+        ],
+    )
+    data = _upload_ledger(client, pid).json()
+    r = client.post(
+        f"/api/v1/import/batches/{data['batch_id']}/confirm",
+        json={"valid_rows": _import_rows(data), "sync_control_values": True},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["imported_rows"] > 0, "数据必须真的进了库"
+    assert r.json()["control_changes"] == []
+    body = r.json()["control_sync_error"]
+    assert "报警值不能低于控制值" in body, body
+    assert "变化速率" in body and "10" in body, f"要说清是哪一维、哪两个数：{body}"
+
+    rules = {(x["indicator"], x["level"]): x for x in client.get(f"/api/v1/projects/{pid}/warning-rules").json()}
+    assert (rules[("settlement", "control")]["threshold_rate_mm_per_day"]) == 2, "倒挂时一条规则都不许改"
 
 
 def test_sync_is_noop_when_already_consistent(client):

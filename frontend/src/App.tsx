@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Button, Layout, message, Space, Typography } from 'antd'
-import { DatabaseOutlined, HomeOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { DatabaseOutlined, HomeOutlined, ImportOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 import ProjectsPage from './pages/ProjectsPage'
 import PointsPage from './pages/PointsPage'
 import RecordsPage from './pages/RecordsPage'
 import ComparisonPage from './pages/ComparisonPage'
 import ImportPage from './pages/ImportPage'
+import DailyImportPage from './pages/DailyImportPage'
 import ChartPage from './pages/ChartPage'
 import WarningEventsPage from './pages/WarningEventsPage'
 import ReportsPage from './pages/ReportsPage'
@@ -62,6 +63,12 @@ const REQUIRED_BACKEND_FEATURES = [
   'bulk_project_ops',
   // 导出文件检查：扫一个文件夹，把导出的日报和系统逐项比（旧后端没有 /audit/*）
   'export_file_audit',
+  // 母版体检：导出前把"这份母版会印出什么毛病"提前说出来（旧后端没有 /export-templates/{id}/check）
+  'master_template_check',
+  // 导出 Excel 预览：导出前先看整卷长什么样（旧后端没有 /reports/preview）
+  'export_preview',
+  // 每日导入：一次上传多份台账，按表内工程名称自动分到各项目（旧后端没有 /import/multi/*）
+  'multi_project_import',
 ]
 
 /** focus：从「需要关注」跳进来时携带的定位目标（哪一天 / 哪个测点） */
@@ -70,6 +77,8 @@ type View =
   | { kind: 'backup' }
   /** 导出文件检查：项目无关（扫的是一个文件夹），所以挂在顶栏 */
   | { kind: 'audit' }
+  /** 每日导入：项目无关（一次上传、按表内工程名称自动分到各项目），所以挂在顶栏 */
+  | { kind: 'daily-import' }
   /** 项目列表级的批量建项目（不属于任何单个项目，所以不挂 ProjectViewKind） */
   | { kind: 'batch-projects' }
   | { kind: ProjectViewKind; project: Project; focus?: RecordsFocus }
@@ -81,7 +90,11 @@ export default function App() {
   // 只有这种形式 TypeScript 才会把它当类型守卫，进而把 view 收窄成"项目内视图"。
   // 换成 includes() 后 `view.project` 会直接编译不过（踩过）。
   const isProjectView =
-    view.kind !== 'projects' && view.kind !== 'backup' && view.kind !== 'audit' && view.kind !== 'batch-projects'
+    view.kind !== 'projects' &&
+    view.kind !== 'backup' &&
+    view.kind !== 'audit' &&
+    view.kind !== 'daily-import' &&
+    view.kind !== 'batch-projects'
   const goProjects = () => setView({ kind: 'projects' })
 
   // 启动自检：后端是不是最新代码 / 到底有没有起来。
@@ -116,6 +129,14 @@ export default function App() {
         <Space>
           <Button type="text" icon={<HomeOutlined />} style={{ color: BRAND.onPrimary }} onClick={goProjects}>
             项目列表
+          </Button>
+          <Button
+            type="text"
+            icon={<ImportOutlined />}
+            style={{ color: BRAND.onPrimary }}
+            onClick={() => setView({ kind: 'daily-import' })}
+          >
+            每日导入
           </Button>
           <Button
             type="text"
@@ -166,6 +187,7 @@ export default function App() {
         {view.kind === 'reports' && <ReportsPage projectId={view.project.id} onBack={goProjects} />}
         {view.kind === 'backup' && <BackupPage />}
         {view.kind === 'audit' && <AuditPage onBack={goProjects} />}
+        {view.kind === 'daily-import' && <DailyImportPage onBack={goProjects} />}
         {view.kind === 'batch-projects' && <BatchProjectsPage onBack={goProjects} />}
       </Layout.Content>
     </Layout>

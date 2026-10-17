@@ -239,6 +239,35 @@ def test_level_diff_is_caught_separately(client, tmp_path) -> None:
     assert it["levels"]["report"] != it["levels"]["system"], it["levels"]
 
 
+def test_columns_the_report_does_not_print_are_not_judged() -> None:
+    """报表没印「变化速率」这一栏，就不许拿系统那侧的判级报"两边不一致"。
+
+    老式模板（`build_from_template` 那条路）导出的表可能只有累计、没有速率列。
+    第一版只判速率时用 `has_col["rate"]` 把整条比对一起挡住了；加上累计这一维之后
+    如果只挡报表那侧、系统那侧照取高，结果就是**整表每行**都报"判级不一致"——
+    报表那侧永远是 normal，因为那一栏它根本没有。
+    这里直接喂 `_check_row`（不绕文件），把两侧**同一口径**这条钉住。
+    """
+    from backend.reports.export_reader import ReportRow
+    from backend.services.export_audit_service import _check_row
+
+    row = ReportRow(point_no="JJC1", component="value", excel_row=7, cum_mm=1.0, delta_mm=1.0)
+    sysrow = {"prev_cum_mm": 0.0, "cum_mm": 1.0, "delta_mm": 1.0, "rate": 5.0}
+    limits = {"control_cum": 30.0, "control_rate": 0.5, "alarm_cum": 40.0, "alarm_rate": 1.5}
+    only_cum = {"point_col": 1, "data_start_row": 7, "prev_cum_mm": 5, "cum_mm": 6, "delta_mm": 7}
+
+    probs, _, _, levels = _check_row(row, sysrow, limits, (30.0, 0.5), only_cum)
+    kinds = {p["kind"] for p in probs}
+    assert "level_diff" not in kinds and "rate_over" not in kinds, probs
+    assert levels == {"report": "normal", "system": "normal"}, levels
+
+    # 同一行，报表**有**速率列但那格是空的 → 系统已经超速率，这回必须报不一致
+    with_rate = {**only_cum, "rate": 8}
+    probs2, _, _, levels2 = _check_row(row, sysrow, limits, (30.0, 0.5), with_rate)
+    assert "level_diff" in {p["kind"] for p in probs2}, probs2
+    assert levels2 == {"report": "normal", "system": "alarm"}, levels2
+
+
 def test_control_value_changed_in_rules_is_caught(client, tmp_path) -> None:
     """规则改了控制值 → 旧报表上印的还是老数，要报「控制值和规则对不上」。"""
     pid = _mk_project_with_data(client, "PRJ-H", "辛基坑")

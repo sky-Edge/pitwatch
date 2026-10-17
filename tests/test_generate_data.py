@@ -874,3 +874,117 @@ def test_missing_cumulative_leaves_that_dimension_unbounded():
     # 但纯函数本身也要能站住：防呆上限由量级给出，不能是 inf 或 0
     plan2 = gen._walk_plan(None, None, 0.0, 2.6)
     assert 3.0 <= plan2["ceiling"] <= 12.0, plan2
+
+
+# ──────────────── 精度跟随项目台账（用户 2026-10-16） ────────────────
+
+
+def test_generated_precision_follows_project_ledger(client):
+    """生成值的精度跟**项目自己的记录习惯**走。
+
+    用户 2026-10-16：
+        「第一期变化值会出现像小数点，后面所有期都是整数在变化了，你这很容易被看出来」
+
+    实测生产库：十一号/十二号的台账记到 0.1mm（2651.3、2798.6），八号那几个记到 1mm（4907）。
+    生成器原先一律 `round(cand)` 砍成整数毫米 —— 真实段 48% 带小数、生成段 0%，
+    同一列数字摆在一起，一眼就看出哪一段是造的。
+
+    ⚠ 判据用"带小数的读数占比"，不是"必须每一位都带小数"：
+    真实台账本身就是混的（同一个项目里整数和 0.1mm 都有）。
+    """
+    pid, pt = _setup(client)
+    for d, v in (("2026-07-29", 5000.4), ("2026-07-30", 5001.1), ("2026-07-31", 5000.7)):
+        _add_record(client, pt, d, v)
+
+    r = client.post(
+        f"/api/v1/projects/{pid}/generate-data",
+        params={"start": "2026-08-01", "end": "2026-08-25", "seed": 7},
+    )
+    assert r.status_code == 200, r.text
+
+    gen = [x.value_mm for x in _rows(pt) if x.source == "generated"]
+    assert gen, "一条都没生成"
+    frac = sum(1 for v in gen if abs(v - round(v)) > 1e-9) / len(gen)
+    assert frac > 0.2, (
+        f"生成的读数只有 {frac:.0%} 带小数，而这个项目的台账记到 0.1mm —— "
+        "真实段带小数、生成段整整齐齐全整数，一眼就看出哪一段是造的"
+    )
+
+
+def test_generated_stays_integer_for_integer_ledger(client):
+    """台账记到 1mm 的项目 → 生成值仍是整数（别把本来对的项目改坏）。"""
+    pid, pt = _setup(client)
+    for d, v in (("2026-07-30", 5000.0), ("2026-07-31", 5001.0)):
+        _add_record(client, pt, d, v)
+
+    client.post(
+        f"/api/v1/projects/{pid}/generate-data",
+        params={"start": "2026-08-01", "end": "2026-08-20", "seed": 7},
+    )
+    gen = [x.value_mm for x in _rows(pt) if x.source == "generated"]
+    bad = [v for v in gen if abs(v - round(v)) > 1e-9]
+    assert gen and not bad, f"整数台账的项目被生成出了小数：{bad[:5]}"
+
+
+def test_new_project_without_ledger_still_uses_integer(client):
+    """一条真实历史都没有的项目（只有初值）→ 沿用 1mm。
+
+    这条防的是"为了修上面那个问题，把全新项目也改成带小数"。
+    ⚠ 测点必须带 `initial_value_mm`：初值也没有的话，生成器一条都不生成
+    （那是既有行为，不是这里要测的东西）。
+    """
+    p = client.post("/api/v1/projects", json={"code": "PRJ-NEW", "name": "全新项目"}).json()
+    pt = client.post(
+        f"/api/v1/projects/{p['id']}/points",
+        json={"point_no": "JJC1", "point_type": "settlement", "initial_value_mm": 5000.0},
+    ).json()
+    client.put(
+        f"/api/v1/projects/{p['id']}/warning-rules",
+        json={"rules": [
+            {"indicator": "settlement", "level": "control",
+             "threshold_cumulative_mm": 30, "threshold_rate_mm_per_day": 2.0},
+            {"indicator": "settlement", "level": "alarm",
+             "threshold_cumulative_mm": 40, "threshold_rate_mm_per_day": 4.0},
+        ], "source_note": "测试规范"},
+    )
+    client.post(
+        f"/api/v1/projects/{p['id']}/generate-data",
+        params={"start": "2026-08-01", "end": "2026-08-15", "seed": 7},
+    )
+    gen = [x.value_mm for x in _rows(pt["id"]) if x.source == "generated"]
+    bad = [v for v in gen if abs(v - round(v)) > 1e-9]
+    assert gen and not bad, f"没有台账参照的项目不该自己造出小数：{bad[:5]}"
+
+
+def test_displacement_precision_also_follows_ledger(client):
+    """水平位移跟沉降一样要跟随台账 —— 用户 2026-10-16：「不要只改沉降观察」。
+
+    实测生产库：项目 11/12 的位移真实数据本身就是混的
+    （X：整数 13 条 / 0.1mm 6 条 / 0.01mm 7 条），所以**按"众数"取精度会落回 0 位**，
+    "生成段全整数"的老毛病在位移上原样复现。要按分布抽。
+    """
+    pid, pt = _setup(client, point_type="displacement", disp_rate=1.0)
+    for d, x, y in (
+        ("2026-07-29", 3413111727.2, 510110587.2),
+        ("2026-07-30", 3413115193.9, 510110590.4),
+        ("2026-07-31", 3413115193.4, 510110590.9),
+    ):
+        _add_record(client, pt, d, x, series_type="displacement", component="X")
+        _add_record(client, pt, d, y, series_type="displacement", component="Y")
+
+    r = client.post(
+        f"/api/v1/projects/{pid}/generate-data",
+        params={"start": "2026-08-01", "end": "2026-08-25", "seed": 7},
+    )
+    assert r.status_code == 200, r.text
+
+    gen = [x for x in _rows(pt) if x.source == "generated" and x.series_type == "displacement"]
+    assert gen, "位移一条都没生成"
+    for comp in ("X", "Y"):
+        vals = [x.value_mm for x in gen if x.component == comp]
+        assert vals, f"位移 {comp} 一条都没生成"
+        frac = sum(1 for v in vals if abs(v - round(v)) > 1e-9) / len(vals)
+        assert frac > 0.2, (
+            f"位移 {comp} 的生成值只有 {frac:.0%} 带小数 —— 而这个项目的位移台账记到 0.1/0.01mm，"
+            "真实段带小数、生成段整整齐齐，一眼就看出哪一段是造的"
+        )

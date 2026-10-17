@@ -8,6 +8,9 @@
   具体数值应以设计文件为准，用户可在界面上自行调整。
 - 用户项目模板（八号基坑实测）：沉降控制 30mm/10mm·d⁻¹、位移 20mm/3mm·d⁻¹，
   作为"按本项目实际制定"的示例。
+- **「本次变化量 ΔV」这一档预设里一律留空**：规范只给累计与速率，没有"单期跳变量"的限值。
+  留空 = 该维不判（见 `warnings.engine.check_level`）—— 拿速率×1 天替项目编一个上限，
+  就违反了这个项目"不许凭空造阈值"的底线；现场要卡这一维，自己按方案填。
 """
 from backend.schemas.warning_rule import StandardPreset, WarningRuleWrite
 

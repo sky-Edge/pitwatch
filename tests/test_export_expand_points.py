@@ -23,6 +23,7 @@ from openpyxl.utils import get_column_letter
 from backend.core.config import settings
 from backend.core.db import SessionLocal
 from backend.models.export_template import ExportTemplate
+from tests.conftest import put_control_rules
 
 SETTLE = "竖向位移"
 DISP = "r.立柱结构水平位移"
@@ -165,8 +166,9 @@ def _build_master(path: Path, points: int = TEMPLATE_POINTS) -> dict:
 
 
 def _mk_project(client, n_points: int) -> int:
-    """建项目 + n 个测点（both）+ 两期数据（09-01 初始 / 09-02 本期）。"""
+    """建项目 + n 个测点（both）+ 两期数据（09-01 初始 / 09-02 本期）+ 控制值规则。"""
     p = client.post("/api/v1/projects", json={"code": "PRJ-EXP", "name": "导出补点测试"}).json()
+    put_control_rules(client, p["id"])
     for i in range(1, n_points + 1):
         pt = client.post(f"/api/v1/projects/{p['id']}/points",
                          json={"point_no": f"JJC{i}", "point_type": "both"}).json()

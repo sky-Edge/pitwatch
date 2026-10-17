@@ -15,6 +15,14 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
 
+from backend.reports.export_format import (
+    M_DECIMALS,
+    RATE_DECIMALS,
+    mm_to_m,
+    round_mm,
+    round_rate,
+)
+
 
 def _set_cn_font(run, size: int = 11, bold: bool = False):
     run.font.name = "宋体"
@@ -48,11 +56,15 @@ def _direction_label(sign_config: dict, series_type: str, delta_mm: float | None
 
 def build_daily_docx(db, project_id: int, obs_date: date | None = None) -> tuple[BytesIO, str, dict]:
     """生成 Word 观测日报。返回 (BytesIO, filename, info)。"""
+    from backend.models.point import series_types_of
     from backend.services import calc_service, comparison_service
+    from backend.services.point_service import list_points
     from backend.services.project_service import get_project
+    from backend.services.warning_service import ensure_control_rules
 
     project = get_project(db, project_id)
-    points = [p for p in __import__("backend.services.point_service", fromlist=["list_points"]).list_points(db, project_id, include_inactive=False)]
+    points = list(list_points(db, project_id, include_inactive=False))
+    ensure_control_rules(db, project_id, series_types_of(points))
 
     # 目标日期：缺省最近观测日
     from backend.repositories import observation_repo
@@ -108,13 +120,15 @@ def build_daily_docx(db, project_id: int, obs_date: date | None = None) -> tuple
         cells = table.add_row().cells
         item = f"{'沉降' if row['series_type'] == 'settlement' else '水平位移'}/{row['component']}"
         wl = {"alarm": "报警", "control": "预警", "normal": "正常"}.get(row["warning_level"], "")
-        val_m = (row["value_mm"] / 1000) if row["value_mm"] is not None else ""
+        val_m = mm_to_m(row["value_mm"])
         _cell_text(cells[0], row["point_no"])
         _cell_text(cells[1], item)
-        _cell_text(cells[2], f"{val_m:.4f}" if isinstance(val_m, float) else "")
-        _cell_text(cells[3], row["delta_mm"] if row["delta_mm"] is not None else "")
-        _cell_text(cells[4], row["cumulative_mm"] if row["cumulative_mm"] is not None else "")
-        _cell_text(cells[5], f"{row['rate_mm_per_day']:.2f}" if row["rate_mm_per_day"] is not None else "")
+        _cell_text(cells[2], f"{val_m:.{M_DECIMALS}f}" if val_m is not None else "")
+        # 纸上口径：毫米 1 位、速率 3 位（见 reports/export_format.py），
+        # 否则 Word 里会印出 "0.4000000000000021mm" 这种数，和 Excel 报表也对不上。
+        _cell_text(cells[3], round_mm(row["delta_mm"]) if row["delta_mm"] is not None else "")
+        _cell_text(cells[4], round_mm(row["cumulative_mm"]) if row["cumulative_mm"] is not None else "")
+        _cell_text(cells[5], f"{row['rate_mm_per_day']:.{RATE_DECIMALS}f}" if row["rate_mm_per_day"] is not None else "")
         _cell_text(cells[6], wl)
 
     # ---- 预警 / 异常清单 ----
@@ -123,12 +137,32 @@ def build_daily_docx(db, project_id: int, obs_date: date | None = None) -> tuple
     alarms = [r for r in rows_data if r["warning_level"] == "alarm"]
     controls = [r for r in rows_data if r["warning_level"] == "control"]
     if alarms or controls:
+        def _nums(r: dict) -> str:
+            """列出这一期的三个数 —— **只列有值的**。
+
+            触发语里出现「本次变化量达到报警值」时，光印累计和速率对不上号（用户看不到
+            到底是哪个数超的）；反过来首期没有速率，硬印就成 "None mm/d"。
+            """
+            parts = []
+            for label, v, unit in (
+                ("本次", round_mm(r.get("delta_mm")), "mm"),
+                ("累计", round_mm(r.get("cumulative_mm")), "mm"),
+                ("速率", round_rate(r.get("rate_mm_per_day")), "mm/d"),
+            ):
+                if v is not None:
+                    parts.append(f"{label} {v}{unit}")
+            return "、".join(parts)
+
+        def _clause(tag: str, r: dict) -> str:
+            kind = "沉降" if r["series_type"] == "settlement" else "水平位移"
+            return f"【{tag}】{r['point_no']} {kind}/{r['component']}：{_nums(r)} —— {'、'.join(r['triggers'])}"
+
         for r in alarms:
             pa = doc.add_paragraph()
-            _set_cn_font(pa.add_run(f"【报警】{r['point_no']} {'沉降' if r['series_type']=='settlement' else '水平位移'}/{r['component']}：累计 {r['cumulative_mm']}mm，速率 {r['rate_mm_per_day']}mm/d —— {'、'.join(r['triggers'])}"), size=11)
+            _set_cn_font(pa.add_run(_clause("报警", r)), size=11)
         for r in controls:
             pa = doc.add_paragraph()
-            _set_cn_font(pa.add_run(f"【预警】{r['point_no']} {'沉降' if r['series_type']=='settlement' else '水平位移'}/{r['component']}：累计 {r['cumulative_mm']}mm —— {'、'.join(r['triggers'])}"), size=11)
+            _set_cn_font(pa.add_run(_clause("预警", r)), size=11)
     else:
         pn = doc.add_paragraph()
         _set_cn_font(pn.add_run("本次观测各测点均处于正常状态，未触发预警。"))
@@ -139,8 +173,11 @@ def build_daily_docx(db, project_id: int, obs_date: date | None = None) -> tuple
     sign_config = project.sign_config or {}
     for r in rows_data[:20]:
         pa = doc.add_paragraph()
-        dir_label = _direction_label(sign_config, r["series_type"], r["delta_mm"])
-        seg = f"{r['point_no']}（{'沉降' if r['series_type']=='settlement' else '水平位移'}/{r['component']}）：本次变化 {r['delta_mm']}mm（{dir_label}），累计变化 {r['cumulative_mm']}mm"
+        # 方向词按**纸上印的那个变化量**判：原值 0.04 收口径后印成 0.0，
+        # 再写"下沉"就成了"变化 0.0mm（下沉）"这种自相矛盾的句子。
+        delta = round_mm(r["delta_mm"])
+        dir_label = _direction_label(sign_config, r["series_type"], delta)
+        seg = f"{r['point_no']}（{'沉降' if r['series_type']=='settlement' else '水平位移'}/{r['component']}）：本次变化 {delta}mm（{dir_label}），累计变化 {round_mm(r['cumulative_mm'])}mm"
         _set_cn_font(pa.add_run(seg), size=11)
 
     # ---- 备注栏 ----

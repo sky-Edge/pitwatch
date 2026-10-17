@@ -7,6 +7,7 @@ import openpyxl
 from openpyxl import Workbook
 
 from backend.core.config import settings
+from tests.conftest import put_control_rules
 
 
 def _make_template_xlsx() -> bytes:
@@ -46,6 +47,7 @@ def _make_template_xlsx() -> bytes:
 def _setup_project(client):
     p = client.post("/api/v1/projects", json={"code": "PRJ001", "name": "模板测试"}).json()
     pid = p["id"]
+    put_control_rules(client, pid)
     pt = client.post(f"/api/v1/projects/{pid}/points", json={"point_no": "JJC1", "point_type": "settlement"}).json()
     for d, v in [("2026-07-30", 4907.0), ("2026-07-31", 4906.0)]:
         client.post(

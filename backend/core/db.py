@@ -49,6 +49,7 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     migrate_template_library()
     migrate_warning_rule_sets()
+    migrate_rule_delta_limit()
 
 
 def _column_exists(conn, table: str, column: str) -> bool:
@@ -227,6 +228,38 @@ def migrate_warning_rule_sets() -> dict:
         "bound_projects": bound,
         "merged_groups": merged_groups,
     }
+
+
+def migrate_rule_delta_limit() -> dict:
+    """给 `warning_rules` 加「本次变化量 ΔV 限值」列（幂等）。
+
+    背景：原先每个指标只有**累计**和**速率**两维参与判定，ΔV（这一期跳了多少）
+    只算不判。用户 2026-10-16 指出他想要的是"控制系统每期变化的上限" —— 隔 3 天
+    测一次时速率会被摊薄，ΔV 才是那道卡住的闸。
+
+    ⚠ 只加列、**不回填任何数字**：老规则这一维是 NULL = 不参与判定，
+    行为与加列前逐字一致（绝不替项目编一个限值，见 `warning_service.rule_limits`）。
+    """
+    if not settings.database_url.startswith("sqlite"):
+        return {"skipped": "非 SQLite 数据库，跳过"}
+
+    added = False
+    with engine.begin() as conn:
+        tables = {
+            r[0]
+            for r in conn.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if "warning_rules" not in tables:
+            return {"skipped": "尚无 warning_rules 表"}
+        if not _column_exists(conn, "warning_rules", "threshold_delta_mm"):
+            conn.exec_driver_sql("ALTER TABLE warning_rules ADD COLUMN threshold_delta_mm FLOAT")
+            added = True
+
+    if added:
+        _safe_print("[migrate] 预警规则加了「本次变化量」限值列（老规则该维留空=不判）")
+    return {"added_column": added}
 
 
 def migrate_template_library() -> dict:

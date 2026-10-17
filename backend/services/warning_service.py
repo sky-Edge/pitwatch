@@ -3,7 +3,8 @@
 
 用户 2026-10-09：「把预警规则提出来 直接作用于系统 用预警规则来选择项目」
 
-- 一套规则 = 各指标 × 各等级的一组限值（现状 2×2 = 4 条），见 `warning_rule_sets`。
+- 一套规则 = 各指标 × 各等级的一组限值（现状 2×2 = 4 条，每条带累计/本次变化/速率三维），
+  见 `warning_rule_sets`。
 - 规则 → 项目 多对多（`warning_rule_set_projects`）；**一个项目最多绑一套**。
 - `is_global` 的套作兜底：没绑任何套的项目用它。
 - 规范预设（`standards.PRESETS`）只是**新建一套时的起点**，保存的始终是规则自己的行。
@@ -11,7 +12,14 @@
 ⚠ 读规则的地方一律走 `effective_rules(db, project_id)` —— 它是"生效规则"的**唯一出处**
 （6 个调用方：算预警、逐期对比、生成数据、项目一句话结论、预警事件、报表控制值）。
 本次改造刻意**保持它的签名与返回结构不变**，所以那些调用方一行都不用改。
+要拿去**判定**的六个阈值走 `rule_limits(db, project_id, indicator)`（三维 × 控制/报警：
+累计变化量、**本次变化量 ΔV**、变化速率）—— 它只读
+`effective_rules`，把"哪一维没配就不判哪一维"这个口径也只留一处。
+要拿去**印进文档**的两个数走 `report_control_values`，出文档前先过 `ensure_control_rules`
+（没配控制值就不许出报表，与生成数据同一个口径）。
 """
+from collections.abc import Iterable
+
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,6 +28,7 @@ from backend.models.warning_rule import WarningRule
 from backend.models.warning_rule_set import WarningRuleSet, WarningRuleSetProject
 from backend.schemas.warning_rule import WarningRuleBatchWrite, WarningRuleWrite
 from backend.services.project_service import get_project
+from backend.warnings.engine import RuleLimits
 
 
 # ─────────────────────────── 规则库 ───────────────────────────
@@ -110,6 +119,7 @@ def _write_rows(
                 indicator=rule.indicator,
                 level=rule.level,
                 threshold_cumulative_mm=rule.threshold_cumulative_mm,
+                threshold_delta_mm=rule.threshold_delta_mm,
                 threshold_rate_mm_per_day=rule.threshold_rate_mm_per_day,
                 is_active=rule.is_active,
                 source_note=rule.source_note or note or data.source_note,
@@ -349,19 +359,77 @@ def _clone_for_project(
     return new_set
 
 
+def rule_limits(db: Session, project_id: int, indicator: str) -> RuleLimits:
+    """项目某指标**判定用**的六个阈值（三维 × 控制/报警）—— 唯一出处。
+
+    以前 `calc_service` / `comparison_service` / `warning_event_service` /
+    `export_audit_service` 各写了一遍同样的四行取值。同一个规则改一次条件，
+    四条路径要同步认账；漏改一处的结果是"页面判一级、报表印另一级"，
+    而这类漏改在代码上完全看不出异常。所以取值只留这一处。
+
+    三维 = 累计变化量 / **本次变化量 ΔV** / 变化速率。ΔV 那两格只参与判定，
+    **不印到报表上**（报表「控制值」只有累计、速率两列，见 `report_control_values`）。
+
+    没配规则 / 规则已停用 → 对应字段是 None，意思是**这一维不参与判定**
+    （见 `warnings.engine.check_level`），**绝不兜底成 0 或"经验值"**。
+    """
+    rules = effective_rules(db, project_id).get(indicator) or {}
+    ctrl, alarm = rules.get("control"), rules.get("alarm")
+    return RuleLimits(
+        control_cumulative_mm=ctrl.threshold_cumulative_mm if ctrl else None,
+        control_delta_mm=ctrl.threshold_delta_mm if ctrl else None,
+        control_rate_mm_per_day=ctrl.threshold_rate_mm_per_day if ctrl else None,
+        alarm_cumulative_mm=alarm.threshold_cumulative_mm if alarm else None,
+        alarm_delta_mm=alarm.threshold_delta_mm if alarm else None,
+        alarm_rate_mm_per_day=alarm.threshold_rate_mm_per_day if alarm else None,
+    )
+
+
 def report_control_values(db: Session, project_id: int, indicator: str) -> tuple[float | None, float | None]:
     """报表里「控制值·累计变化量 / 变化速率」两列的**唯一出处**。
 
-    = 项目生效规则里 `control` 级的那两个阈值。报表上只有"控制值"这一组列（没有报警值），
-    所以这里只取 control；判定用的也是同一对数字——**表格与规则从此同源**，
+    = 项目生效规则里 `control` 级的那两个阈值（就是 `rule_limits` 的控制值那半边）。
+    报表上只有"控制值"这一组列（没有报警值，用户 2026-10-14 定：不加这一列），
+    所以这里只取 control；判定用的也是同一对数字 —— **表格与规则从此同源**，
     不会再出现"表里写 30/10、系统里按 20/2 判"这种对不上的情况。
 
-    没配规则 → (None, None)。**调用方自己决定回退（母版原值），绝不在这里瞎给 0。**
+    没配规则 → (None, None)。**绝不在这里瞎给 0**；要不要放行由
+    `ensure_control_rules` 决定（0 与 None 都算"没填"）。
     """
-    rule = effective_rules(db, project_id).get(indicator, {}).get("control")
-    if rule is None:
-        return None, None
-    return rule.threshold_cumulative_mm, rule.threshold_rate_mm_per_day
+    limits = rule_limits(db, project_id, indicator)
+    return limits.control_cumulative_mm, limits.control_rate_mm_per_day
+
+
+#: 指标中文名 —— 拦截提示里要说清是哪一类观测，别让现场去猜 settlement / displacement
+INDICATOR_CN = {"settlement": "竖向位移（沉降）", "displacement": "水平位移"}
+
+
+def has_control_rule(db: Session, project_id: int, indicator: str) -> bool:
+    """这类观测**至少填了一个控制值**（累计或速率）吗？填 0 视作没填（`ge=0` 的限值本身无意义）。"""
+    return any(v or None for v in report_control_values(db, project_id, indicator))
+
+
+def ensure_control_rules(db: Session, project_id: int, indicators: Iterable[str]) -> None:
+    """项目对某类观测一个控制值都没配 → 抛 `ValueError` 拦住，别出这份文档。
+
+    用户 2026-10-14 定的口径：**数据生成和报表生成统一拦**。
+    在此之前只有生成数据这条路会拦，导出却放行（控制值照抄母版上印的旧数）——
+    同一个项目、同一批数据，换个入口就换个口径，而放行出来的那份报表上
+    印着两个系统里根本查不到的数，正是 2026-10-08 那条「表里写 30/10、系统按 20/2 判」的病灶。
+
+    只填了累计、没填速率**不算缺**（缺的那一维在报表上留空，同样不兜底、不沿用母版旧数）。
+    """
+    missing = sorted({i for i in indicators if not has_control_rule(db, project_id, i)})
+    if not missing:
+        return
+    names = "、".join(INDICATOR_CN.get(i, i) for i in missing)
+    raise ValueError(
+        f"{names}没有配置「控制值」，日报不能生成 —— 文档上印的「控制值」两列、"
+        "Word 里的「预警/报警」判定都必须有出处：没配规则就只能照抄母版上印的旧数"
+        "（那是别的基坑那一期的限值），或者把「根本没有阈值」写成「一切正常」。"
+        "请先到「预警规则」给该项目填上累计变化量或变化速率（至少一项），"
+        "或从标准预设（GB 50497-2019 一/二/三级）套一套规则。"
+    )
 
 
 def sync_control_rules(

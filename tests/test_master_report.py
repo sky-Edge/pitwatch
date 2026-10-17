@@ -11,6 +11,7 @@ import pytest
 from openpyxl import Workbook
 
 from backend.core.config import settings
+from tests.conftest import put_control_rules
 
 # 供学习函数内部临时落盘
 import tempfile
@@ -100,16 +101,22 @@ def _make_master() -> Path:
     return p
 
 
-def _seed_project(client, pno="PRJ001"):
+def _seed_project(client, pno="PRJ001", rules=True):
     """项目 + 8测点沉降/位移数据到两期（兼容母版 8 点布局的原始数据区测试）。
 
     数值设计：
     - 8-20 JJC1 settlement = 4909.0mm（=4.909m，与原单点测试一致）
     - 8-21 JJC1 settlement = 4910.0mm（=4.91m，与原单点测试一致）
     - 8-21 displacement X 每点值稍异；其他点按 n 偏移递增/递减
+
+    `rules=True` 顺手把「控制值」配上（30/10、20/3 = 母版上原本印的那两个数，
+    所以既有断言的期望值不变）。**没配规则的现在导不出日报**（用户 2026-10-14 定：
+    与生成数据统一为"拦住"），要测拦截那条路就传 `rules=False`。
     """
     p = client.post("/api/v1/projects", json={"code": pno, "name": "整卷测试"}).json()
     pid = p["id"]
+    if rules:
+        put_control_rules(client, pid)
     pts = {}
     for n in range(1, 9):
         r = client.post(f"/api/v1/projects/{pid}/points", json={"point_no": f"JJC{n}", "point_type": "both"}).json()
@@ -150,6 +157,7 @@ def test_learn_detects_variable_slots(client):
 def test_upload_master_then_export_whole_volume(client):
     """API 链路：上传母版 → master_mode=true → 导出最新整卷（9 Sheet 保留、变量更新、数值覆盖）。"""
     import openpyxl
+    from datetime import datetime
 
     pid = _seed_project(client)
     # 上传母版
@@ -171,8 +179,8 @@ def test_upload_master_then_export_whole_volume(client):
     wb = openpyxl.load_workbook(io.BytesIO(resp.content), data_only=False)
     assert len(wb.sheetnames) == 4  # 本测试母版只有 4 Sheet
     assert "封面" in wb.sheetnames and "竖向位移" in wb.sheetnames
-    # 封面日期 = 2026-08-21 序列 46255
-    assert wb["封面"]["F16"].value == 46255
+    # 封面日期槽写的是序列号，但**保证带日期格式** → 读回来就是日期（详见 `_write_date_cell`）
+    assert wb["封面"]["F16"].value == datetime(2026, 8, 21)
     # 签字期次第一期
     assert "第一期" in str(wb["签字"]["A11"].value)
     # 数据数值（非公式）
@@ -180,6 +188,74 @@ def test_upload_master_then_export_whole_volume(client):
     assert isinstance(ws3["E7"].value, (int, float))
     assert ws3["K2"].value == "天气：小雨"
     wb.close()
+
+
+def test_cover_date_cell_written_as_a_real_date_is_still_learned(client, tmp_path):
+    """母版封面日期格若是**真日期格式**（openpyxl 读出来是 datetime），槽位照样要学到。
+
+    原先只认"五位数字"和"YYYY-MM-DD 文本"两种形态：日期格式的格子两种都不是，
+    于是 `cover_date_cell` 学不到、导出后封面永远停在母版那一天 —— 界面预览里看得清清楚楚。
+    """
+    import openpyxl
+    from datetime import datetime
+
+    src = _make_master()
+    wb = openpyxl.load_workbook(src)
+    wb["封面"]["F16"].number_format = "yyyy-mm-dd"
+    p = tmp_path / "master_real_date.xlsx"
+    wb.save(p)
+    wb.close()
+
+    pid = _seed_project(client)
+    with open(p, "rb") as fh:
+        r = client.post(
+            f"/api/v1/projects/{pid}/export-templates/upload",
+            data={"name": "真日期母版"},
+            files={"file": (p.name, fh, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+    assert r.status_code == 200, r.text
+    assert r.json()["detected_layout"]["meta"]["cover_date_cell"] == "封面!F16"
+
+    resp = client.get(f"/api/v1/projects/{pid}/reports/excel",
+                      params={"template_id": r.json()["id"], "obs_date": "2026-08-21"})
+    assert resp.status_code == 200, resp.text
+    out = openpyxl.load_workbook(io.BytesIO(resp.content))
+    # 写进去的是日期序列 46255；这一格保留母版的日期格式，所以读回来是 datetime
+    assert out["封面"]["F16"].value == datetime(2026, 8, 21)
+    out.close()
+
+
+def test_general_format_date_slot_never_prints_a_serial_number(client):
+    """母版日期槽是 General 格式（没带日期格式）→ 导出必须补上，封面上不许印 `46255`。
+
+    十号基坑的母版正是这种格子：`封面!F16` = 序列号 + General 格式，
+    照原样只写数字，成果文件的封面就显示 46311（2026-10-16 在界面预览里看见）。
+    母版自带日期格式时不改排版 —— 见 `test_cover_date_cell_written_as_a_real_date_is_still_learned`。
+    """
+    import openpyxl
+    from datetime import datetime
+
+    from openpyxl.styles.numbers import is_date_format
+
+    pid = _seed_project(client)
+    with open(_make_master(), "rb") as fh:
+        r = client.post(
+            f"/api/v1/projects/{pid}/export-templates/upload",
+            data={"name": "General 日期母版"},
+            files={"file": ("母版.xlsx", fh, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+    assert r.status_code == 200, r.text
+    tid = r.json()["id"]
+    resp = client.get(f"/api/v1/projects/{pid}/reports/excel",
+                      params={"template_id": tid, "obs_date": "2026-08-21"})
+    assert resp.status_code == 200, resp.text
+    out = openpyxl.load_workbook(io.BytesIO(resp.content))
+    for ref in ("封面!F16", "签字!E52"):
+        ws_name, _, coord = ref.partition("!")
+        cell = out[ws_name][coord]
+        assert is_date_format(cell.number_format), f"{ref} 仍是 {cell.number_format!r} —— 封面上会印成数字"
+        assert cell.value == datetime(2026, 8, 21), f"{ref} = {cell.value!r}"
+    out.close()
 
 
 def test_render_initial_period_clears_legacy_cells(client):

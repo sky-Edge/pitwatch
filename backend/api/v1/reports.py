@@ -2,6 +2,7 @@
 """报表导出 API —— Excel 日报 / Word 日报下载。
 
 - GET /projects/{pid}/reports/excel?obs_date=&template_id=   按模板版式生成单期日报 Excel
+- GET /projects/{pid}/reports/preview?obs_date=&template_id=  同一份 Excel 的界面预览（JSON 网格，不下载）
 - GET /projects/{pid}/reports/excel/batch?obs_dates=&template_id=  多日期批量导出（ZIP 打包）
 - GET /projects/{pid}/reports/daily?obs_date=               生成 Word 日报
 template_id 缺省 → 内置标准模板；传项目模板 id → 以该模板原件为底模按其 layout 填数。
@@ -23,6 +24,17 @@ from backend.services.project_service import get_project
 
 reports_router = APIRouter(prefix="/projects/{project_id}/reports", tags=["reports"])
 
+#: 导出时"补点/清行/文字生成"这几项摘要 —— 下载响应头和界面预览共用同一份清单
+_SUMMARY_KEYS = (
+    "template_points", "added_points", "shifted_rows",
+    "missing_raw_points", "added_raw_points", "cleared_stats",
+    "text_generated", "text_cleared", "text_overflow",
+)
+
+
+def _brief_summary(info: dict | None) -> dict:
+    return {k: info[k] for k in _SUMMARY_KEYS if (info or {}).get(k)}
+
 
 def _stream_response(buf, filename: str, info: dict | None = None) -> Response:
     """文件下载响应（中文文件名 URL 编码）。
@@ -36,14 +48,9 @@ def _stream_response(buf, filename: str, info: dict | None = None) -> Response:
     界面得能说清"为什么多了几行 / 哪几个点母版根本放不下"，否则用户会以为导错了。
     """
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
-    if info:
-        brief = {k: info[k] for k in
-                 ("template_points", "added_points", "shifted_rows",
-                  "missing_raw_points", "added_raw_points", "cleared_stats",
-                  "text_generated", "text_cleared", "text_overflow")
-                 if info.get(k)}
-        if brief:
-            headers["X-Export-Summary"] = quote(json.dumps(brief, ensure_ascii=False))
+    brief = _brief_summary(info)
+    if brief:
+        headers["X-Export-Summary"] = quote(json.dumps(brief, ensure_ascii=False))
     buf.seek(0)
     return Response(content=buf.getvalue(), headers=headers)
 
@@ -104,6 +111,48 @@ def export_excel(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _stream_response(buf, filename, info)
+
+
+@reports_router.get("/preview")
+def preview_excel(
+    project_id: int,
+    obs_date: date | None = None,
+    template_id: int | None = None,
+    weather: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """界面预览这份 Excel（不下载）：网格 JSON + 「控制值」逐格核对 + 补点摘要。
+
+    与 `/excel` 走**同一个** `_build_excel_one` —— 预览所见即下载所得，
+    不会出现"预览看着对、下载下来的文件另一回事"。生成的字节只在内存里，不落盘、不写库。
+
+    控制值核对只在母版模式下做：内置标准版式每一行都直接取 `report_control_values`，
+    结构上就对不上也没地方留旧值；而母版原件上那些导出够不着的格子才是风险点。
+    """
+    from backend.models.export_template import ExportTemplate
+    from backend.reports.preview_model import bytes_to_preview, check_control_values
+    from backend.services.warning_service import report_control_values
+
+    get_project(db, project_id)
+    try:
+        buf, filename, info = _build_excel_one(db, project_id, template_id, obs_date, weather)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    raw = buf.getvalue()
+
+    layout = None
+    if template_id:
+        tpl = db.get(ExportTemplate, template_id)  # 上面的分发已校验过存在性与适用范围
+        if tpl is not None and not tpl.is_builtin:
+            layout = tpl.layout_json
+    checks = []
+    if layout and (layout.get("sheets") and layout.get("meta")):
+        rules = {k: report_control_values(db, project_id, k)
+                 for k in ("settlement", "displacement")}
+        checks = check_control_values(raw, layout, rules)
+
+    return {"filename": filename, "summary": _brief_summary(info),
+            "control_checks": checks, **bytes_to_preview(raw)}
 
 
 @reports_router.get("/excel/batch")

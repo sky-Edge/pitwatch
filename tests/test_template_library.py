@@ -17,6 +17,7 @@ from openpyxl import Workbook
 from sqlalchemy import text
 
 from backend.core.db import engine, migrate_template_library
+from tests.conftest import put_control_rules
 
 XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
@@ -47,6 +48,7 @@ def _mk_project(client, code: str, name: str) -> int:
 
 def _mk_project_with_data(client, code: str, name: str) -> int:
     pid = _mk_project(client, code, name)
+    put_control_rules(client, pid)
     pt = client.post(
         f"/api/v1/projects/{pid}/points", json={"point_no": "JJC1", "point_type": "settlement"}
     ).json()

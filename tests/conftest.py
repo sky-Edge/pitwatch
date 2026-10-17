@@ -97,3 +97,25 @@ def _fresh_db():
 def client():
     with TestClient(app) as c:
         yield c
+
+
+#: 默认「控制值」：30/10、20/3 = 报送母版上印着的那两个数。
+#: 测试项目配上这一套之后，报表上 I/J 的期望值和"没配规则时照抄母版"时期一样，
+#: 既有断言不用改 —— 变的只是**出处**（从母版来的 → 从系统规则来的）。
+DEFAULT_CONTROL_RULES = [
+    {"indicator": "settlement", "level": "control", "threshold_cumulative_mm": 30.0,
+     "threshold_rate_mm_per_day": 10.0, "is_active": True},
+    {"indicator": "displacement", "level": "control", "threshold_cumulative_mm": 20.0,
+     "threshold_rate_mm_per_day": 3.0, "is_active": True},
+]
+
+
+def put_control_rules(client, pid: int, rules: list[dict] | None = None) -> None:
+    """给项目配上「控制值」规则。
+
+    为什么每个要导报表的测试都得配：项目一类观测两个控制值都没配时，
+    日报**生成不出来**（422），数据生成同样被拦（用户 2026-10-14 定：
+    报表上不许出现系统里查不到的数）。要专门测"被拦住"那条路，就别调用本函数。
+    """
+    r = client.put(f"/api/v1/projects/{pid}/warning-rules", json={"rules": rules or DEFAULT_CONTROL_RULES})
+    assert r.status_code == 200, r.text

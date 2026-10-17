@@ -227,6 +227,9 @@ class ParsedSheet:
     # 台账里的 V0 期（整表只填了「初始值」列、没有本次测值）——
     # 它的初始值就是坐标/高程，因此可以当点位清单用（见 is_period_ledger）。
     is_baseline: bool = False
+    # 表头区里读到的「工程名称」候选（跨项目导入靠它认这张表属于哪个基坑）。
+    # 空列表 = 表里没写名称，只能退回按文件名认。
+    name_texts: list[str] = field(default_factory=list)
 
     @property
     def total_rows(self) -> int:
@@ -379,6 +382,42 @@ def _extract_obs_date(meta_rows: list[str], bare_dates: list[date] | None = None
     if bare_dates:
         return bare_dates[0]
     return None
+
+
+def _head_name_texts(head_rows: list[list]) -> list[str]:
+    """表头区里的「工程名称」候选（跨项目导入靠它认这张表属于哪个基坑）。
+
+    标签与取法和 `master_report._extract_master_project_name`、
+    `export_reader._name_candidates` 是**同一套**（标签后按空白切分、最后一段是名字，
+    前面「兴善公路」这类地名前缀也一并留着）—— 三处各写一套的话，早晚有一处漏改，
+    认项目就会和导出的口径对不上。
+
+    ⚠ 必须**逐格**看，不能用表头区整行拼接的文字：拼起来会把隔壁那格
+    「本次监测时间：2026-07-31」粘到名字后面，认项目当场认歪。
+    ⚠ 也不能先过 `_norm`：它会把空格全删掉，「兴善公路 八号基坑」变成一整坨，
+    就再也切不出"最后一段"了。
+    """
+    from backend.reports.master_report import NAME_LABELS
+
+    out: list[str] = []
+    for cells in head_rows:
+        texts = [("" if v is None else str(v)).strip() for v in cells]
+        for i, t in enumerate(texts):
+            if not t:
+                continue
+            lb = next((x for x in NAME_LABELS if x in t), None)
+            if lb is None:
+                continue
+            rest = t[t.find(lb) + len(lb):].strip()
+            if not rest:
+                # 「监测工程名称：」自己一格、名字写在右边那格（表单常见排版）
+                rest = next((x for x in texts[i + 1:] if x), "")
+            parts = [p.strip("（）()【】[]") for p in re.split(r"[\s\u3000]+", rest) if p.strip()]
+            for cand in [rest.strip("（）()【】[]")] + parts:
+                if cand and cand not in out:
+                    out.append(cand)
+            break  # 一行只认一处：「监测工程名称：」本身也含「工程名称：」
+    return out
 
 
 def _to_float(v) -> float | None:
@@ -622,11 +661,13 @@ def parse_workbook(path: str | Path) -> list[ParsedSheet]:
             header_row: int | None = None
             header_text = ""
             meta_lines: list[str] = []
+            head_rows: list[list] = []  # 表头区各行的**原始单元格**（抽工程名称用，见 _head_name_texts）
             bare_dates: list[date] = []  # 表头区里的"真日期单元格"（无标签时的兜底）
             for r in range(1, min(HEADER_SCAN_MAX, ws.max_row) + 1):
                 cells = [ws.cell(row=r, column=c).value for c in range(1, ws.max_column + 1)]
                 joined = "".join(_norm(c) for c in cells)
                 meta_lines.append(joined)
+                head_rows.append(cells)
                 # 日期单元格兜底：按单元格判断，跳过"检定日期/校准日期"这类邻格标签，
                 # （不能整行跳过——观测日期与检定日期可能在同一行）
                 for ci, v in enumerate(cells, start=1):
@@ -675,6 +716,7 @@ def parse_workbook(path: str | Path) -> list[ParsedSheet]:
                 sheet_name=sheet_name,
                 series_type=series_type,
                 obs_date=obs_date,
+                name_texts=_head_name_texts(head_rows[: max(0, header_row - 1)]),
             )
             ps.column_map = col_map
             # 读值列单位：表头标注 (mm) → 已是毫米不换算；否则按米 ×1000（沿用现有台账惯例）

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from backend.models.export_template import ExportTemplate
 from backend.reports.export_cleanup import clear_stale_stat_tables
+from backend.reports.export_format import round_m, round_mm, round_rate
 from backend.reports.export_options import EXPORT_SHOW_WARNING_LEVEL
 from backend.reports.master_learn import is_period_slot_text
 from backend.services.project_service import get_project
@@ -44,12 +45,16 @@ def build_master_report(
     """
     from backend.services.point_service import list_points
     from backend.repositories import observation_repo
+    from backend.services.warning_service import ensure_control_rules
 
     project = get_project(db, project_id)
     if not tpl.file_path or not Path(tpl.file_path).exists():
         raise ValueError("母版原件缺失，请重新上传")
 
     layout = tpl.layout_json or {}
+    # 母版里唯一由系统决定的格子是 I/J「控制值」—— 项目没配规则就**不出这份文档**，
+    # 而不是照抄母版上印着的旧限值（用户 2026-10-14：与生成数据统一为"拦住"）。
+    ensure_control_rules(db, project_id, {s.get("kind") for s in (layout.get("sheets") or []) if s.get("kind")})
 
     # 目标期次与日期：默认最新有完整数据的一期
     points = list_points(db, project_id, include_inactive=False)
@@ -87,8 +92,8 @@ def build_master_report(
     period_text = _period_text(period_no, sample)
     for ref in period_cells:
         _write_text_cell(wb, ref, period_text)
-    _write_value_cell(wb, meta.get("cover_date_cell"), _excel_serial(target))
-    _write_value_cell(wb, meta.get("sign_date_cell"), _excel_serial(target))
+    _write_date_cell(wb, meta.get("cover_date_cell"), target)
+    _write_date_cell(wb, meta.get("sign_date_cell"), target)
 
     # 数据表时间文本：本次/上次监测时间（若 layout 记录位置）
     for scfg in layout.get("sheets") or []:
@@ -438,6 +443,26 @@ def _write_value_cell(wb, cell_ref: str | None, value) -> None:
         ws.cell(row=row, column=col, value=value)
 
 
+def _write_date_cell(wb, cell_ref: str | None, d: date) -> None:
+    """往封面/签字的日期槽写日期，并保证那一格**看起来是日期**。
+
+    写的是 Excel 序列号（母版上那一格本来就是序列号），能不能显示成 2026-10-16
+    全看单元格的数字格式。十号基坑的母版上 `封面!F16` 是 General 格式 ——
+    只写序列号，成果文件的封面就印着 `46311`（2026-10-16 在界面预览里当场看见）。
+    槽位自带日期格式时一律不改（那是用户自己的排版）。
+    """
+    from backend.reports.export_format import DATE_FORMAT, needs_date_format, set_number_format
+
+    if not cell_ref:
+        return
+    ws, row, col = _resolve_cell(wb, cell_ref)
+    if ws is None:
+        return
+    ws.cell(row=row, column=col, value=_excel_serial(d))
+    if needs_date_format(ws.cell(row=row, column=col).number_format):
+        set_number_format(ws, row, col, DATE_FORMAT)
+
+
 def _resolve_cell(wb, cell_ref: str):
     """'封面!F16' 或 'F16' → (ws, row, col)。"""
     sheet_part, _, coord = cell_ref.partition("!")
@@ -503,7 +528,7 @@ def _write_raw_block(ws, start_row: int, pcol: int, ccol: int, vcol: int,
     for i, comp in enumerate(("X", "Y", "Z")):
         _set(ws, start_row + i, ccol, comp)
         v = data.get(comp)
-        _set_num(ws, start_row + i, vcol, round(v, 3) if v is not None else None)
+        _set_num(ws, start_row + i, vcol, round_m(v))
 
 
 def fill_raw_data_blocks(db: Session, project_id: int, wb, layout: dict, target: date, is_initial: bool = False) -> dict:
@@ -596,9 +621,9 @@ def fill_raw_data_blocks(db: Session, project_id: int, wb, layout: dict, target:
             pcol, _ccol, vcol = cols[side]           # 点号列 / 分量列 / 坐标值列
             _set(ws, start_row, pcol, pno)           # 空槽位 → None，把母版的旧点号清掉
             data = by_point.get(pno) or {}
-            _set_num(ws, start_row + 0, vcol, round(data.get("X"), 3) if data.get("X") is not None else None)
-            _set_num(ws, start_row + 1, vcol, round(data.get("Y"), 3) if data.get("Y") is not None else None)
-            _set_num(ws, start_row + 2, vcol, round(data.get("Z"), 3) if data.get("Z") is not None else None)
+            _set_num(ws, start_row + 0, vcol, round_m(data.get("X")))
+            _set_num(ws, start_row + 1, vcol, round_m(data.get("Y")))
+            _set_num(ws, start_row + 2, vcol, round_m(data.get("Z")))
 
         # 母版网格没覆盖到的测点：接着空位往下补（母版右列**已经预留了带边框的空格**）。
         # 网格到底了放不下的，报进 summary["missing"]，**绝不静默丢点**。
@@ -684,7 +709,8 @@ def fill_data_sheets(db: Session, project_id: int, wb, layout: dict, target: dat
         # ── 「控制值」两列按**项目预警规则**写（与系统口径一一对应）──
         # 母版是拿别的基坑的表改的，它自带的 30/10、20/3 只是那一期的旧值；
         # 系统里改了限值，报表必须跟着变，否则"表里写 30/10、系统按 20/2 判"。
-        # 没配规则（None）→ 不动母版原值（**绝不写 0**，0 会让所有点都变成超限）。
+        # 一类观测两个值都没配 → 整份文档在 `ensure_control_rules` 就被拦下；
+        # 只配了一项 → 缺的那格留空（**绝不写 0，也绝不沿用母版原值**）。
         ctrl_cum, ctrl_rate = report_control_values(db, project_id, kind)
 
         # 本项目**真实存在**的测点（该 Sheet 对应类型）—— 模板现在可跨项目共用，
@@ -720,6 +746,19 @@ def fill_data_sheets(db: Session, project_id: int, wb, layout: dict, target: dat
                         # 点号：本项目有的点保留（当日缺测而已）；本项目没这个点 → 清掉标签
                         _set(ws, rrow, f.get("point_col"), point_no if point_no in alive else None)
 
+        # ── 母版数据区里**没有点号的预留空行**也要重写 ──
+        # 实测十号母版：竖向位移表 7~18 行是点位行（JJC1~JJC12），19~26 行是空着的预留行，
+        # 但**每一行都印着 30/10**。`_master_point_blocks` 认点号、扫到第一个空点号就停，
+        # 于是这 8 行从没被写过 —— 导出件里同一列上半是规则里的 35/5、下半还是母版的 30/10
+        # （用户 2026-10-16 报「一半对得上一半对不上」）。
+        # 控制值是**整张表共同的设计限值**，跟这一行有没有点号无关 → 数据区每一行都按规则写，
+        # 直到「变化量正负号说明」那一块为止（`tail_start_row` 就是那条界线）。
+        from backend.reports.master_expand import tail_start_row
+
+        last_row = max((r for _, rs in blocks for r in rs), default=start - 1)
+        for rr in range(last_row + 1, tail_start_row(ws, f.get("point_col") or 1, last_row)):
+            _write_control_values(ws, rr, f, ctrl_cum, ctrl_rate)
+
         # ── 最后收拾一眼：列宽按内容（只加宽，表头有自动换行不参与）──
         # 数值被列宽挤掉才是"看不清"；母版刻意设过的宽度一律不动（版式是它的决定）。
         _autofit_data_area(ws, blocks)
@@ -736,11 +775,17 @@ def _autofit_data_area(ws, blocks: list) -> None:
 
 
 def _write_control_values(ws, row: int, f: dict, cum: float | None, rate: float | None) -> None:
-    """写 I/J「控制值·累计变化量 / 变化速率」。给 None 表示"本项目没配规则"→ 保留母版原值。"""
-    if cum is not None:
-        _set_num(ws, row, f.get("control_cum"), _ctl(cum))
-    if rate is not None:
-        _set_num(ws, row, f.get("control_rate"), _ctl(rate))
+    """写 I/J「控制值·累计变化量 / 变化速率」—— 数据区**每一行**都按规则重写。
+
+    调用方覆盖两类行：`_master_point_blocks` 认出的点位行（按点号，扫到空点号即停），
+    以及它停住之后、说明行之前的**母版预留空白行**（母版每一行都印着控制值，漏掉就是同一列两个数）。
+
+    None（只填了另一项）→ 那一格**清空**，不沿用母版原值：
+    母版上印的 30/10 是别的基坑那一期的限值，留着它 = 文档上出现一个系统里查不到的数。
+    （一类观测两个控制值都没配时，整份文档已经在 `ensure_control_rules` 被拦下，走不到这儿。）
+    """
+    _set_num(ws, row, f.get("control_cum"), _ctl(cum) if cum is not None else None)
+    _set_num(ws, row, f.get("control_rate"), _ctl(rate) if rate is not None else None)
 
 
 def _ctl(v) -> float | int:
@@ -785,10 +830,10 @@ def _expand_blocks(ws, f: dict, kind: str, blocks: list, db: Session, project_id
         new_rows = list(range(r, r + rows_per_block))
         for rr in new_rows:
             copy_row_style(ws, proto, rr, ws.max_column or 1)
-            for key in ("control_cum", "control_rate"):   # I/J 控制值沿用母版那一行
-                col = f.get(key)
-                if col and ws.cell(row=proto, column=col).value is not None:
-                    _set(ws, rr, col, ws.cell(row=proto, column=col).value)
+            # I/J 控制值**不从母版那一行抄**：补出来的行和固有行一样，
+            # 随后由 `_write_control_values` 按项目规则逐行写（这里是清格式留空）。
+            for key in ("control_cum", "control_rate"):
+                _set_num(ws, rr, f.get(key), None)
         if vspan and new_rows[-1] > new_rows[0]:
             ws.merge_cells(start_row=new_rows[0], start_column=pc,
                            end_row=new_rows[-1], end_column=pc)
@@ -855,7 +900,8 @@ def _master_point_blocks(ws, start: int, f: dict, is_displacement: bool) -> list
 
     返回 [(point_no, [行...])]：settlement 每点 1 行（A 有点号）；
     displacement 每点 2 行（首行 A=点号，次行 A 空 为 Y 行）。
-    数据区结束 = 行首点号列为空（说明已到表尾/说明行）。
+    停下的条件只是**第一个空点号**，所以它认不全数据区：母版下面常有几行没点号的预留空行
+    （实测十号母版 8 行，且每行印着旧控制值）—— 那部分由 `fill_data_sheets` 补写到说明行为止。
     """
     pc = f.get("point_col") or 1
     end = min(ws.max_row or start, start + 60)
@@ -885,7 +931,7 @@ def _write_initial_row(ws, row: int, f: dict, point_no: str, rec: dict) -> None:
     上次时间等）。初始值期只有初始值，这些旧内容必须清掉，否则串入报表。
     """
     _set(ws, row, f.get("point_col"), point_no or None)
-    _set_num(ws, row, f.get("v0_m"), _m3(rec.get("v0_m")))
+    _set_num(ws, row, f.get("v0_m"), round_m(rec.get("v0_m")))
     # C 上次测值 / D 本次测值 / E 上次累计 / F 本次累计 / G 本次变化 / H 速率 / K 预警 全部清空
     _clear_cells(ws, row, f, ["prev_m", "current_m", "prev_cum_mm", "cum_mm", "delta_mm", "rate", "warning_level"])
 
@@ -905,15 +951,17 @@ def _write_data_row(ws, row: int, f: dict, point_no: str, rec: dict, prev_cum_of
     from backend.reports.export_format import MM_DELTA_FORMAT
 
     _set(ws, row, f.get("point_col"), point_no or None)
-    _set_num(ws, row, f.get("v0_m"), _m3(rec.get("v0_m")))
-    _set_num(ws, row, f.get("prev_m"), _m3(rec.get("prev_m")))
-    _set_num(ws, row, f.get("current_m"), _m3(rec.get("current_m")))
-    # 上次累计 E / 本次累计 F / 本次变化 G / 速率 H —— 引擎算好写数值
+    _set_num(ws, row, f.get("v0_m"), round_m(rec.get("v0_m")))
+    _set_num(ws, row, f.get("prev_m"), round_m(rec.get("prev_m")))
+    _set_num(ws, row, f.get("current_m"), round_m(rec.get("current_m")))
+    # 上次累计 E / 本次累计 F / 本次变化 G / 速率 H —— 写数值覆盖母版公式。
+    # 值已在 `paper_values` 收到纸上口径（米列 4 位 = 毫米列 1 位），这里再兜一道，
+    # 保证任何来源的 rec 写进纸上的都是同一口径：(D−C)×1000 恒等于 G。
     # 这四列用 MM_DELTA_FORMAT：毫米读数要能看出小数点（整数也显示 2.0，用户 2026-10-08 要求）
-    _set_num(ws, row, f.get("prev_cum_mm"), _num(rec.get("prev_cum_mm")), MM_DELTA_FORMAT)
-    _set_num(ws, row, f.get("cum_mm"), _num(rec.get("cum_mm")), MM_DELTA_FORMAT)
-    _set_num(ws, row, f.get("delta_mm"), _num(rec.get("delta_mm")), MM_DELTA_FORMAT)
-    _set_num(ws, row, f.get("rate"), _num(rec.get("rate")), MM_DELTA_FORMAT)
+    _set_num(ws, row, f.get("prev_cum_mm"), round_mm(rec.get("prev_cum_mm")), MM_DELTA_FORMAT)
+    _set_num(ws, row, f.get("cum_mm"), round_mm(rec.get("cum_mm")), MM_DELTA_FORMAT)
+    _set_num(ws, row, f.get("delta_mm"), round_mm(rec.get("delta_mm")), MM_DELTA_FORMAT)
+    _set_num(ws, row, f.get("rate"), round_rate(rec.get("rate")), MM_DELTA_FORMAT)
     # 预警等级：默认**不写进导出报表**（用户要求"导出的 Excel 不要显示预警"）。
     # ⚠ 这里只清空 —— 母版自带的上一期预警文字也必须擦掉，否则会串进本报表。
     #   绝不能改成"统一写正常"：真有报警却报正常，属于伪造监测数据。
@@ -922,14 +970,6 @@ def _write_data_row(ws, row: int, f: dict, point_no: str, rec: dict, prev_cum_of
         ws, row, f.get("warning_level"),
         (_warning_label(rec.get("warning_level")) or None) if EXPORT_SHOW_WARNING_LEVEL else None,
     )
-
-
-def _m3(v) -> float | None:
-    return round(v, 3) if v is not None else None
-
-
-def _num(v) -> float | None:
-    return round(v, 3) if v is not None else None
 
 
 def _set(ws, row: int, col: int | None, value) -> None:

@@ -21,12 +21,13 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from backend.models.observation_record import ObservationRecord
+from backend.models.point import series_types_of
 from backend.repositories import observation_repo
-from backend.reports.export_format import MM_DELTA_FORMAT, set_number_format
+from backend.reports.export_format import MM_DELTA_FORMAT, paper_values, set_number_format
 from backend.reports.export_options import EXPORT_SHOW_WARNING_LEVEL
 from backend.services import calc_service
 from backend.services.point_service import list_points
-from backend.services.warning_service import report_control_values
+from backend.services.warning_service import ensure_control_rules, report_control_values
 
 # 样式常量（对齐模板）
 FONT_HEAD = Font(name="宋体", size=10)
@@ -40,14 +41,6 @@ RED_FONT = Font(name="宋体", size=11, color="9C0006")
 
 # 每点控制的横列数
 N_COLS = 12
-
-
-def _m2mm(value_m: float | None) -> float | None:
-    return value_m * 1000 if value_m is not None else None
-
-
-def _mm2m(value_mm: float | None) -> float | None:
-    return value_mm / 1000 if value_mm is not None else None
 
 
 def _write_row(ws, row: int, values: list, font: Font = FONT_BODY, fill=None) -> None:
@@ -149,18 +142,26 @@ def _build_data_rows(db, point, series_type: str, component: str, obs_date: date
         first = next((r for r in rows if not r["is_missing"]), None)
         v0_mm = first["value_mm"] if first else None
 
+    # 读数与派生量走 `paper_values` 收到纸上口径（米列 4 位 = 毫米列 1 位），
+    # 与母版套打/旧模板/Word 同一个出处 —— 纸上 (本次−上次)×1000 必须恒等于「本次变化量」。
+    paper = paper_values(
+        v0_mm,
+        prev["value_mm"] if prev else None,
+        latest["value_mm"],
+        latest.get("skipped_days"),
+    )
     return {
         "point_no": point.point_no,
         "series_type": series_type,
         "component": component,
         "obs_date": obs_date,
-        "initial_m": _mm2m(v0_mm),
-        "prev_m": _mm2m(prev["value_mm"]) if prev else None,
-        "current_m": _mm2m(latest["value_mm"]),
-        "prev_cum_mm": prev["cumulative_mm"] if prev else None,
-        "cum_mm": latest["cumulative_mm"],
-        "delta_mm": latest["delta_mm"],
-        "rate": latest["rate_mm_per_day"],
+        "initial_m": paper["v0_m"],       # 这一路键名叫 initial_m，母版套打叫 v0_m，同一个数
+        "prev_m": paper["prev_m"],
+        "current_m": paper["current_m"],
+        "prev_cum_mm": paper["prev_cum_mm"],
+        "cum_mm": paper["cum_mm"],
+        "delta_mm": paper["delta_mm"],
+        "rate": paper["rate"],
         "warning_label": _warning_label(latest["warning_level"]),
         "remark": latest.get("remark"),
         "is_alarm": latest["warning_level"] == "alarm",
@@ -297,6 +298,7 @@ def build_period_excel(db, project_id: int, obs_date: date | None = None) -> tup
 
     project = get_project(db, project_id)
     points = [p for p in list_points(db, project_id, include_inactive=False)]
+    ensure_control_rules(db, project_id, series_types_of(points))
 
     # 确定目标日期（缺省取最近观测日）
     all_dates = sorted({

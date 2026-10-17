@@ -5,7 +5,11 @@
 - POST /import/batches/{batch_id}/recheck      按用户指定的观测日期重新核对（不落库）
 - POST /import/batches/{batch_id}/confirm      用户确认 → 正式落库
 - GET  /import/batches                         批次列表（审计）
+- POST /import/multi/upload                    一次上传多份台账 → 自动分到各项目（不落库）
+- POST /import/multi/assign                    认不出的表由用户指定项目（不落库）
 """
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -20,12 +24,27 @@ from backend.schemas.import_schema import (
     ImportPreviewResponse,
     ImportPreviewRow,
     ImportRecheckRequest,
+    MultiImportAssignRequest,
+    MultiImportGroup,
+    MultiImportPending,
+    MultiImportPointList,
+    MultiImportSheet,
+    MultiImportUploadResponse,
     PointIssue,
+)
+from backend.services.multi_import_service import (
+    SheetRoute,
+    group_by_project,
+    projects_for_routing,
+    route_file,
+    split_routes,
 )
 from backend.services.project_service import get_project
 
 import_upload_router = APIRouter(tags=["import"])
 batch_router = APIRouter(prefix="/import/batches", tags=["import"])
+#: 跨项目导入（一次上传、自动分到各项目）。落库仍走 batch_router 的 confirm，不另开一条。
+multi_router = APIRouter(prefix="/import/multi", tags=["import"])
 
 
 def _sheets_payload(
@@ -99,34 +118,24 @@ def _preview_response(
     )
 
 
-@import_upload_router.post("/projects/{project_id}/import/upload", response_model=ImportPreviewResponse)
-def upload_and_preview(
-    project_id: int,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-):
-    """Step 1-7：上传 → Sheet 识别 → 列识别 → 字段映射 → 预览 → 校验 → 重复检查。"""
-    get_project(db, project_id)  # 404 校验
-    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm", ".xls")):
-        raise HTTPException(status_code=400, detail="仅支持 .xlsx / .xlsm / .xls 文件")
-    raw = file.file.read()
-    path = importer.save_upload(raw, file.filename)
-    try:
-        sheets = importer.analyze_file(path)
-    except Exception as e:  # noqa: BLE001 —— 解析失败给用户友好提示
-        raise HTTPException(status_code=422, detail=f"文件解析失败：{e}") from e
+def _make_batch(
+    db: Session, project_id: int, filename: str, path, sheets: list[ParsedSheet]
+) -> ImportBatch:
+    """建一个「预览态」批次（单项目导入与跨项目导入共用，两条路结构必须一致）。
 
-    if not sheets:
-        raise HTTPException(status_code=422, detail="未识别到数据 Sheet（竖向位移/水平位移），请检查文件模板")
-
-    # 建批次（预览态）。field_mapping 里同时留下**原始文件路径**：
-    # 用户改观测日期时要重解析这份文件，不存路径就没法重算。
+    `field_mapping` 里留两样东西：
+    - `file_path`：用户改观测日期时要重解析这份文件，不存路径就没法重算；
+    - `sheet_names`：**这个批次管哪几张表**。跨项目导入时一份文件会拆给好几个项目，
+      不留白名单的话，改日期重新核对会把别的项目的表一起拉进来（见
+      `importer.sheets_of_batch`）。单项目导入时白名单 = 全部表，行为不变。
+    """
     batch = ImportBatch(
         project_id=project_id,
-        filename=file.filename,
+        filename=filename,
         status="previewed",
         field_mapping={
             "file_path": str(path),
+            "sheet_names": [s.sheet_name for s in sheets],
             "sheets": [
                 {
                     "sheet_name": s.sheet_name,
@@ -142,8 +151,35 @@ def upload_and_preview(
     db.add(batch)
     db.commit()
     db.refresh(batch)
+    return batch
 
-    return _preview_response(db, batch, sheets, file.filename)
+
+@import_upload_router.post("/projects/{project_id}/import/upload", response_model=ImportPreviewResponse)
+def upload_and_preview(
+    project_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Step 1-7：上传 → Sheet 识别 → 列识别 → 字段映射 → 预览 → 校验 → 重复检查。"""
+    get_project(db, project_id)  # 404 校验
+    path, sheets = _save_and_parse(file)
+    batch = _make_batch(db, project_id, file.filename or path.name, path, sheets)
+    return _preview_response(db, batch, sheets, file.filename or path.name)
+
+
+def _save_and_parse(file: UploadFile):
+    """存下上传的文件并解析出数据表（扩展名不对 / 解析不出表 → 4xx，不落到调用方头上）。"""
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm", ".xls")):
+        raise HTTPException(status_code=400, detail="仅支持 .xlsx / .xlsm / .xls 文件")
+    raw = file.file.read()
+    path = importer.save_upload(raw, file.filename)
+    try:
+        sheets = importer.analyze_file(path)
+    except Exception as e:  # noqa: BLE001 —— 解析失败给用户友好提示
+        raise HTTPException(status_code=422, detail=f"文件解析失败：{e}") from e
+    if not sheets:
+        raise HTTPException(status_code=422, detail="未识别到数据 Sheet（竖向位移/水平位移），请检查文件模板")
+    return path, sheets
 
 
 @batch_router.post("/{batch_id}/recheck", response_model=ImportPreviewResponse)
@@ -209,6 +245,8 @@ def confirm_import(batch_id: int, payload: ImportConfirmRequest, db: Session = D
         "status": batch.status,
         # 同步进预警规则的变更（用户勾了才有；前端据此回显"规则改成了什么"）
         "control_changes": result.get("control_changes", []),
+        # 没同步成的原因（台账控制值比系统报警值还大 → 倒挂，规则一条不改，但数据已入库）
+        "control_sync_error": result.get("control_sync_error"),
     }
 
 
@@ -216,3 +254,116 @@ def confirm_import(batch_id: int, payload: ImportConfirmRequest, db: Session = D
 def list_batches(db: Session = Depends(get_db)):
     """批次列表（审计）。"""
     return db.query(ImportBatch).order_by(ImportBatch.id.desc()).limit(50).all()
+
+
+# ─────────────── 跨项目导入：一次上传、自动分到各项目 ───────────────
+#
+# 这里只做「认项目 + 出预览」，**一条数据都不落库**。落库仍然是用户点过的那个
+# /import/batches/{id}/confirm —— 与项目内的 Excel 导入完全同一条路，
+# 覆盖规则、跳过重复、控制值同步那些口径一个字都不改。
+
+
+def _resolve_upload(upload_name: str):
+    """按暂存文件名在**上传目录里**找回那份文件。
+
+    ⚠ 前端回传的字符串绝不能直接拼路径：`Path(a) / "../../x"` 就能读到目录外去。
+    这里先 `Path(...).name` 把目录成分全丢掉，再校验解析后的父目录就是上传目录。
+    """
+    from backend.core.config import settings
+
+    name = Path(upload_name or "").name
+    root = settings.upload_dir.resolve()
+    p = (settings.upload_dir / name).resolve()
+    if not name or p.parent != root or not p.is_file():
+        raise HTTPException(status_code=404, detail="暂存的那份文件已经不在了，请重新上传")
+    return p
+
+
+def _group_payload(db: Session, project, filename: str, path, routes: list[SheetRoute]) -> MultiImportGroup:
+    """一组（同项目、同文件）→ 建预览批次 + 出预览。"""
+    sheets = [r.sheet for r in routes]
+    batch = _make_batch(db, project.id, filename, path, sheets)
+    return MultiImportGroup(
+        batch_id=batch.id,
+        project_id=project.id,
+        project_code=project.code or "",
+        project_name=project.name or "",
+        project_archived=not bool(getattr(project, "is_active", True)),
+        filename=filename,
+        sheets=[MultiImportSheet(**r.to_dict()) for r in routes],
+        preview=_preview_response(db, batch, sheets, filename),
+        # 只是"相近"、或表里没写名称只按文件名认的 → 界面上要提醒核一眼
+        needs_eyeball=any(r.close or r.from_filename for r in routes),
+    )
+
+
+@multi_router.post("/upload", response_model=MultiImportUploadResponse)
+def multi_upload(files: list[UploadFile] = File(...), db: Session = Depends(get_db)):
+    """一次上传多份台账 → 逐张表认项目 → 按 (项目, 文件) 分组建预览批次。
+
+    一份文件坏了不拖住其余的（记进 `errors` 点名报出来）—— 现场一次拖十几份是常态，
+    因为其中一份格式不对就整批退回，用户只会再骂一次"点了没反应"。
+    """
+    projects = projects_for_routing(db)
+    if not projects:
+        raise HTTPException(
+            status_code=422,
+            detail="系统里还没有项目，没法自动分配 —— 请先建项目（或用项目列表的「批量建项目」）",
+        )
+
+    out = MultiImportUploadResponse()
+    for f in files:
+        original = f.filename or ""
+        try:
+            path, sheets = _save_and_parse(f)
+        except HTTPException as e:
+            out.errors.append(f"{original or '未命名文件'}：{e.detail}")
+            continue
+        routes = route_file(projects, original or path.name, sheets)
+        routed, pending, point_lists = split_routes(routes)
+
+        for pid, group in group_by_project(routed).items():
+            project = next(p for p in projects if p.id == pid)
+            out.groups.append(_group_payload(db, project, original or path.name, path, group))
+        for r in pending:
+            out.pending.append(
+                MultiImportPending(
+                    upload_name=path.name,
+                    filename=original or path.name,
+                    sheet=MultiImportSheet(**r.to_dict()),
+                )
+            )
+        for r in point_lists:
+            out.point_lists.append(
+                MultiImportPointList(
+                    filename=original or path.name,
+                    sheet_name=r.sheet_name,
+                    row_count=r.sheet.total_rows,
+                )
+            )
+    return out
+
+
+@multi_router.post("/assign", response_model=MultiImportGroup)
+def multi_assign(payload: MultiImportAssignRequest, db: Session = Depends(get_db)):
+    """把"认不出是哪个基坑"的表**由用户指定**项目 → 建批次 + 出预览。"""
+    project = get_project(db, payload.project_id)
+    path = _resolve_upload(payload.upload_name)
+    try:
+        sheets = importer.analyze_file(path)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"文件解析失败：{e}") from e
+
+    wanted = [n for n in (payload.sheet_names or []) if n]
+    if not wanted:
+        raise HTTPException(status_code=400, detail="没有指定要导入的数据表")
+    chosen = [s for s in sheets if s.sheet_name in set(wanted)]
+    missing = set(wanted) - {s.sheet_name for s in chosen}
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail="这份文件里找不到这些数据表：" + "、".join(sorted(missing)) + "（文件被换过了？请重新上传）",
+        )
+
+    routes = [SheetRoute(sheet=s, project=project, how="你手动指定的项目", score=1.0) for s in chosen]
+    return _group_payload(db, project, payload.filename or path.name, path, routes)

@@ -50,11 +50,25 @@ export const http = axios.create({
 
 http.interceptors.response.use(
   (res) => res,
-  (err) => {
-    const detail = err.response?.data?.detail
+  async (err) => {
+    let detail = err.response?.data?.detail
+    if (detail == null && err.response?.data instanceof Blob) {
+      // **blob 下载失败时后端给的仍然是 JSON**。不把它读出来，用户看到的就只有
+      // "Request failed with status code 422" —— 而 422 里装的是"这个项目没配控制值，
+      // 日报不能生成"这种必须让人读懂的话（2026-10-14 的导出拦截全靠这句话）。
+      try {
+        detail = JSON.parse(await err.response.data.text())?.detail
+      } catch {
+        // 不是 JSON（网关给的 HTML 之类）→ 当作没有 detail，走下面的兜底
+      }
+    }
     if (Array.isArray(detail)) {
-      // Pydantic 校验错误
-      return Promise.reject(new Error('参数校验失败'))
+      // Pydantic 校验错误：挑出第一条 msg 给人看。整串丢掉只留"参数校验失败"，
+      // 等于把后端唯一一句解释吞了 —— 用户只能猜是哪个字段、为什么不行。
+      const first = detail.find((d) => typeof d?.msg === 'string')
+      const msg = first ? String(first.msg).replace(/^Value error,\s*/, '') : ''
+      const loc = Array.isArray(first?.loc) ? first.loc.filter((x: unknown) => x !== 'body').join('.') : ''
+      return Promise.reject(new Error(msg ? `${msg}${loc ? `（字段 ${loc}）` : ''}` : '参数校验失败'))
     }
     if (detail != null) {
       // 后端已经把话说清楚了（HTTPException 的 detail），原样透传。
@@ -271,6 +285,8 @@ export interface WarningRule {
   indicator: Indicator
   level: RuleLevel
   threshold_cumulative_mm: number | null
+  /** 本次变化量 ΔV 上限(mm)：不看观测间隔，隔几天测都按这一个数卡 */
+  threshold_delta_mm: number | null
   threshold_rate_mm_per_day: number | null
   is_active: boolean
   source_note: string | null
@@ -282,6 +298,7 @@ export interface RuleInput {
   indicator: Indicator
   level: RuleLevel
   threshold_cumulative_mm?: number | null
+  threshold_delta_mm?: number | null
   threshold_rate_mm_per_day?: number | null
   is_active?: boolean
   source_note?: string | null
@@ -571,6 +588,73 @@ export interface PointResolveAction {
   map_to: string | null
 }
 
+// ---------- 跨项目导入（一次上传、自动分到各项目）----------
+
+/** 认项目时摆给用户挑的候选 */
+export interface MultiImportCandidate {
+  project_id: number | null
+  project_code: string
+  project_name: string
+  score?: number
+  how?: string
+  weak?: boolean
+}
+
+/** 一张数据表认到了哪个项目（project_id 为空 = 没认出来，要用户手选） */
+export interface MultiImportSheet {
+  sheet_name: string
+  series_type: SeriesType | ''
+  kind: 'ledger' | 'point_list'
+  obs_date: string | null
+  row_count: number
+  /** 表里读到的工程名称（界面上要能回答"你凭什么认成它"） */
+  name_texts: string[]
+  project_id: number | null
+  project_code: string
+  project_name: string
+  project_archived: boolean
+  how: string
+  score: number
+  /** 只是"相近"（不是完全一致）→ 提醒核一眼 */
+  close: boolean
+  /** 表里没写名称、只按文件名认的 → 更要提醒核一眼 */
+  from_filename: boolean
+  ambiguous: boolean
+  reason: string
+  candidates: MultiImportCandidate[]
+}
+
+/** 认到同一个项目的一批表 = 一个批次（「全部导入」里的一项） */
+export interface MultiImportGroup {
+  batch_id: number
+  project_id: number
+  project_code: string
+  project_name: string
+  project_archived: boolean
+  filename: string
+  sheets: MultiImportSheet[]
+  preview: ImportPreviewResponse
+  /** 有哪张表是"按文件名认的"或只是"相近"→ 提醒核一眼 */
+  needs_eyeball: boolean
+}
+
+/** 认不出的表：不建批次，等用户手选项目 */
+export interface MultiImportPending {
+  /** 暂存目录里的文件名（回传给 assign 用；不是完整路径） */
+  upload_name: string
+  filename: string
+  sheet: MultiImportSheet
+}
+
+export interface MultiImportUploadResponse {
+  groups: MultiImportGroup[]
+  pending: MultiImportPending[]
+  /** 点位清单（「点号+坐标/高程」）：那是「批量建项目」的活，这里只挑出来说明 */
+  point_lists: Array<{ filename: string; sheet_name: string; row_count: number }>
+  /** 解析失败的文件（一份坏了不拖住其余的） */
+  errors: string[]
+}
+
 export const importApi = {
   /** Step 1-7：上传 → 解析 → 校验 → 重复检查，返回预览 */
   upload: (projectId: number, file: File) => {
@@ -617,11 +701,35 @@ export const importApi = {
           new_rate: number | null
           created: boolean
         }>
+        /** 没能同步的原因（台账控制值比系统报警值还大 = 倒挂）；数据照常入库 */
+        control_sync_error?: string | null
       }>(`/import/batches/${batchId}/confirm`, {
         valid_rows: validRows,
         point_actions: pointActions,
         sync_control_values: syncControlValues,
       }, { timeout: LONG_TIMEOUT, timeoutHint: '导入超时。行数很多时等久一点是正常的，可以重试（重复的行会跳过、不会写两遍）' })
+      .then((r) => r.data),
+  /** 一次上传多份台账 → 后端按表内「工程名称」自动分到各项目（**不落库**，只出预览） */
+  multiUpload: (files: File[]) => {
+    const form = new FormData()
+    for (const f of files) form.append('files', f)
+    return http
+      .post<MultiImportUploadResponse>('/import/multi/upload', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: LONG_TIMEOUT,
+        timeoutHint: '台账太多、解析超时。可以分两批传',
+      })
+      .then((r) => r.data)
+  },
+  /** 认不出是哪个基坑的表 → 由用户指定项目（**不落库**，只出预览） */
+  multiAssign: (uploadName: string, sheetNames: string[], projectId: number, filename?: string) =>
+    http
+      .post<MultiImportGroup>('/import/multi/assign', {
+        upload_name: uploadName,
+        sheet_names: sheetNames,
+        project_id: projectId,
+        filename: filename ?? null,
+      }, { timeout: LONG_TIMEOUT })
       .then((r) => r.data),
 }
 
@@ -866,7 +974,7 @@ export interface WarningEventRow {
   obs_date: string
   indicator: SeriesType
   level: 'control' | 'alarm'
-  trigger_type: 'cumulative' | 'rate'
+  trigger_type: 'cumulative' | 'delta' | 'rate'
   value_mm: number | null
   rate_mm_per_day: number | null
   message: string
@@ -1013,6 +1121,98 @@ function readExportSummary(headers: unknown): ExportSummary | null {
   }
 }
 
+/** 母版体检（导出**前**查）的一条发现 —— 后端 `template_check_service` 的 issue。 */
+export interface TemplateCheckIssue {
+  /** 机器码（no_control_rule / stale_control_out_of_range / sheet_not_learned …）。
+   *  用 code 区分动作，别拿文案匹配：说明话术会改，码不会。 */
+  code: string
+  /** error = 这份文件发出去一定有问题；warn = 有东西不会被更新；info = 只是把将要发生的事说清楚 */
+  level: 'error' | 'warn' | 'info'
+  title: string
+  detail: string
+  /** 涉及的格子（`竖向位移!I7` 形态） */
+  cells: string[]
+}
+
+export interface TemplateCheckResult {
+  template_id: number
+  template_name: string
+  project_id: number
+  issues: TemplateCheckIssue[]
+  errors: number
+  warnings: number
+}
+
+/** 预览网格里有内容的格子（后端只回非空格，界面按 r/c 摆） */
+export interface PreviewCell {
+  r: number
+  c: number
+  /** 已经按单元格的显示格式换算好的文本：2.0 就是 "2.0"，日期格是 "2026-08-21" */
+  v: string
+  /** 数值（右对齐） */
+  n?: boolean
+  /** 公式格：文件里没有算好的值，Excel 打开后才算得出来 */
+  f?: boolean
+  b?: boolean
+  /** 母版自带的底色（六位 RGB，不带 #） */
+  bg?: string
+  ha?: string
+  wrap?: boolean
+  /** 文本过长被截断 */
+  cut?: boolean
+}
+
+export interface PreviewMerge {
+  ref: string
+  r: number
+  c: number
+  rs: number
+  cs: number
+}
+
+export interface PreviewSheet {
+  name: string
+  rows: number
+  cols: number
+  cells: PreviewCell[]
+  merges: PreviewMerge[]
+  /** 列宽（Excel 字符宽度，键是 A/B/C…） */
+  widths: Record<string, number>
+  /** visible / hidden —— 隐藏页在 Excel 里看不见，但文件里带着 */
+  state: string
+  /** 这张表超出预览上限，只画了左上角那一段（文件本身完整） */
+  truncated: boolean
+}
+
+/** 一个 Sheet 的「控制值」逐格核对结论（预览顺带做的，规则是唯一的数从哪儿来） */
+export interface ControlCheck {
+  sheet: string
+  kind: 'settlement' | 'displacement'
+  /** 系统预警规则里 control 级的那对数（= 报表上应该印的数） */
+  expected: { control_cum: number | null; control_rate: number | null }
+  /** 导出会重写的数据区行范围 [首, 尾]（含尾） */
+  area: [number, number]
+  control_cols: Record<string, number>
+  checked_rows: number
+  ok: boolean
+  /** 数据区内与规则不符的格子 */
+  mismatch: string[]
+  /** 数据区内该有值却空着的格子 */
+  blank: string[]
+  /** 数据区**之外**还印着数的格子（母版遗留，导出够不着） */
+  residual: string[]
+}
+
+export interface ReportPreviewDoc {
+  filename: string
+  /** 补点/清行摘要（与下载响应头同一份清单，缺项不出现） */
+  summary: Partial<ExportSummary>
+  /** 内置标准版式没有母版可比 → 空数组 */
+  control_checks: ControlCheck[]
+  sheets: PreviewSheet[]
+  truncated: boolean
+}
+
 export const reportApi = {
   /** 下载整卷监测日报（templateId 缺省=系统标准；weather 天气可选） */
   downloadExcel: (projectId: number, obsDate?: string, templateId?: number, weather?: string) => {
@@ -1053,6 +1253,33 @@ export const reportApi = {
       .get<Blob>(`/projects/${projectId}/reports/daily${params}`, { responseType: 'blob', timeout: LONG_TIMEOUT })
       .then((r) => r.data)
   },
+  /** 在界面里预览这一期将导出的 Excel（不下载文件）。
+   *
+   *  后端与 `/reports/excel` 共用同一条生成路径，所以预览所见 == 下载所得；
+   *  回来的不只是网格，还有「控制值」逐格核对的结论。*/
+  preview: (projectId: number, obsDate?: string, templateId?: number, weather?: string) => {
+    const params = new URLSearchParams()
+    if (obsDate) params.set('obs_date', obsDate)
+    if (templateId) params.set('template_id', String(templateId))
+    if (weather) params.set('weather', weather)
+    const qs = params.toString()
+    return http
+      .get<ReportPreviewDoc>(`/projects/${projectId}/reports/preview${qs ? `?${qs}` : ''}`, {
+        // 整卷母版的生成成本和导出一样（还要再解析一遍），15 秒的通用档会被掐
+        timeout: LONG_TIMEOUT,
+        timeoutHint: '预览生成超时。母版较大时可以先下载文件再看',
+      })
+      .then((r) => r.data)
+  },
+  /** 母版体检（导出**前**）：只读地查这份母版套到本项目上会出什么问题。 */
+  checkTemplate: (projectId: number, templateId: number) =>
+    http
+      .get<TemplateCheckResult>(`/projects/${projectId}/export-templates/${templateId}/check`, {
+        // 大母版整卷扫一遍要几秒（与学习同一量级），走慢档
+        timeout: LONG_TIMEOUT,
+        timeoutHint: '母版体检超时。母版很大时会慢一些，可以重试',
+      })
+      .then((r) => r.data),
   /** 项目可用模板列表（内置 + 自定义） */
   listTemplates: (projectId: number) =>
     http.get<ExportTemplateInfo[]>(`/projects/${projectId}/export-templates`).then((r) => r.data),
@@ -1283,8 +1510,8 @@ export const bulkApi = {
 
 /** 一条比对明细里的问题 */
 export interface AuditProblem {
-  /** rate / delta / cum / prev_cum / control_cum / control_rate / rate_over / level_diff /
-   *  unknown_point / report_empty */
+  /** rate / delta / cum / prev_cum / control_cum / control_rate / rate_over / cum_over /
+   *  level_diff / unknown_point / report_empty */
   kind: string
   report?: number | string | null
   system?: number | string | null

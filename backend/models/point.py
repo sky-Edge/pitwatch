@@ -20,6 +20,26 @@ def _uuid4() -> str:
     return str(uuid.uuid4())
 
 
+#: point_type → 这个点会进哪几张观测表（both = 沉降表和位移表里都有它一行）
+SERIES_TYPES: dict[str, tuple[str, ...]] = {
+    "settlement": ("settlement",),
+    "displacement": ("displacement",),
+    "both": ("settlement", "displacement"),
+}
+
+
+def series_types_of(points) -> set[str]:
+    """这批测点里实际会出现**哪几类观测**。
+
+    报表上一组「控制值」列对应一类观测，所以"这份文档要印哪几组控制值"、
+    "缺规则该拦哪几类"都以它为准 —— 项目只有沉降点时不该要求水平位移的规则。
+    """
+    out: set[str] = set()
+    for p in points:
+        out.update(SERIES_TYPES.get(p.point_type, ()))
+    return out
+
+
 class MeasurementPoint(Base, TimestampMixin):
     __tablename__ = "measurement_points"
     __table_args__ = (

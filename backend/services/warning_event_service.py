@@ -24,7 +24,7 @@ from backend.models.observation_record import ObservationRecord
 from backend.models.warning_event import WarningEvent
 from backend.repositories import observation_repo, point_repo
 from backend.services.point_service import list_points
-from backend.services.warning_service import effective_rules
+from backend.services.warning_service import rule_limits
 from backend.warnings.engine import RuleLimits, evaluate
 
 # 突变阈值默认值（mm/day），项目可在 sign_config 或规则中调整 —— 配置化，不硬编码
@@ -32,13 +32,8 @@ DEFAULT_MUTATION_THRESHOLD_MM = 10.0
 
 
 def _limits_for(db: Session, project_id: int, series_type: str) -> RuleLimits:
-    limits_map = effective_rules(db, project_id).get(series_type, {})
-    return RuleLimits(
-        control_cumulative_mm=limits_map.get("control").threshold_cumulative_mm if limits_map.get("control") else None,
-        control_rate_mm_per_day=limits_map.get("control").threshold_rate_mm_per_day if limits_map.get("control") else None,
-        alarm_cumulative_mm=limits_map.get("alarm").threshold_cumulative_mm if limits_map.get("alarm") else None,
-        alarm_rate_mm_per_day=limits_map.get("alarm").threshold_rate_mm_per_day if limits_map.get("alarm") else None,
-    )
+    """判定用的四个阈值 —— 取数只有 `warning_service.rule_limits` 一处。"""
+    return rule_limits(db, project_id, series_type)
 
 
 def _series_records(db: Session, point_id: int, series_type: str, component: str) -> list[ObservationRecord]:
@@ -77,33 +72,33 @@ def recompute_project(db: Session, project_id: int) -> dict:
                     ev = evaluate(r, limits)
                     if ev["level"] == "normal":
                         continue
-                    # 触发项拆分（可能同时触发累计+速率 → 两条事件）
-                    for trigger_type, value in (
-                        ("cumulative", r.cumulative_mm),
-                        ("rate", r.rate_mm_per_day),
+                    # 触发项拆分（同一期可能同时触发累计 + 本次变化 + 速率 → 多条事件）
+                    for trigger_type, value, tcheck, label, unit in (
+                        ("cumulative", r.cumulative_mm, ev["cumulative_check"], "累计变化", "mm"),
+                        ("delta", r.delta_mm, ev["delta_check"], "本次变化", "mm"),
+                        ("rate", r.rate_mm_per_day, ev["rate_check"], "变化速率", "mm/d"),
                     ):
-                        tcheck = ev["cumulative_check"] if trigger_type == "cumulative" else ev["rate_check"]
-                        if tcheck in ("control", "alarm"):
-                            events.append(
-                                WarningEvent(
-                                    project_id=project_id,
-                                    point_id=p.id,
-                                    series_type=st,
-                                    component=comp,
-                                    obs_date=r.obs_date,
-                                    indicator=st,
-                                    level=ev["level"],
-                                    trigger_type=trigger_type,
-                                    value_mm=value,
-                                    rate_mm_per_day=r.rate_mm_per_day,
-                                    message=(
-                                        f"{point_names[p.id]} {st}/{comp} "
-                                        f"{'累计变化' if trigger_type == 'cumulative' else '变化速率'} "
-                                        f"{value} mm 达到{'报警' if tcheck == 'alarm' else '控制'}值"
-                                    ),
-                                    recompute_batch=batch,
-                                )
+                        if tcheck not in ("control", "alarm"):
+                            continue
+                        events.append(
+                            WarningEvent(
+                                project_id=project_id,
+                                point_id=p.id,
+                                series_type=st,
+                                component=comp,
+                                obs_date=r.obs_date,
+                                indicator=st,
+                                level=ev["level"],
+                                trigger_type=trigger_type,
+                                value_mm=value,
+                                rate_mm_per_day=r.rate_mm_per_day,
+                                message=(
+                                    f"{point_names[p.id]} {st}/{comp} "
+                                    f"{label} {value} {unit} 达到{'报警' if tcheck == 'alarm' else '控制'}值"
+                                ),
+                                recompute_batch=batch,
                             )
+                        )
     db.add_all(events)
     db.commit()
 

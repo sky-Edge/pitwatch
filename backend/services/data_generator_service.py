@@ -33,17 +33,20 @@ from __future__ import annotations
 
 import math
 import random
+from collections import Counter
 from datetime import date, timedelta
 
 from fastapi import HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.models.observation_record import ObservationRecord
+from backend.models.point import MeasurementPoint
 from backend.repositories import observation_repo
 from backend.repositories.observation_repo import INACTIVE_STATUS
 from backend.schemas.observation_record import RecordCreate
 from backend.services.point_service import list_points
-from backend.services.warning_service import effective_rules
+from backend.services.warning_service import INDICATOR_CN, has_control_rule, report_control_values
 
 # ── 冲突处理方式 ──────────────────────────────────────────────
 CONFLICT_SKIP = "skip"
@@ -93,9 +96,6 @@ _NOISE_SPEC: dict[str, tuple[str, float]] = {
     "displacement": ("normal", 2.6),
 }
 _NOISE_FALLBACK: tuple[str, float] = ("uniform", 2.3)
-
-#: 报错文案用的中文指标名（与界面口径一致：写「水平位移」，不简写成「位移」）
-_INDICATOR_CN = {"settlement": "竖向位移（沉降）", "displacement": "水平位移"}
 
 # 偶发扰动（降雨 / 邻近施工）：真实沉降里 ±3 只占 1%，所以概率低、幅度小。
 _FLAKE_CHANCE = 0.04
@@ -385,8 +385,12 @@ def _run_should_flip(run: int, rng: random.Random) -> bool:
     return run >= _MAX_RUN and rng.random() < _RUN_FLIP_CHANCE
 
 
-def _bump_run(run: int, run_sign: int, delta: int) -> tuple[int, int]:
-    """按本期的实际变化量推进"连涨连跌"计数。0 变化视为打断（它确实打断了单调性）。"""
+def _bump_run(run: int, run_sign: int, delta: float) -> tuple[int, int]:
+    """按本期的实际变化量推进"连涨连跌"计数。0 变化视为打断（它确实打断了单调性）。
+
+    `delta` 是**实际落库的增量**（可能带小数：记到 0.1mm 的项目）。
+    这里只判方向和是否为 0，所以不做取整 —— 取整会把 0.4mm 的变化当成"没动"。
+    """
     if delta == 0:
         return 0, 0
     sign = 1 if delta > 0 else -1
@@ -416,22 +420,90 @@ def _v0_mm(db: Session, point, series_type: str, component: str) -> float | None
     return first.value_mm if first else None
 
 
+def _decimals(value: float) -> int:
+    """这个读数实际带几位小数（先按 0.001mm 收一下，免得把二进制浮点尾巴也数进去）。"""
+    s = f"{round(float(value), 3):.3f}".rstrip("0").rstrip(".")
+    return len(s.split(".")[1]) if "." in s else 0
+
+
+def _grid_decimals(db: Session, project_id: int) -> dict[tuple[str, str], Counter]:
+    """这个项目**自己的记录精度分布**：每种「系列 × 分量」记到几位小数、各占多少条。
+
+    用户 2026-10-16：
+        「第一期变化值会出现像小数点，后面所有期都是整数在变化了，你这很容易被看出来啊」
+        「水平位移这也是一样的 不要只改沉降观察」
+
+    实测（生产库）：十一号 / 十二号的台账记到 0.1mm（沉降 2651.3、位移 X 3413111727.2），
+    八号那几个记到 1mm（4907）。生成器原先一律 `round(cand)` 砍成**整数毫米** ——
+    真实段带小数、生成段全整数，同一列数字摆在一起，一眼就看出哪一段是造的。
+
+    ⚠ 这里**不猜一个"典型精度"**，而是把**整个分布**带回去按比例抽（见 `_pick_nd`）：
+
+    · **取众数**：真实台账本身就是混的（项目 12 的位移 X：整数 13 条、0.1mm 6 条、
+      0.01mm 7 条），众数会落回 0 —— "生成段全整数"的老毛病原样回来
+      （第一次只按众数修，用户当场发现"水平位移也一样"）；
+    · **取最大值**：某一条更正记录带个 .725 就能把整段生成值拖到 0.001mm 网格上，
+      反过来跟真实段不像；
+    · **按分布抽**：生成段的小数位构成 ≈ 真实段，两边摆在一起看不出接缝。
+
+    只看**非 generated** 的数据（导入台账 / 手工 / correct 更正）：
+    否则生成过的项目会被自己刚造出来的整数"教会"，越生成越假。
+    项目里一条真实数据都没有时返回空 → 沿用原来的 1mm（全新项目没有参照物）。
+    """
+    stmt = (
+        select(
+            ObservationRecord.series_type,
+            ObservationRecord.component,
+            ObservationRecord.value_mm,
+        )
+        .join(MeasurementPoint, MeasurementPoint.id == ObservationRecord.point_id)
+        .where(MeasurementPoint.project_id == project_id)
+        .where(ObservationRecord.value_mm.is_not(None))
+        .where(ObservationRecord.source != "generated")
+        .where(ObservationRecord.status.not_in(list(_REPLACED_STATUS)))
+    )
+    votes: dict[tuple[str, str], Counter] = {}
+    for st, comp, v in db.execute(stmt):
+        votes.setdefault((st, comp), Counter())[_decimals(v)] += 1
+    return votes
+
+
+def _pick_nd(rng: random.Random, dist: Counter | None) -> int:
+    """按真实数据的分布，抽一个"这一期记到几位小数"。
+
+    逐期抽样（而不是每个分量定死一个位数）才能让生成段的**小数位构成**跟真实段一致 ——
+    真实台账里整数和带小数的读数本来就是混着出现的。
+    """
+    if not dist:
+        return 0
+    total = sum(dist.values())
+    if total <= 0:
+        return 0
+    pick = rng.random() * total
+    acc = 0
+    for nd in sorted(dist):
+        acc += dist[nd]
+        if pick < acc:
+            return nd
+    return max(dist)
+
+
 def _limits(db: Session, project_id: int, series_type: str) -> tuple[float | None, float | None]:
     """该项目 `control` 级的 (控制累计 mm, 控制速率 mm/d)。**没填的那项返回 None。**
 
     口径与 `warnings.engine.check_level` 一致：填了哪项就按哪项约束，缺的项不参与。
-    报表侧同理，见 `warning_service.report_control_values`（"绝不在这里瞎给 0"）。
 
     ⚠ 原先这里在规则缺失时 `return 30.0, 5.0`，出过两回事：
     · 09-29「生成的数据太假」——幅度曾按控制值折算，没配规则的项目走兜底 → 半幅 1.25mm
       → `round()` 后只剩 {−1,0,+1}。幅度后来改成由 `_NOISE_SPEC`（真实台账标定）决定；
     · 只填了累计 20 的项目，旧条件 `if a and b` 会把**已填的 20 一起丢弃**换成 30。
     所以：0 与 None 都算"未填"（`ge=0` 的限值本身没有意义），但绝不再替用户编一个数。
+
+    取数走报表同一个出处 `report_control_values`（= `rule_limits` 的控制值那半边）——
+    生成时用的、报表上印的、判定时比的，必须是同一条规则读出来的同两个数。
     """
-    rule = effective_rules(db, project_id).get(series_type, {}).get("control")
-    if rule is None:
-        return None, None
-    return rule.threshold_cumulative_mm or None, rule.threshold_rate_mm_per_day or None
+    cum, rate = report_control_values(db, project_id, series_type)
+    return cum or None, rate or None
 
 
 def _require_limits(db: Session, project_id: int, series_types: set[str]) -> dict[str, tuple[float | None, float | None]]:
@@ -440,11 +512,12 @@ def _require_limits(db: Session, project_id: int, series_types: set[str]) -> dic
     为什么不兜底着继续生成：生成器的累计保护与防呆限幅都由这两个数缩放。
     按项目从没配过的限值生成，出来的是一批"看起来合规"的假台账 —— 而它会被拿去
     做曲线图、导日报、进汇报材料，事后没人知道它按的是哪个口径。
+
+    "缺不缺"判据与导出同一条（`warning_service.has_control_rule`）：
+    同一批数据，生成数据被拦、导日报却放行 = 换个入口换个口径。
     """
     limits = {st: _limits(db, project_id, st) for st in sorted(series_types)}
-    missing = [
-        _INDICATOR_CN[st] for st, (cum, rate) in limits.items() if cum is None and rate is None
-    ]
+    missing = [INDICATOR_CN[st] for st in sorted(series_types) if not has_control_rule(db, project_id, st)]
     if missing:
         raise HTTPException(
             status_code=422,
@@ -593,6 +666,10 @@ def generate_series(
     )}
     limits = _require_limits(db, project_id, needed)
 
+    # 项目自己的记录精度（0=整数毫米，1=0.1mm…）。生成的值要落到**同一张网格**上，
+    # 否则第一期（真实）与后面各期（生成）的精度对不上 —— 见 `_grid_decimals` 的实测记录。
+    grid = _grid_decimals(db, project_id)
+
     # ── 全站仪观测模式：预抽"每期架站"参数 ──
     # 必须在测点循环**之前**算好：同一期的所有测点要共享同一套架站偏差 ——
     # 这是这个模式的全部意义（"每次架设备"的误差由这一期的所有点共同承担）。
@@ -726,11 +803,17 @@ def generate_series(
                         if abs(cum_after) > plan["cum_cap"]:
                             cand = v0 + math.copysign(plan["cum_cap"], cum_after)
 
-                        new_value_mm = round(cand)
+                        # 落库精度按**项目自己台账的分布**抽（见 `_grid_decimals` / `_pick_nd`）：
+                        # 记到 1mm 的项目保持整数，记到 0.1mm 的项目就带小数。
+                        # 噪声本来就是连续的，原先硬砍成整数毫米，反而把"生成的那一段"标了出来。
+                        nd = _pick_nd(rng, grid.get((st, comp)))
+                        new_value_mm = round(cand) if nd == 0 else round(cand, nd)
                         cumulative = new_value_mm - v0
                         # 变形累计只推进"变形那一部分"（用实际落库的增量减去本期的架站偏移）
                         deform_cum += (new_value_mm - cur) - offset
-                        run, run_sign = _bump_run(run, run_sign, int(new_value_mm - cur))
+                        # 连涨连跌看的是**实际落库的增量**，0.1mm 精度下别再 int() 截断
+                        # （截断会把 0.4mm 的微小变化当成"没动"，白白打断连涨计数）
+                        run, run_sign = _bump_run(run, run_sign, new_value_mm - cur)
 
                     observation_repo.create(
                         db, p.id,

@@ -27,6 +27,7 @@ const KIND_COLOR: Record<string, string> = {
   control_cum: 'gold',
   control_rate: 'gold',
   rate_over: 'red',
+  cum_over: 'red',
   level_diff: 'purple',
   unknown_point: 'magenta',
   report_empty: 'cyan',
@@ -186,7 +187,7 @@ export default function AuditPage({ onBack }: { onBack: () => void }) {
           {r.problems.map((p) => (
             <Tag key={p.kind} color={KIND_COLOR[p.kind] ?? 'default'}>
               {result?.problem_labels[p.kind] ?? p.kind}
-              {p.kind === 'rate_over' && p.level ? `（${LEVEL_TEXT[String(p.level)] ?? p.level}）` : ''}
+              {(p.kind === 'rate_over' || p.kind === 'cum_over') && p.level ? `（${LEVEL_TEXT[String(p.level)] ?? p.level}）` : ''}
               {p.kind === 'level_diff' ? `（报表判${LEVEL_TEXT[String(p.report)] ?? r.report}／系统判${LEVEL_TEXT[String(p.system)] ?? r.system}）` : ''}
             </Tag>
           ))}

@@ -7,9 +7,14 @@
 
 四件事（按用户勾选）：
 1. **变化速率** —— 报表 H 列 vs 系统算出来的；
-2. **变化速率超限** —— 报表上印的数和系统里的数**各判一遍**，两边判级不一致也单独列；
+2. **超限** —— 按**当前**规则把报表上印的数和系统里的数**各判一遍**（累计、速率双控，
+   与 `warnings.engine.evaluate` 同口径取高），两边判级不一致也单独列；
 3. **本次变化量 / 本次累计变化量** —— 同一行顺带比；
 4. **报表「控制值」两列** vs 项目当前规则。
+
+⚠ 第 2 条里的**累计**是 2026-10-14 补的：用户当时的原话只点了"变化速率"，
+所以第一版只判速率。结果是"把累计控制值从 30 改到 12"之后，旧报表里早已超新限值的行
+一条都不报 —— 改的规则正是检查该盯的东西，检查却对它无感。
 
 三条要紧的判据（写错了会得出完全相反的结论）：
 
@@ -33,10 +38,11 @@ from backend.reports.export_reader import ReadReport, ReportRow, read_report
 from backend.services import export_template_service
 from backend.services.export_template_service import is_data_sheet_name
 from backend.services.project_matcher import match_project
-from backend.services.warning_service import effective_rules, report_control_values
+from backend.services.warning_service import report_control_values, rule_limits
 from backend.warnings.engine import check_level
 
-#: 报表里数值的精度（导出端 `_num()` = round(v, 3)）
+#: 比对时给系统值兜的精度上限。导出端已在 `paper_values` 按纸上口径收过
+#: （毫米 1 位、速率 3 位），这里再 round 到 3 位只是防浮点尾巴，不改变结论。
 REPORT_DECIMALS = 3
 
 #: 单个文件最多收多少条明细，整批最多多少条（结果页不至于把浏览器压死）
@@ -53,6 +59,7 @@ PROBLEM_LABELS = {
     "control_cum": "「控制值·累计变化量」和系统规则对不上",
     "control_rate": "「控制值·变化速率」和系统规则对不上",
     "rate_over": "变化速率已超限值（报表没体现）",
+    "cum_over": "累计变化量已超限值（报表没体现）",
     "level_diff": "两边判级不一致",
     "no_system_data": "系统里找不到这一期的数据",
     "unknown_point": "报表上的点号在本项目里不存在",
@@ -123,14 +130,18 @@ def _system_rows(db: Session, project_id: int, obs_date: str) -> dict[tuple[str,
 
 
 def _limits_of(db: Session, project_id: int, kind: str) -> dict:
-    rules = effective_rules(db, project_id).get(kind) or {}
-    c = rules.get("control")
-    a = rules.get("alarm")
+    """当前规则里**报表上那两列**的阈值（结果页要把它印出来，用户才知道"按哪套数判的"）。
+
+    ⚠ 这里**有意不取「本次变化量 ΔV」那一档**：报表上没有 ΔV 的控制值列，
+    系统侧一旦按 ΔV 判级，就会报出"报表正常、系统报警"的假不一致
+    —— 判级必须只按报表上真有的那几维取高（同 `_check_row` 里的 `has_col` 口径）。
+    """
+    lim = rule_limits(db, project_id, kind)
     return {
-        "control_cum": getattr(c, "threshold_cumulative_mm", None),
-        "control_rate": getattr(c, "threshold_rate_mm_per_day", None),
-        "alarm_cum": getattr(a, "threshold_cumulative_mm", None),
-        "alarm_rate": getattr(a, "threshold_rate_mm_per_day", None),
+        "control_cum": lim.control_cumulative_mm,
+        "control_rate": lim.control_rate_mm_per_day,
+        "alarm_cum": lim.alarm_cumulative_mm,
+        "alarm_rate": lim.alarm_rate_mm_per_day,
     }
 
 
@@ -183,18 +194,31 @@ def _check_row(row: ReportRow, sysrow: dict, limits: dict, ctrl: tuple, columns:
         if not _eq(a, b):
             problems.append({"kind": key, "report": a, "system": b})
 
-    # 变化速率超限：**报表上的数**和**系统里的数**各判一遍。
-    # 报表里没有速率列时，只判系统那一侧（仍然要能报出"系统这边已经超了"）。
-    lv_rep = check_level(
-        _r3(row.rate_mm_per_day) if has_col["rate"] else None,
-        limits["control_rate"],
-        limits["alarm_rate"],
+    # 超限判定：**报表上的数**和**系统里的数**各按当前规则判一遍。
+    #
+    # 双控 = 累计、速率各判一次、取高（与 `warnings.engine.evaluate` 同一口径）。
+    # 原先只判速率：把**累计**控制值调小之后，旧报表上早已超新的累计限值的行一个都不报 ——
+    # 用户改的正是这条规则，检查却对它无感，"文档和系统一一对应"就断在这里。
+    # 报表里没有对应列时那一侧不判（拿"报表没有这一栏"去报"超限"是假警报）。
+    lv_rep_cum = check_level(
+        _r3(row.cum_mm) if has_col["cum"] else None, limits["control_cum"], limits["alarm_cum"]
     )
-    lv_sys = check_level(_r3(sysrow.get("rate")), limits["control_rate"], limits["alarm_rate"])
+    lv_sys_cum = check_level(_r3(sysrow.get("cum_mm")), limits["control_cum"], limits["alarm_cum"])
+    lv_rep_rate = check_level(
+        _r3(row.rate_mm_per_day) if has_col["rate"] else None, limits["control_rate"], limits["alarm_rate"]
+    )
+    lv_sys_rate = check_level(_r3(sysrow.get("rate")), limits["control_rate"], limits["alarm_rate"])
+
+    lv_rep = max(lv_rep_cum, lv_rep_rate)
+    # 系统侧只按**报表上有的那几维**取高。报表没这一栏时无从比对 ——
+    # 拿"报表空白"去对"系统已超限"会整表报"两边判级不一致"，那是假警报（见 _check_row 开头）。
+    lv_sys = max(lv_sys_cum if has_col["cum"] else 0, lv_sys_rate if has_col["rate"] else 0)
     levels = {"report": _level_name(lv_rep), "system": _level_name(lv_sys)}
-    if has_col["rate"] and lv_rep != 0:
-        problems.append({"kind": "rate_over", "report": _r3(row.rate_mm_per_day), "level": _level_name(lv_rep)})
-    if has_col["rate"] and lv_rep != lv_sys:
+    if has_col["rate"] and lv_rep_rate:
+        problems.append({"kind": "rate_over", "report": _r3(row.rate_mm_per_day), "level": _level_name(lv_rep_rate)})
+    if has_col["cum"] and lv_rep_cum:
+        problems.append({"kind": "cum_over", "report": _r3(row.cum_mm), "level": _level_name(lv_rep_cum)})
+    if lv_rep != lv_sys:
         problems.append(
             {
                 "kind": "level_diff",
