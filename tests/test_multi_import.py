@@ -93,7 +93,7 @@ def test_one_file_two_pits_routes_each_sheet_to_its_own_project(client):
     """一份文件里混着两个基坑的表 → 各归各的项目，各自一个批次。"""
     a, b = _two_pits(client)
     name, data = _xlsx(
-        ("八号竖向位移", "兴善公路 八号基坑围护工程", ["JJC1", "JJC2"]),
+        ("八号竖向位移", "示例公路 八号基坑围护工程", ["JJC1", "JJC2"]),
         ("十号竖向位移", "十号基坑", ["Z1", "Z2"]),
     )
     resp = _upload(client, (name, data))

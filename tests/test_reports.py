@@ -10,7 +10,7 @@ from backend.reports.docx_report import build_daily_docx
 
 def _setup(client):
     """项目 + 2 测点 + 多期沉降/位移数据 + 预警规则。"""
-    p = client.post("/api/v1/projects", json={"code": "PRJ001", "name": "八号基坑测试", "location": "兴善公路"}).json()
+    p = client.post("/api/v1/projects", json={"code": "PRJ001", "name": "八号基坑测试", "location": "示例公路"}).json()
     pid = p["id"]
     j1 = client.post(f"/api/v1/projects/{pid}/points", json={"point_no": "JJC1", "point_type": "both"}).json()
     j2 = client.post(f"/api/v1/projects/{pid}/points", json={"point_no": "JJC2", "point_type": "both"}).json()

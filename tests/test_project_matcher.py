@@ -30,7 +30,7 @@ class P:
 
 
 PORTFOLIO = [
-    P(1, "PRJ-01", "兴善公路一号基坑"),
+    P(1, "PRJ-01", "示例公路一号基坑"),
     P(2, "PRJ-08", "八号基坑"),
     P(3, "PRJ-08D", "八号桥墩"),
     P(4, "PRJ-10", "十号基坑"),
@@ -51,8 +51,8 @@ def _m(text: str, *, src: str = "表内名称", projects=None):
         ("八号基坑", "八号基坑"),
         ("8号基坑", "八号基坑"),  # 阿拉伯数字 ↔ 中文数字
         ("八号基坑（右幅）", "八号基坑"),  # 括号里是限定词
-        ("兴善公路 八号基坑围护工程", "八号基坑"),  # 地名前缀 + 工程类别后缀
-        ("嘉善兴善公路工程8号基坑围护结构监测", "八号基坑"),  # 前缀 + 后缀 + 换数字写法
+        ("示例公路 八号基坑围护工程", "八号基坑"),  # 地名前缀 + 工程类别后缀
+        ("示例公路工程8号基坑围护结构监测", "八号基坑"),  # 前缀 + 后缀 + 换数字写法
         ("八号基坑围护工程监测日报（第3期）", "八号基坑"),  # 期次是噪音
         ("12号基坑", "十二号基坑"),  # 十二 ↔ 12
     ],
@@ -228,7 +228,7 @@ def test_close_match_is_flagged_for_confirmation() -> None:
     exact = _m("八号基坑")
     assert not exact.is_close, "完全一致不该提示确认"
 
-    near = _m("嘉善兴善公路工程8号基坑围护结构监测")
+    near = _m("示例公路工程8号基坑围护结构监测")
     assert near.project is not None and near.is_close
     assert near.score >= MIN_SCORE and near.score < CLOSE_SCORE
     assert "第" not in near.how  # 措辞是中文说明，不是内部名字

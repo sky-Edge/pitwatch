@@ -6,7 +6,7 @@
 **实测到的原因**（拿生产库里那份母版 + 真实项目跑一次导出，逐格扫"十一号"）：
 那份母版是拿**十一号**那期的报表另存的（用户自己存的时候只改了文件名），
 母版里有 **8 处固定文字**写着"十一号"：封面工程名称格、签字"（十一号）"、
-两张数据表的"监测工程名称：十一号"与"工点名称：兴善公路 十一号"、以及两段
+两张数据表的"监测工程名称：十一号"与"工点名称：示例公路 十一号"、以及两段
 "监测结论及建议：本次监测工作为十一号围檩…"。
 
 系统只替换它学到的**变量槽**（日期/期次/数据），这些固定文字原样留着 → 报表上全是别人的基坑名。
@@ -38,7 +38,7 @@ def _master_named(tmp_path, old: str = OLD, suffix: bool = False):
     for sn, tail_row in (("竖向位移", 31), ("r.立柱结构水平位移", 34)):
         ws = wb[sn]
         ws["A2"] = f"监测工程名称：{ent}"
-        ws["G3"] = f"工点名称：兴善公路  {ent}"
+        ws["G3"] = f"工点名称：示例公路  {ent}"
         ws.cell(row=tail_row, column=1, value=f"监测结论及建议：本次监测工作为{ent}围檩位移监测工作。")
     out = Path(tmp_path) / "master_named.xlsx"
     wb.save(out)
@@ -94,7 +94,7 @@ def test_master_self_name_is_replaced_everywhere(client, tmp_path):
     assert "十号基坑" in wb["封面"]["F11"].value
     assert "十号基坑" in wb["签字"]["A9"].value
     assert "监测工程名称：十号基坑" in wb["竖向位移"]["A2"].value
-    assert "兴善公路  十号基坑" in wb["竖向位移"]["G3"].value
+    assert "示例公路  十号基坑" in wb["竖向位移"]["G3"].value
     assert "本次监测工作为十号基坑围檩" in str(wb["竖向位移"]["A31"].value)
     assert "本次监测工作为十号基坑围檩" in str(wb["r.立柱结构水平位移"]["A34"].value)
     wb.close()
@@ -175,7 +175,7 @@ def test_extraction_needs_two_hits():
     assert "_looks_like_project_name" in src
 
 
-@pytest.mark.parametrize("bad", ["兴善公路", "基坑", "2026年8月20日", "（", "监测工程名称"])
+@pytest.mark.parametrize("bad", ["示例公路", "基坑", "2026年8月20日", "（", "监测工程名称"])
 def test_looks_like_project_name_rejects_junk(bad):
     from backend.reports.master_report import _looks_like_project_name
 

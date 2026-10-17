@@ -66,7 +66,7 @@ class ReadReport:
 
     path: Path
     filename: str
-    #: 表里出现的工程名称候选（"工程名称：兴善公路 十号基坑" → ["兴善公路 十号基坑", "十号基坑"]）
+    #: 表里出现的工程名称候选（"工程名称：示例公路 十号基坑" → ["示例公路 十号基坑", "十号基坑"]）
     name_candidates: list[str] = field(default_factory=list)
     obs_date: str | None = None
     date_source: str = ""  # text / filename
@@ -114,7 +114,7 @@ def _name_candidates(wb) -> list[str]:
     """表里的工程名称候选。
 
     与 `master_report._extract_master_project_name` 用**同一套标签**取法：
-    标签后按空白切分、最后一段是名字（前面是"兴善公路"这类地名前缀）。
+    标签后按空白切分、最后一段是名字（前面是"示例公路"这类地名前缀）。
     这里额外把"整段"也收进来 —— 检查时是拿去跟**已知项目名**对，
     多给几个候选没有副作用，漏给才会认不出。
     """

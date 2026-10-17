@@ -6,7 +6,7 @@
 from backend.schemas.project import ProjectCreate
 
 
-def _payload(code: str = "PRJ001", name: str = "嘉善兴善公路基坑监测", **kwargs) -> dict:
+def _payload(code: str = "PRJ001", name: str = "示例公路基坑监测", **kwargs) -> dict:
     data = {"code": code, "name": name}
     data.update(kwargs)
     return data
@@ -23,7 +23,7 @@ def test_create_project(client):
     assert resp.status_code == 201
     body = resp.json()
     assert body["code"] == "PRJ001"
-    assert body["name"] == "嘉善兴善公路基坑监测"
+    assert body["name"] == "示例公路基坑监测"
     assert body["is_active"] is True
     assert body["sign_config"] == {}
 

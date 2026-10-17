@@ -389,12 +389,12 @@ def _head_name_texts(head_rows: list[list]) -> list[str]:
 
     标签与取法和 `master_report._extract_master_project_name`、
     `export_reader._name_candidates` 是**同一套**（标签后按空白切分、最后一段是名字，
-    前面「兴善公路」这类地名前缀也一并留着）—— 三处各写一套的话，早晚有一处漏改，
+    前面「示例公路」这类地名前缀也一并留着）—— 三处各写一套的话，早晚有一处漏改，
     认项目就会和导出的口径对不上。
 
     ⚠ 必须**逐格**看，不能用表头区整行拼接的文字：拼起来会把隔壁那格
     「本次监测时间：2026-07-31」粘到名字后面，认项目当场认歪。
-    ⚠ 也不能先过 `_norm`：它会把空格全删掉，「兴善公路 八号基坑」变成一整坨，
+    ⚠ 也不能先过 `_norm`：它会把空格全删掉，「示例公路 八号基坑」变成一整坨，
     就再也切不出"最后一段"了。
     """
     from backend.reports.master_report import NAME_LABELS
