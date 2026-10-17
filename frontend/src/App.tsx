@@ -85,6 +85,8 @@ type View =
 
 export default function App() {
   const [view, setView] = useState<View>({ kind: 'projects' })
+  /** 后端报上来的版本号 —— 顶栏右上角显示，用户随时能确认"我跑的是哪一版"（2026-10-17） */
+  const [appVersion, setAppVersion] = useState<string>('')
 
   // ⚠ 必须写成"逐个排除"而不是 `ARRAY.includes(view.kind)` ——
   // 只有这种形式 TypeScript 才会把它当类型守卫，进而把 view 收窄成"项目内视图"。
@@ -103,6 +105,7 @@ export default function App() {
     void (async () => {
       try {
         const h = await systemApi.health()
+        setAppVersion(h.version ?? '')
         const missing = REQUIRED_BACKEND_FEATURES.filter((f) => !(h.features ?? []).includes(f))
         if (missing.length > 0) {
           message.warning({
@@ -123,9 +126,17 @@ export default function App() {
     <Layout style={{ minHeight: '100vh' }}>
       {/* 顶栏底色/文字色由 antd 主题提供（theme/antd.ts 的 Layout.headerBg / headerColor），此处只保留布局 */}
       <Layout.Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Typography.Title level={4} style={{ color: BRAND.onPrimary, margin: 0 }}>
-          {APP_NAME}
-        </Typography.Title>
+        <Space align="baseline" size={10}>
+          <Typography.Title level={4} style={{ color: BRAND.onPrimary, margin: 0 }}>
+            {APP_NAME}
+          </Typography.Title>
+          {/* 版本号：出问题时先说"你跑的是哪一版"，比问一堆问题快得多 */}
+          {appVersion && (
+            <Typography.Text style={{ color: BRAND.onPrimary, opacity: 0.72, fontSize: 12 }}>
+              v{appVersion}
+            </Typography.Text>
+          )}
+        </Space>
         <Space>
           <Button type="text" icon={<HomeOutlined />} style={{ color: BRAND.onPrimary }} onClick={goProjects}>
             项目列表

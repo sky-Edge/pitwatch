@@ -1650,7 +1650,7 @@ export const fsApi = {
  * （http 实例的 baseURL 是 /api/v1）。vite 的代理包含 /api，开发时同样能转发。
  */
 export const systemApi = {
-  health: async (): Promise<{ status: string; features?: string[] }> => {
+  health: async (): Promise<{ status: string; version?: string; features?: string[] }> => {
     const r = await fetch('/api/health')
     if (!r.ok) throw new Error(`后端返回 ${r.status}`)
     return r.json()

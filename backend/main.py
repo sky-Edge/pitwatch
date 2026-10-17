@@ -12,6 +12,7 @@ from backend.api.v1 import audit, backup, baselines, batch_import, bulk, calcula
 from backend.core import reqlog
 from backend.core.config import frontend_dist_dir, settings
 from backend.core.db import harden_console, init_db
+from backend.core.version import __version__ as APP_VERSION
 from backend.services.export_template_service import seed_builtin_templates
 
 # 控制台可能是 GBK：先把"编不出的字符写成 ? "这件事定下来，
@@ -158,7 +159,14 @@ BACKEND_FEATURES = [
 
 @app.get("/api/health", tags=["health"])
 def health() -> dict:
-    return {"status": "ok", "app": settings.app_name, "features": BACKEND_FEATURES}
+    # version 给界面显示用（右上角），也是"我到底跑的是哪一版"的判据。
+    # 唯一出处 backend/core/version.py —— 别在这儿另写一个字符串。
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "version": APP_VERSION,
+        "features": BACKEND_FEATURES,
+    }
 
 
 # ---- 前端静态页（仅打包/生产形态启用）--------------------------------------
