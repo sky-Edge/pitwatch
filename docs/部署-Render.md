@@ -17,16 +17,18 @@
 
 ## 部署步骤（约 5 分钟）
 
-### 1. 注册
+### 先看一个前提
 
-打开 **https://render.com** → 右上 **Get Started** → 用 **GitHub** 登录。
-免费档**需要绑一张卡**做身份验证（不会扣钱，免费实例不收费）。这一步如果不想绑，见文末替代方案。
+Render 的一键部署要读仓库里的 **`render.yaml`**。如果这个文件还没推到 GitHub，
+就跳过下面「方式 A」，直接走「方式 B 手动建」（用仓库里已有的 `Dockerfile`，一样能跑）。
 
-### 2. 用 Blueprint 一键建
+---
+
+### 方式 A：Blueprint 一键部署（仓库里有 `render.yaml` 时）
 
 1. 控制台右上 **New** → **Blueprint**
 2. 选仓库 **`sky-Edge/pitwatch`** → **Connect**
-3. Render 会读到仓库里的 `render.yaml`，显示要创建的服务 `pitwatch`
+3. Render 会读到 `render.yaml`，显示要创建的服务 `pitwatch`
 4. 点 **Apply**
 
 它自动做的事（都在 `render.yaml` 里写好了）：
@@ -36,12 +38,43 @@
 - 健康检查打 `/api/health`
 - 环境变量：`MONITOR_DEMO_SEED=1`、`TZ=Asia/Shanghai`
 
-### 3. 等构建
+---
+
+### 方式 B：手动建 Web Service（仓库里没有 `render.yaml` 时）
+
+1. 控制台右上 **New** → **Web Service**（不是 Blueprint）
+2. **Connect a repository** → 选 **`sky-Edge/pitwatch`** → Connect
+3. 按下面的表填（其余保持默认）：
+
+| 字段 | 填什么 | 说明 |
+|---|---|---|
+| **Name** | `pitwatch` | 会变成域名的一部分 |
+| **Region** | `Singapore` | 亚太，国内快；选错会慢很多 |
+| **Branch** | `master` | |
+| **Runtime / Language** | **`Docker`** | ⚠️ 别选 Python，会去猜怎么装 |
+| **Dockerfile Path** | `./Dockerfile` | 默认就是 |
+| **Instance Type** | **`Free`** | 512 MB / 0.1 CPU |
+| **Health Check Path** | `/api/health` | 没配的话冷启动容易被判失败 |
+
+4. 展开 **Environment Variables**，手动加两条（**别漏，尤其是 TZ**）：
+
+| Key | Value |
+|---|---|
+| `MONITOR_DEMO_SEED` | `1` |
+| `TZ` | `Asia/Shanghai` |
+
+5. 点 **Create Web Service**，等构建
+
+> ⚠️ 漏了 `TZ` 不会报错，只会让"今天"偏 8 小时 —— 观测日期、日报期次、周报统计全歪，而且**从现象上看不出来**。
+
+---
+
+### 等构建
 
 第一次约 5–10 分钟（要装 Node 依赖、跑 `tsc && vite build`、装 Python 依赖）。
 日志里能看到 `npm run build` 和 `pip install` 的进度，属正常。
 
-### 4. 拿地址
+### 拿地址
 
 构建完，服务页顶部会显示：
 
