@@ -1,0 +1,29 @@
+# 换行符规则。
+# 本机 git 是 core.autocrlf=true，Windows 上检出会统一变 CRLF ——
+# 这对 Dockerfile 是**真实的坑**：`RUN apt-get update \` 这种续行带上 \r，
+# 容器里执行会报莫名其妙的错（构建日志里还看不出来）。
+# 所以把跟容器/脚本相关的文件钉死成 LF。
+
+* text=auto
+
+Dockerfile      text eol=lf
+.dockerignore   text eol=lf
+*.sh            text eol=lf
+*.py            text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+
+# Windows 批处理反过来必须是 CRLF，否则 cmd 执行会出问题
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+
+# 二进制：别做任何换行转换
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.xlsx  binary
+*.xls   binary
+*.db    binary
+*.woff2 binary
