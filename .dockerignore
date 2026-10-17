@@ -1,0 +1,36 @@
+# 构建上下文里不要的东西 —— 这个仓库里有 500MB+ 的本机运行数据，
+# 传进 Docker daemon 会慢到没法用。
+
+# 运行数据（绝不进镜像：真实监测数据留在本机，演示数据由 MONITOR_DEMO_SEED 现长）
+database/
+templates/
+uploads/
+logs/
+导出/
+release/
+build_pyi/
+
+# 依赖与构建产物（前端会在构建阶段自己装、自己编）
+node_modules/
+**/node_modules/
+frontend/dist/
+
+# 开发/测试（镜像里用不到）
+tests/
+docs/
+.verify_tmp/
+.workbuddy/
+.pytest_cache/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 版本库与杂项
+.git/
+.gitignore
+*.md
+!README.md
+关闭服务.bat
+启动系统.bat
+UX-UI-优化分析报告.md

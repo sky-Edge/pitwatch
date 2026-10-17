@@ -4,6 +4,7 @@
 启动时自动建表（V1 create_all，后续升级 Alembic 迁移）。
 """
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,38 @@ from backend.services.export_template_service import seed_builtin_templates
 harden_console()
 
 
+def _seed_demo_if_empty() -> None:
+    """演示模式：库是空的就自动建一个示例项目。
+
+    为什么需要（2026-10-17）：Zeabur / Hugging Face 这类免费平台的容器磁盘是**临时的**，
+    重启会把 database/ 丢掉。演示站不能因此变成空壳 —— 启动时发现一个项目都没有，
+    就自己长出演示数据，别人随时点开都能看到完整流程（曲线、预警、导出日报）。
+    真实工程数据留在用户本机，不进容器。
+
+    只在 `MONITOR_DEMO_SEED=1` 时生效。判据是「库是空的」而不是「每次启动都建」——
+    挂了持久卷的部署重启后项目还在，就不会多长出重复的示例项目。
+    """
+    if os.environ.get("MONITOR_DEMO_SEED", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        return
+
+    from backend.core.db import SessionLocal
+    from backend.services import project_service, sample_project_service
+
+    try:
+        with SessionLocal() as s:
+            if project_service.list_projects(s, include_inactive=True):
+                return  # 已经有数据（持久卷），别再长一个
+            info = sample_project_service.create_sample_project(s, periods=6, point_count=8)
+            s.commit()
+        print(
+            f"[演示模式] 空库，已自动创建示例项目：{info.get('project_name')} "
+            f"（{info.get('points_created')} 个测点 / {info.get('records_generated')} 条演示数据）"
+        )
+    except Exception as exc:  # noqa: BLE001
+        # 演示数据建不出来**不能**把服务带崩 —— 用户至少还能打开界面自己建项目
+        print(f"[演示模式] 示例项目创建失败（不影响启动）：{exc}")
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
@@ -29,6 +62,7 @@ async def lifespan(_app: FastAPI):
 
     with SessionLocal() as s:
         seed_builtin_templates(s)
+    _seed_demo_if_empty()
     yield
 
 
