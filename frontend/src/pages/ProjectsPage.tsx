@@ -611,8 +611,30 @@ export default function ProjectsPage({
   }
 
   const columns: ColumnsType<Project> = [
-    { title: '项目编号', dataIndex: 'code', width: 110 },
-    { title: '项目名称', dataIndex: 'name' },
+    {
+      // 编号宽 110 装不下「6号左边墩」这类长编号，会被折成两行；给到 130 并允许省略。
+      title: '项目编号',
+      dataIndex: 'code',
+      width: 130,
+      render: (v: string) => (
+        <Tooltip title={v} placement="topLeft">
+          <span className="cell-ellipsis">{v}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      // ⚠ 这一列必须给固定宽度：其余列全是固定宽，`scroll.x` 又刚好等于"固定宽之和"，
+      // 于是这唯一的弹性列被压到几像素宽 —— 表现是「六号左边墩基坑」一个字一行地竖排。
+      // 名字太长时用省略号 + 悬停看全名，别让它撑破版面。
+      title: '项目名称',
+      dataIndex: 'name',
+      width: 200,
+      render: (v: string) => (
+        <Tooltip title={v} placement="topLeft">
+          <span className="cell-ellipsis">{v}</span>
+        </Tooltip>
+      ),
+    },
     { title: '地点', dataIndex: 'location', width: 110, render: (v: string | null) => v || '-' },
     {
       title: '状态',
@@ -924,8 +946,11 @@ export default function ProjectsPage({
           preserveSelectedRowKeys: true,
         }}
         pagination={{ pageSize: 10 }}
-        // 各列固定宽之和 + 勾选列；留够宽度让「项目名称」不被挤成两行
-        scroll={{ x: 1380 }}
+        // 这张表**每一列都给固定宽**（含勾选列），所以 scroll.x 必须 ≥ 各列宽之和，
+        // 否则没有弹性列可压，antd 会把最宽的那列挤成一条竖线。
+        // 现在各列合计 1550 + 勾选列 ≈ 1598，取 1600。加列/改宽时记得同步这个数。
+        // （1600 是照着"1680 宽窗口下不出现横向滚动"定的；屏幕更窄时才会滚，属正常）
+        scroll={{ x: 1600 }}
       />
 
       <Modal

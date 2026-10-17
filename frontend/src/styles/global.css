@@ -60,3 +60,15 @@
 .focus-row td:first-child {
   box-shadow: inset 3px 0 0 0 var(--wm-brand-primary);
 }
+
+/* 表格里的长文本：一行显示，超出打省略号，悬停看全名。
+   起因（2026-10-17）：主界面「项目名称」那一列没给固定宽度，
+   而其余列全是固定宽、scroll.x 又刚好等于固定宽之和 →
+   这一列被压到几像素，「六号左边墩基坑」被挤成一个字一行地竖排。 */
+.cell-ellipsis {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
