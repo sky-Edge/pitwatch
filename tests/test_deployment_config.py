@@ -86,3 +86,38 @@ def test_deploy_guide_exists_and_names_the_volume_path() -> None:
     text = GUIDE.read_text(encoding="utf-8")
     assert "/data" in text
     assert "MONITOR_DEMO_SEED" in text
+
+
+# ─────────────────────── Render 免费档（2026-10 起的主推方案）───────────────────────
+
+
+def test_render_blueprint_matches_the_image() -> None:
+    """`render.yaml` 必须指向 Dockerfile 本身，而不是自己再描述一遍怎么装。
+
+    重复描述构建步骤是这类蓝图的头号坑：Dockerfile 改了、yaml 没改，
+    线上跑的还是老逻辑，而且看日志也看不出来。
+    """
+    yml = ROOT / "render.yaml"
+    assert yml.exists(), "render.yaml 不见了（Render 一键部署要靠它）"
+    text = yml.read_text(encoding="utf-8")
+
+    assert "runtime: docker" in text, "不是 Docker 运行时，会去猜语言"
+    assert "dockerfilePath: ./Dockerfile" in text, "没指向仓库根目录的 Dockerfile"
+    assert "plan: free" in text, "计划不是 free —— 用户要的就是免费"
+    assert "healthCheckPath: /api/health" in text, "没配健康检查，冷启动会被平台判失败"
+
+
+def test_render_blueprint_sets_the_two_required_env() -> None:
+    """演示模式与时区必须显式写进蓝图（这是部署后最容易忘的两项）。"""
+    text = (ROOT / "render.yaml").read_text(encoding="utf-8")
+    assert "MONITOR_DEMO_SEED" in text, "没开演示模式 → 重启后站点变空壳"
+    assert "Asia/Shanghai" in text, "没钉时区 → 日期整体偏 8 小时且不报错"
+
+
+def test_render_guide_documents_free_tier_limits() -> None:
+    """指南必须写明免费档的三个限制，否则用户上线后才发现，会以为系统坏了。"""
+    guide = ROOT / "docs" / "部署-Render.md"
+    assert guide.exists(), "Render 部署指南不见了"
+    text = guide.read_text(encoding="utf-8")
+    for must in ("512", "休眠", "持久磁盘"):
+        assert must in text, f"指南没写清「{must}」这一条限制"

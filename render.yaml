@@ -1,0 +1,26 @@
+# Render 一键部署（Blueprint）。
+# 用法：Render 控制台 → New → Blueprint → 选这个仓库 → Apply，它会照着下面建服务。
+#
+# 免费档的实际限制（2026-10 在 render.com/pricing 核过）：
+#   · 512 MB 内存 / 不到 1 个 CPU
+#   · 15 分钟没有访问会休眠，下次访问冷启动约 1 分钟
+#   · **不能挂持久磁盘**（磁盘 $0.25/GB/月，属付费项）
+# 所以演示数据靠镜像里的 MONITOR_DEMO_SEED 兜底：重启后库空了就自己长回来。
+
+services:
+  - type: web
+    name: pitwatch
+    runtime: docker
+    plan: free
+    # 亚太节点，国内访问比美区好；Render 免费档可选区域以控制台为准
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # 空库启动时自动建示例项目（免费平台磁盘是临时的，重启靠它恢复）
+      - key: MONITOR_DEMO_SEED
+        value: "1"
+      # 系统所有时间戳都是本地时间，不钉时区会让"今天"偏 8 小时
+      - key: TZ
+        value: Asia/Shanghai

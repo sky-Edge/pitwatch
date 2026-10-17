@@ -76,7 +76,10 @@ npm run dev
 
 仓库里带好了 `Dockerfile`，前端在构建阶段编译进镜像，运行阶段**单端口 8000** 同时提供页面和 API。
 
-部署到 Zeabur（有免费额度、不要信用卡）的完整步骤见 **[docs/部署-Zeabur.md](docs/部署-Zeabur.md)**。
+部署到公网的完整步骤：
+
+- **[Render（有免费档，$0/月）](docs/部署-Render.md)** —— 仓库里带 `render.yaml`，New → Blueprint → 选仓库 → Apply
+- [Zeabur](docs/部署-Zeabur.md) —— ⚠️ 2026-10 起 Free 计划已不含计算资源，文档保留作参考
 
 两点部署时的默认行为，先在这里说清：
 
