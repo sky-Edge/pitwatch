@@ -35,10 +35,14 @@ def test_chart_data_settlement(client):
     assert d["dates"] == ["2026-07-30", "2026-07-31"]
     assert len(d["series"]) == 2
     j1 = next(s for s in d["series"] if s["point_no"] == "JJC1")
-    assert j1["data"] == [
-        {"date": "2026-07-30", "cumulative_mm": 0.0},
-        {"date": "2026-07-31", "cumulative_mm": -27.0},
+    # 只钉"曲线画什么"的两个字段。2026-10-19 起每个点还带 record_id / value_mm（拖拽调整要用），
+    # 写死整个 dict 的话，以后再加字段这条测试就会无谓地红。
+    assert [(p["date"], p["cumulative_mm"]) for p in j1["data"]] == [
+        ("2026-07-30", 0.0),
+        ("2026-07-31", -27.0),
     ]
+    # 但这两个字段是拖拽的前提：缺了前端点了没反应，必须钉住
+    assert all(p["record_id"] and p["value_mm"] is not None for p in j1["data"])
 
 
 def test_chart_data_displacement_component(client):

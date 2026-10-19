@@ -860,12 +860,24 @@ export const batchImportApi = {
 
 // ---------- 图表数据（Chart Data Builder） ----------
 
+/** 曲线上的一个点。
+ *
+ *  `record_id` / `value_mm` 是给"拖拽调整"用的：
+ *  曲线画的是累计变化量，但落库改的是**读数**，需要这条记录的主键和原读数。
+ */
+export interface ChartPoint {
+  date: string
+  cumulative_mm: number
+  value_mm: number | null
+  record_id: number | null
+}
+
 export interface ChartSeries {
   point_id: number
   point_no: string
   series_type: SeriesType
   component: Component
-  data: Array<{ date: string; cumulative_mm: number }>
+  data: ChartPoint[]
 }
 
 export interface ChartWarningPoint {
@@ -886,6 +898,11 @@ export interface ChartDataResponse {
   series: ChartSeries[]
   warning_points: ChartWarningPoint[]
   unit: string
+  /** 拖拽调整的边界（累计变化量绝对值，mm）。None = 该维没配规则，不允许拖拽 */
+  limits: {
+    control_cumulative_mm: number | null
+    alarm_cumulative_mm: number | null
+  }
 }
 
 export const chartApi = {
