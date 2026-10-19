@@ -94,6 +94,10 @@ def build_chart_data(db: Session, project_id: int, indicator: str, component: st
                 "series_type": indicator,
                 "component": comp,
                 "data": data,
+                # V0 的来源日：没填显式初始值时，**首期读数就是 V0**。
+                # 这一天不能拖 —— 改它等于改基准，整条曲线的累计会整体平移
+                # （用户 2026-10-19 反馈"只对一个点做调整"，就是踩了这个）。
+                "baseline_date": data[0]["date"] if (p.initial_value_mm is None and data) else None,
             }
         )
 

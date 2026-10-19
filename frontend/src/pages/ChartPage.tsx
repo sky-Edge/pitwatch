@@ -198,6 +198,8 @@ export default function ChartPage({ projectId, onBack }: Props) {
       visible.forEach((s, si) => {
         s.data.forEach((pt) => {
           if (pt.record_id == null || pt.value_mm == null) return
+          // 基准点不给拖：它的读数就是 V0，改它等于改基准，整条曲线会整体平移
+          if (s.baseline_date && pt.date === s.baseline_date) return
           const px = inst.convertToPixel({ seriesIndex: si }, [pt.date, pt.cumulative_mm])
           if (!Array.isArray(px)) return
           const d = Math.hypot(px[0] - x, px[1] - y)
@@ -408,6 +410,9 @@ export default function ChartPage({ projectId, onBack }: Props) {
             )}
           </div>
         </Spin>
+        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+          拖哪个点只改那一天。<b>最早一期是基准</b>（累计从它算起），不给拖 —— 要改初始值请到「测点」页。
+        </Typography.Text>
       </Card>
 
       {/* 松手后确认：改的是真实观测数据，不能拖完就静默生效 */}

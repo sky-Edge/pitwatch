@@ -878,6 +878,8 @@ export interface ChartSeries {
   series_type: SeriesType
   component: Component
   data: ChartPoint[]
+  /** V0 的来源日（没填显式初始值时为最早一期）。这一天是整条曲线的基准，不参与拖拽 */
+  baseline_date: string | null
 }
 
 export interface ChartWarningPoint {

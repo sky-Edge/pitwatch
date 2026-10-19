@@ -159,3 +159,53 @@ def test_corrected_point_reflects_new_warning_level(client) -> None:
 
     d2 = _chart(client, pid)
     assert d2["warning_points"] == [], "调整后不该还有预警点"
+
+
+# ───────────────────── 只动一个点：基准点不可拖 ─────────────────────
+
+
+def test_baseline_date_is_first_period_when_no_initial_value(client) -> None:
+    """没填显式初始值 → 首期读数就是 V0，那一天必须标成 baseline（前端据此禁止拖拽）。
+
+    否则拖它 = 改基准 = 整条曲线的累计一起平移 ——
+    用户 2026-10-19 说的「只对一个点做调整」就是踩了这个。
+    """
+    pid, pt = _mk(client, code="PRJ-D7", name="拖拽七号", v0=None)  # type: ignore[arg-type]
+    _rec(client, pt, "2026-07-30", 5000.0)
+    _rec(client, pt, "2026-07-31", 5010.0)
+
+    s = _chart(client, pid)["series"][0]
+    assert s["baseline_date"] == "2026-07-30"
+
+
+def test_baseline_date_is_null_when_initial_value_given(client) -> None:
+    """填了显式初始值 → V0 是固定数，任何一个点改起来都只影响自己，无需禁用。"""
+    pid, pt = _mk(client, code="PRJ-D8", name="拖拽八号", v0=5000.0)
+    _rec(client, pt, "2026-07-30", 5003.0)
+    _rec(client, pt, "2026-07-31", 5010.0)
+
+    s = _chart(client, pid)["series"][0]
+    assert s["baseline_date"] is None
+
+
+def test_adjusting_one_point_moves_only_that_point(client) -> None:
+    """核心诉求：「只对一个点做调整」。
+
+    改中间某一天，**前后两天必须原封不动**。判据要逐个比对累计值，
+    不能只比"曲线变了没有" —— 整条线一起平移也满足"变了"，但那正是要防的。
+    """
+    pid, pt = _mk(client, code="PRJ-D9", name="拖拽九号", v0=5000.0)
+    _rec(client, pt, "2026-07-30", 5003.0)  # 累计 3
+    mid = _rec(client, pt, "2026-07-31", 5010.0)  # 累计 10 ← 要改这个
+    _rec(client, pt, "2026-08-01", 5015.0)  # 累计 15
+
+    before = [(p["date"], p["cumulative_mm"]) for p in _chart(client, pid)["series"][0]["data"]]
+
+    # 把 07-31 从 10 拖到 4（读数 5004）
+    client.post(f"/api/v1/records/{mid}/correct", json={"value_mm": 5004.0, "remark": "只改这一天"})
+
+    after = [(p["date"], p["cumulative_mm"]) for p in _chart(client, pid)["series"][0]["data"]]
+
+    assert after[0] == before[0], "前一天被带歪了"
+    assert after[2] == before[2], "后一天被带歪了"
+    assert after[1] == ("2026-07-31", pytest.approx(4.0))
