@@ -20,6 +20,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { pointApi, type MeasurementPoint, type PointType, type Project } from '../api/client'
 import { POINT_TYPE_LABEL, POINT_TYPE_TAG_COLOR } from '../labels'
 import BatchPointsModal from '../components/BatchPointsModal'
+import PointLayoutCard from '../components/PointLayoutCard'
 import { WARNING_LEVEL } from '../theme/tokens'
 
 interface FormValues {
@@ -217,6 +218,9 @@ export default function PointsPage({
           description="点「新建测点」逐个添加，或用「批量新建」一次粘贴多个（每行格式：编号,类型,初始值）。建好测点后就能录入观测数据了。"
         />
       )}
+      {/* 平面布置：用户 2026-10-19 要"看每个基坑中初始值的位置关系"。
+          没测点时不必显示（下面那句"还没有测点"已经说清了）。 */}
+      {points.length > 0 && <PointLayoutCard projectId={project.id} />}
       <Space>
         <Button type="primary" onClick={openCreate}>
           新建测点

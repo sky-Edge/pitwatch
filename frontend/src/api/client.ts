@@ -176,6 +176,41 @@ export const projectApi = {
 
 export type PointType = 'settlement' | 'displacement' | 'both'
 
+/** 平面布置图里的一个点（坐标单位 m，大地坐标） */
+export interface LayoutPoint {
+  point_no: string
+  point_type: PointType
+  x_m: number
+  y_m: number
+}
+
+/** 相邻两点（按点号顺序连） */
+export interface LayoutSegment {
+  from: string
+  to: string
+  length_m: number
+}
+
+/** 测点平面布置 —— 看一个基坑里各点的位置关系 */
+export interface PointLayout {
+  project_id: number
+  points: LayoutPoint[]
+  /** 画不上图的点 + 原因（绝不静默少点） */
+  missing: Array<{ point_no: string; why: string }>
+  segments: LayoutSegment[]
+  /** 所有点的包络范围；没有点时是 null */
+  bbox: {
+    min_x_m: number
+    max_x_m: number
+    min_y_m: number
+    max_y_m: number
+    width_m: number
+    height_m: number
+  } | null
+  placed_count: number
+  missing_count: number
+}
+
 export interface MeasurementPoint {
   id: number
   uuid: string
@@ -197,6 +232,13 @@ export interface PointInput {
 }
 
 export const pointApi = {
+  /** 平面布置：每个测点的初始位置（水平位移 X/Y 首期读数，已换算成米）
+   *
+   *  为什么坐标在读数里：测点表只存高程初值，没有平面坐标；
+   *  而位移的 X/Y 读数本身就是大地坐标（3412987154 mm → 3412987.154 m）。
+   */
+  layout: (projectId: number) =>
+    http.get<PointLayout>(`/projects/${projectId}/points/layout`).then((r) => r.data),
   list: (projectId: number, includeInactive = true) =>
     http
       .get<MeasurementPoint[]>(`/projects/${projectId}/points`, { params: { include_inactive: includeInactive } })

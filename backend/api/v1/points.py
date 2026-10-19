@@ -14,7 +14,7 @@ from backend.schemas.point import (
     PointRead,
     PointUpdate,
 )
-from backend.services import hard_delete_service, point_service
+from backend.services import hard_delete_service, point_layout_service, point_service
 
 # 项目下的测点集合
 project_points_router = APIRouter(prefix="/projects/{project_id}/points", tags=["points"])
@@ -31,6 +31,16 @@ def list_points(
 ):
     """项目下的测点列表。include_inactive=false 仅返回在用测点。"""
     return point_service.list_points(db, project_id, include_inactive=include_inactive)
+
+
+@project_points_router.get("/layout")
+def point_layout(project_id: int, db: Session = Depends(get_db)):
+    """测点平面布置：每个点的初始位置（水平位移 X/Y 首期读数，换成米）。
+
+    给「测点」页上那张布置图用。纯沉降点没有平面坐标，会在 `missing` 里点名，
+    不会静默少几个点。
+    """
+    return point_layout_service.build_layout(db, project_id)
 
 
 @project_points_router.post("", response_model=PointRead, status_code=201)
