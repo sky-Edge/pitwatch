@@ -58,21 +58,25 @@ export default function PointLayoutCard({ projectId }: { projectId: number }) {
   const geo = useMemo(() => {
     const bbox = data?.bbox
     if (!bbox || (data?.points.length ?? 0) === 0) return null
-    const bw = Math.max(bbox.width_m, 0.001)
-    const bh = Math.max(bbox.height_m, 0.001)
+    // ★ 测量坐标系 → 图纸方向（与 CAD 一致）：**X = 北（向上）、Y = 东（向右）**。
+    // 所以屏幕上**横向取 Y、纵向取 X**。反过来的话整张图会转 90°，
+    // 拿去对 CAD 总平面就会觉得"X/Y 是反的"（用户 2026-10-19 实际反馈）。
+    const spanEW = Math.max(bbox.height_m, 0.001) // 东西向跨度 = Y 跨度
+    const spanNS = Math.max(bbox.width_m, 0.001) // 南北向跨度 = X 跨度
 
     // 等比：取两个方向里更"紧"的那个比例，保证宽高都不越界
-    const scale = Math.min((CANVAS_W - PAD * 2) / bw, MAX_INNER_H / bh)
-    const innerH = bh * scale
+    const scale = Math.min((CANVAS_W - PAD * 2) / spanEW, MAX_INNER_H / spanNS)
+    const innerH = spanNS * scale
     const H = innerH + PAD * 2
 
-    const px = (x: number) => PAD + (x - bbox.min_x_m) * scale
-    // Y 轴向上（和测量坐标系一致），屏幕上要翻过来
-    const py = (y: number) => H - PAD - (y - bbox.min_y_m) * scale
+    /** 测量 Y（东）→ 屏幕横坐标 */
+    const sx = (y: number) => PAD + (y - bbox.min_y_m) * scale
+    /** 测量 X（北）→ 屏幕纵坐标（屏幕 y 向下，所以要翻） */
+    const sy = (x: number) => H - PAD - (x - bbox.min_x_m) * scale
 
     const barM = NICE_LENGTHS.find((v) => v * scale >= 72) ?? NICE_LENGTHS[NICE_LENGTHS.length - 1]
 
-    return { H, px, py, scale, barM }
+    return { H, sx, sy, scale, barM, spanEW, spanNS }
   }, [data])
 
   if (loading && !data) {
@@ -142,7 +146,7 @@ export default function PointLayoutCard({ projectId }: { projectId: number }) {
         </Tag>
         {data.bbox && (
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            范围 {data.bbox.width_m} m × {data.bbox.height_m} m
+            南北 {data.bbox.width_m} m × 东西 {data.bbox.height_m} m
           </Typography.Text>
         )}
         <Space size={4}>
@@ -170,10 +174,10 @@ export default function PointLayoutCard({ projectId }: { projectId: number }) {
           {/* 范围框：按点的包络线画，不是真实围护结构 */}
           {showBox && data.bbox && (
             <rect
-              x={geo.px(data.bbox.min_x_m)}
-              y={geo.py(data.bbox.max_y_m)}
-              width={Math.max(1, data.bbox.width_m * geo.scale)}
-              height={Math.max(1, data.bbox.height_m * geo.scale)}
+              x={geo.sx(data.bbox.min_y_m)}
+              y={geo.sy(data.bbox.max_x_m)}
+              width={Math.max(1, data.bbox.height_m * geo.scale)}
+              height={Math.max(1, data.bbox.width_m * geo.scale)}
               fill="none"
               stroke={NEUTRAL.muted}
               strokeWidth={1}
@@ -187,10 +191,10 @@ export default function PointLayoutCard({ projectId }: { projectId: number }) {
               const a = data.points.find((p) => p.point_no === s.from)
               const b = data.points.find((p) => p.point_no === s.to)
               if (!a || !b) return null
-              const x1 = geo.px(a.x_m)
-              const y1 = geo.py(a.y_m)
-              const x2 = geo.px(b.x_m)
-              const y2 = geo.py(b.y_m)
+              const x1 = geo.sx(a.y_m)
+              const y1 = geo.sy(a.x_m)
+              const x2 = geo.sx(b.y_m)
+              const y2 = geo.sy(b.x_m)
               const mx = (x1 + x2) / 2
               const my = (y1 + y2) / 2
               return (
@@ -222,8 +226,8 @@ export default function PointLayoutCard({ projectId }: { projectId: number }) {
 
           {/* 点 + 点号 + 坐标 */}
           {data.points.map((p) => {
-            const cx = geo.px(p.x_m)
-            const cy = geo.py(p.y_m)
+            const cx = geo.sx(p.y_m)
+            const cy = geo.sy(p.x_m)
             return (
               <g key={p.point_no}>
                 <circle cx={cx} cy={cy} r={5.5} fill={BRAND.primary} stroke={NEUTRAL.white} strokeWidth={2} />
@@ -272,6 +276,16 @@ export default function PointLayoutCard({ projectId }: { projectId: number }) {
             )
           })}
 
+          {/* 指北针：X 增大方向就是北（屏幕上向上）。工程图没这个标记，
+              读者没法确认"哪边是北"，方向一旦画反也没人看得出来 */}
+          <g transform={`translate(${CANVAS_W - 46}, 26)`}>
+            <line x1={0} y1={24} x2={0} y2={8} stroke={NEUTRAL.muted} strokeWidth={1.5} />
+            <path d="M0 0 L-5 10 L0 7 L5 10 Z" fill={NEUTRAL.muted} />
+            <text x={0} y={-3} textAnchor="middle" fontSize={11} fontWeight={500} fill={NEUTRAL.muted}>
+              N
+            </text>
+          </g>
+
           {/* 比例尺：没有它，读者没法判断这堆点到底多大 */}
           {(() => {
             const x0 = CANVAS_W - PAD
@@ -292,8 +306,9 @@ export default function PointLayoutCard({ projectId }: { projectId: number }) {
       )}
 
       <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-        位置取每个测点<b>最早一次</b>位移观测的 X/Y（大地坐标，单位 m）。点的圆圈大小是屏幕尺寸，位置是真实坐标；
-        范围框只是所有点的包络，不代表围护结构。
+        位置取每个测点<b>最早一次</b>位移观测的 X/Y（大地坐标，单位 m）。方向按测量习惯画：
+        <b>横向是 Y（东西）、纵向是 X（北）</b>，和 CAD 里打开看到的一致。
+        点的圆圈大小是屏幕尺寸，位置是真实坐标；范围框只是所有点的包络，不代表围护结构。
       </Typography.Text>
 
       {data.missing.length > 0 && (
