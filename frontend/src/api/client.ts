@@ -1503,6 +1503,8 @@ export interface AppSettings {
   audit_folder?: string | null
   /** 上次检查完成时间（ISO 字符串） */
   audit_last_run?: string | null
+  /** 自动生成数据时是否允许产生预警/报警读数（主界面开关） */
+  generate_allow_warning?: boolean
 }
 
 export const settingsApi = {

@@ -334,7 +334,12 @@ def _flake_mm(rng: random.Random) -> float:
 
 
 def _walk_plan(
-    limit_cum: float | None, limit_rate: float | None, used_cum: float, noise_scale_mm: float
+    limit_cum: float | None,
+    limit_rate: float | None,
+    used_cum: float,
+    noise_scale_mm: float,
+    allow_warning: bool = True,
+    grid_decimals: int = 2,
 ) -> dict:
     """为一个分量规划"围绕初值波动"的参数（纯函数，便于测试）。
 
@@ -350,6 +355,25 @@ def _walk_plan(
     没配累计 ⇒ `cum_cap = inf`，即这一维**不设限**（均值回复本身已经把累计稳住，
     量级见 `_revert_mm`），而不是拿一个凭空来的数去"保护"合规。
     """
+    if not allow_warning:
+        # 主界面开关关掉时走这里：**把波动范围收进预警线以内**，生成的数据不再产生预警点。
+        #
+        # ⚠ 必须按**精度网格**再收一次：读数如果只记到整毫米，`0.85 mm` 会被四舍五入成 `1 mm`，
+        # 正好撞上「1 mm/d」这种限值（判级是 `>=`）—— 实测就是这样漏掉的。
+        # 所以先把上限压到限值以下，再**向下取整到网格**：rate=3 → 2mm，rate=1 → 0mm。
+        scale = 10 ** max(0, min(3, grid_decimals))
+        def _fit(v: float) -> float:
+            return math.floor(v * scale) / scale
+
+        raw_step = (limit_rate * 0.9) if limit_rate else _safety_ceiling_mm(None, noise_scale_mm)
+        ceiling = _fit(raw_step)
+        if limit_cum is None:
+            cum_cap = math.inf
+        else:
+            # 起点本来就超限（续测/替换真实数据）时不往回拽：拿现有累计做下界。
+            cum_cap = max(_fit(limit_cum * 0.9), abs(used_cum))
+        return {"revert": _MEAN_REVERT, "ceiling": ceiling, "cum_cap": cum_cap}
+
     return {
         "revert": _MEAN_REVERT,
         "ceiling": _safety_ceiling_mm(limit_rate, noise_scale_mm),
@@ -632,6 +656,7 @@ def generate_series(
     station_centering_mm: float | None = None,
     station_direction_sec: float | None = None,
     station_distance_m: float | None = None,
+    allow_warning: bool = True,
 ) -> dict:
     """生成 [start_date, end_date] 每天的观测数据并落库（source=generated）。
 
@@ -669,6 +694,10 @@ def generate_series(
     # 项目自己的记录精度（0=整数毫米，1=0.1mm…）。生成的值要落到**同一张网格**上，
     # 否则第一期（真实）与后面各期（生成）的精度对不上 —— 见 `_grid_decimals` 的实测记录。
     grid = _grid_decimals(db, project_id)
+    # 生成时按比例抽小数位（见 _pick_nd），所以限幅必须按**最粗**的那种取整：
+    # 项目里只要出现过整数读数，`rate*0.9` 就可能被 round 上去撞限值（实测 0.9 → 1.0）。
+    # 没有历史可参考时也按整数（最保守）。
+    grid_nd = 0 if (not grid or any(0 in dist for dist in grid.values())) else 2
 
     # ── 全站仪观测模式：预抽"每期架站"参数 ──
     # 必须在测点循环**之前**算好：同一期的所有测点要共享同一套架站偏差 ——
@@ -741,7 +770,7 @@ def generate_series(
                 cumulative = cur - v0
 
                 # 本分量的波动参数（每点每分量各一套 → 点与点之间也有差异）
-                plan = _walk_plan(limit_cum, limit_rate, cumulative, scale_mm)
+                plan = _walk_plan(limit_cum, limit_rate, cumulative, scale_mm, allow_warning, grid_nd)
                 # 连涨 / 连跌计数（用户要求：不要出现持续单调递增或递减）
                 run, run_sign = 0, 0
                 # **变形累计**：只统计"真实变形"那部分，用来驱动均值回复力。
@@ -767,7 +796,7 @@ def generate_series(
                                 cumulative = cur - v0
                                 deform_cum = cumulative
                                 # 起点换了，累计保护线也要按新起点重算
-                                plan = _walk_plan(limit_cum, limit_rate, cumulative, scale_mm)
+                                plan = _walk_plan(limit_cum, limit_rate, cumulative, scale_mm, allow_warning, grid_nd)
                                 run, run_sign = 0, 0   # 中间夹了别的数据，连涨连跌从头算
                             kept_dates.add(d)
                             continue

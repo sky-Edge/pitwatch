@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
-from backend.services import data_generator_service
+from backend.services import app_settings_service, data_generator_service
 from backend.services.project_service import get_project
 
 gen_router = APIRouter(prefix="/projects/{project_id}/generate-data", tags=["generate"])
@@ -55,10 +55,20 @@ def generate_data(
     station_distance_m: float | None = Query(
         None, ge=1, le=2000, description="全站仪模式：仪器到基坑的平均工作距离（m），默认 30",
     ),
+    allow_warning: bool | None = Query(
+        None,
+        description="是否允许生成触发预警的读数；留空 = 按主界面那个全站开关",
+    ),
     db: Session = Depends(get_db),
 ):
-    """生成规范限值内的每日观测数据。"""
+    """生成规范限值内的每日观测数据。
+
+    `allow_warning` 留空时读主界面那个全站开关（`generate_allow_warning`）——
+    关掉后生成的数据不会再出现预警/报警点。
+    """
     get_project(db, project_id)
+    if allow_warning is None:
+        allow_warning = bool(app_settings_service.get_settings(db).get("generate_allow_warning", True))
     return data_generator_service.generate_series(
         db, project_id, start, end,
         seed=seed, missing_rate=missing_rate, on_conflict=on_conflict,
@@ -66,6 +76,7 @@ def generate_data(
         station_centering_mm=station_centering_mm,
         station_direction_sec=station_direction_sec,
         station_distance_m=station_distance_m,
+        allow_warning=allow_warning,
     )
 
 

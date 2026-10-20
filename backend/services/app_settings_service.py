@@ -31,6 +31,8 @@ DEFAULTS: dict[str, object] = {
     "audit_folder": None,
     #: 上次检查完成的时间（ISO 字符串）—— 用来做"打开系统时若超过 7 天就补扫一遍"
     "audit_last_run": None,
+    #: 自动生成数据时，是否允许生成会触发预警/报警的读数（2026-10-20 用户要的开关）
+    "generate_allow_warning": True,
 }
 
 

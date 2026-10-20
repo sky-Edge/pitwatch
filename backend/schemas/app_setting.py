@@ -16,6 +16,8 @@ class AppSettingsRead(BaseModel):
     audit_folder: str | None = None
     #: 上次检查完成时间（ISO 字符串）—— 用来做"超过 7 天就提醒补扫"
     audit_last_run: str | None = None
+    #: 自动生成数据时是否允许产生预警/报警读数（主界面开关）
+    generate_allow_warning: bool = True
 
 
 class AppSettingsUpdate(BaseModel):
@@ -26,5 +28,6 @@ class AppSettingsUpdate(BaseModel):
     default_weather: str | None = Field(default=None, max_length=10)
     audit_folder: str | None = Field(default=None, max_length=500)
     audit_last_run: str | None = Field(default=None, max_length=40)
+    generate_allow_warning: bool | None = Field(default=None)
 
     model_config = {"extra": "forbid"}

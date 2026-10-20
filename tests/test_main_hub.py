@@ -110,14 +110,15 @@ def _tpl_names_of_project(client, pid: int) -> set[str]:
 def test_settings_defaults_then_update(client) -> None:
     """缺省是一份"什么都不绑"的设置；改了之后读回来还是它。"""
     cfg = client.get("/api/v1/settings").json()
-    assert cfg == {
-        "default_rule_set_id": None,
-        "default_template_id": None,
-        "default_weather": "晴",
-        # 「文件检查」的两个键（2026-10-12 加的）—— 没配过就是空
-        "audit_folder": None,
-        "audit_last_run": None,
-    }
+    # 逐个键断言，不比对整个 dict —— 每加一个设置项就让这条测试红一次，
+    # 而它想验的是"默认什么都没绑"，不是"键的集合正好这么多"。
+    assert cfg["default_rule_set_id"] is None
+    assert cfg["default_template_id"] is None
+    assert cfg["default_weather"] == "晴"
+    assert cfg["audit_folder"] is None
+    assert cfg["audit_last_run"] is None
+    # 2026-10-20：生成数据是否带预警，默认开（保持原本"像真实台账"的行为）
+    assert cfg["generate_allow_warning"] is True
 
     r = client.put("/api/v1/settings", json={"default_weather": "小雨"})
     assert r.status_code == 200, r.text
