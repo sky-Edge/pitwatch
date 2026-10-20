@@ -1505,6 +1505,8 @@ export interface AppSettings {
   audit_last_run?: string | null
   /** 自动生成数据时是否允许产生预警/报警读数（主界面开关） */
   generate_allow_warning?: boolean
+  /** 只读锁定：打开后后端拒绝一切写操作 */
+  readonly_mode?: boolean
 }
 
 export const settingsApi = {

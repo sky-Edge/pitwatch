@@ -18,6 +18,8 @@ class AppSettingsRead(BaseModel):
     audit_last_run: str | None = None
     #: 自动生成数据时是否允许产生预警/报警读数（主界面开关）
     generate_allow_warning: bool = True
+    #: 只读锁定：打开后所有写操作被拒绝
+    readonly_mode: bool = False
 
 
 class AppSettingsUpdate(BaseModel):
@@ -29,5 +31,6 @@ class AppSettingsUpdate(BaseModel):
     audit_folder: str | None = Field(default=None, max_length=500)
     audit_last_run: str | None = Field(default=None, max_length=40)
     generate_allow_warning: bool | None = Field(default=None)
+    readonly_mode: bool | None = Field(default=None)
 
     model_config = {"extra": "forbid"}

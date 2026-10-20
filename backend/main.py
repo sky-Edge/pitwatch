@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import os
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.v1 import audit, backup, baselines, batch_import, bulk, calculation, chart, comparison, diagnostics, export_templates, generate, holidays, imports, points, projects, records, reports, settings as app_settings_api, warning_events, warning_rules
@@ -79,6 +80,46 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+#: 只读模式下仍然放行的路径 —— 解锁的入口本身必须能用，否则锁上就解不开
+_READONLY_ALLOWED_PREFIXES = ("/api/v1/settings", "/api/health", "/docs", "/openapi.json")
+
+
+@app.middleware("http")
+async def _readonly_guard(request: Request, call_next):
+    """只读锁定：打开后拒绝一切写操作。
+
+    用户 2026-10-20：「还得加点防呆，感觉有些呆逼会玩坏」。
+
+    为什么不是再叠几个确认框：确认框只拦得住手慢的，点多了就变成肌肉记忆，
+    照样点。真正的防呆是**改不了** —— 打开锁定后，后端对任何写请求都回 403，
+    对方怎么点都不动数据，界面还会明确告诉他"现在是只读"。
+
+    注意两点：
+    · `/api/v1/settings` 必须放行，否则锁定后连解锁都做不了，只能改库；
+    · 读设置本身失败时按"未锁定"处理 —— 不能因为一次数据库抖动把整个系统锁死。
+    """
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        path = request.url.path
+        if not any(path.startswith(prefix) for prefix in _READONLY_ALLOWED_PREFIXES):
+            from backend.core.db import SessionLocal
+            from backend.services import app_settings_service
+
+            try:
+                with SessionLocal() as s:
+                    locked = bool(app_settings_service.get_settings(s).get("readonly_mode"))
+            except Exception:  # noqa: BLE001
+                locked = False
+            if locked:
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "系统已锁定为「只读」，不能修改任何数据。"
+                        "要解锁：回到主界面，关掉工具栏上的「只读锁定」。"
+                    },
+                )
+    return await call_next(request)
 
 
 @app.middleware("http")

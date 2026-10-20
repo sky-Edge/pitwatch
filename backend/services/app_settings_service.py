@@ -33,6 +33,8 @@ DEFAULTS: dict[str, object] = {
     "audit_last_run": None,
     #: 自动生成数据时，是否允许生成会触发预警/报警的读数（2026-10-20 用户要的开关）
     "generate_allow_warning": True,
+    #: 只读锁定：打开后后端拒绝一切写操作（给同事看/演示时用，防止误操作把数据改坏）
+    "readonly_mode": False,
 }
 
 

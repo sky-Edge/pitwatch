@@ -111,6 +111,9 @@ export default function ProjectsPage({
   /** 全站开关：自动生成数据时要不要带预警（存 app_settings，影响以后所有生成） */
   const [allowWarning, setAllowWarning] = useState(true)
   const [savingAllowWarning, setSavingAllowWarning] = useState(false)
+  /** 只读锁定：给同事看/演示时打开，后端会拒绝一切写操作 */
+  const [readonly, setReadonly] = useState(false)
+  const [savingReadonly, setSavingReadonly] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
   const [ruleModalProject, setRuleModalProject] = useState<Project | null>(null)
@@ -146,7 +149,10 @@ export default function ProjectsPage({
   useEffect(() => {
     settingsApi
       .get()
-      .then((s) => setAllowWarning(s.generate_allow_warning ?? true))
+      .then((s) => {
+        setAllowWarning(s.generate_allow_warning ?? true)
+        setReadonly(s.readonly_mode ?? false)
+      })
       .catch(() => {})
   }, [])
 
@@ -162,6 +168,21 @@ export default function ProjectsPage({
       message.error((e as Error).message)
     } finally {
       setSavingAllowWarning(false)
+    }
+  }
+
+  const toggleReadonly = async (v: boolean) => {
+    const prev = readonly
+    setReadonly(v)
+    setSavingReadonly(true)
+    try {
+      await settingsApi.update({ readonly_mode: v })
+      message.success(v ? '已锁定为只读：所有修改都会被拒绝' : '已解锁：可以正常修改数据了')
+    } catch (e) {
+      setReadonly(prev)
+      message.error((e as Error).message)
+    } finally {
+      setSavingReadonly(false)
     }
   }
 
@@ -767,6 +788,14 @@ export default function ProjectsPage({
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
+      {readonly && (
+        <Alert
+          type="warning"
+          showIcon
+          message="当前是只读模式 —— 所有修改都会被拒绝"
+          description="新增、修改、删除、导入、生成、恢复备份全部会被系统挡下。要改数据，请先关掉工具栏上那个「已锁定（只读）」开关。"
+        />
+      )}
       {/* 周检提醒：导出日报超过 7 天没查过就提一句（用户 2026-10-12 选的「每周自动」） */}
       {auditDue && (
         <Alert
@@ -897,6 +926,20 @@ export default function ProjectsPage({
                   checked={allowWarning}
                   loading={savingAllowWarning}
                   onChange={(v) => void toggleAllowWarning(v)}
+                />
+              </Space>
+            </Tooltip>
+            <Divider type="vertical" />
+            <Tooltip title="给同事看、演示时打开：锁上后所有修改都会被系统拒绝，怎么点都改不坏数据。解锁开关就在这个位置。">
+              <Space size={6}>
+                <Typography.Text type={readonly ? 'danger' : 'secondary'} style={{ fontSize: 12 }}>
+                  {readonly ? '已锁定（只读）' : '只读锁定'}
+                </Typography.Text>
+                <Switch
+                  size="small"
+                  checked={readonly}
+                  loading={savingReadonly}
+                  onChange={(v) => void toggleReadonly(v)}
                 />
               </Space>
             </Tooltip>
