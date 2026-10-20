@@ -8,10 +8,11 @@
 1. **原值绝不消失** —— `observation_records` 只增不改是硬约束。修正必须走更正流程：
    旧记录置 `superseded` 且数值原样保留、`superseded_by_id` 指到新记录，新记录 `source='correct'`。
    任何一条 `db.delete(ObservationRecord)` 都是 bug。
-2. **修完必须真的不报警** —— 判定口径要和预警引擎一致（`warnings.engine.evaluate`），
-   否则会出现"点了修正、列表里还是红的"。
-3. **预检不能落库** —— `dry_run` 是默认值，用户确认前不许动数据。
-4. **幂等** —— 连着点两次，第二次应该是 0 条改动（否则说明修正没修干净）。
+2. **只修最新一期**（2026-10-20 用户要求）—— 历史期一个数都不能动，
+   它们可能已经出过日报、报过监理。历史期的报警**保留**，不抹。
+3. **修的那一期必须真的不报警** —— 判定口径要和预警引擎一致（`warnings.engine.evaluate`）。
+4. **预检不能落库** —— `dry_run` 是默认值，用户确认前不许动数据。
+5. **幂等** —— 连着点两次，第二次应该是 0 条改动（否则说明修正没修干净）。
 """
 from __future__ import annotations
 
@@ -116,27 +117,36 @@ def test_dry_run_reports_old_and_new_values(client):
 # ────────────────────────── 2. 执行与「原值必须还在」 ──────────────────────────
 
 
-def test_fix_brings_series_back_and_keeps_original_value(client):
+def test_fix_only_touches_latest_period(client):
+    """★ 只修最新一期：历史期读数一个字节都不动，报警也保留。
+
+    用户 2026-10-20：「你修报警得保护之前的数据，只修当前数据」——
+    历史期可能已经出了日报、报了监理，改它就是篡改记录。
+    """
     pid, pt = _setup(client)
     _add(client, pt, "2026-08-01", 1000.0)
-    _add(client, pt, "2026-08-02", 1010.0)
-    _add(client, pt, "2026-08-03", 1015.0)
+    _add(client, pt, "2026-08-02", 1010.0)   # 历史期：速率 10 超限 → 报警
+    _add(client, pt, "2026-08-03", 1015.0)   # 最新期：速率 5 超限 → 预警
 
+    before = {x["obs_date"]: (x["value_mm"], x["warning_level"]) for x in _computed(client, pt)}
     r = _apply(client, pid)
-    assert r["changed"] >= 1
+    assert r["changed"] == 1, f"应该只改最新一期，实际改了 {r['changed']} 条"
+    after = {x["obs_date"]: (x["value_mm"], x["warning_level"]) for x in _computed(client, pt)}
 
-    # ① 修完不再有任何非 normal
-    bad = [x for x in _computed(client, pt) if x["warning_level"] != "normal"]
-    assert not bad, f"修正后仍然报警：{bad}"
+    # 历史两期：数值与报警等级都必须原样
+    assert after["2026-08-01"] == before["2026-08-01"]
+    assert after["2026-08-02"] == before["2026-08-02"], "历史期被改动了 —— 这是篡改"
+    assert after["2026-08-02"][1] != "normal", "历史期的报警被抹掉了"
+    # 最新一期：修回正常
+    assert after["2026-08-03"][1] == "normal", f"最新一期没修好：{after['2026-08-03']}"
 
-    # ② 原值一条都没丢（superseded 保留、指向新记录）
+    # 原值仍然完整保留（只增不改）
     rows = _all_rows(pt)
-    old = next(x for x in rows if x.obs_date.isoformat() == "2026-08-02" and x.status == "superseded")
-    assert old.value_mm == 1010.0, "旧值被改动了 —— 修正必须只增不改"
+    old = next(x for x in rows if x.obs_date.isoformat() == "2026-08-03" and x.status == "superseded")
+    assert old.value_mm == 1015.0, "旧值被改动了 —— 修正必须只增不改"
     assert old.superseded_by_id is not None
-    new = next(x for x in rows if x.id == old.superseded_by_id)
-    assert new.source == "correct" and new.value_mm == 1002.0
-    assert old.remark is None or "一键修正" not in (old.remark or "")  # 说明写在新记录上
+    # 历史期一条 superseded 都不该有（说明根本没动过）
+    assert not [x for x in rows if x.obs_date.isoformat() == "2026-08-02" and x.status == "superseded"]
 
 
 def test_fix_leaves_a_trace_in_remark(client):
@@ -183,7 +193,8 @@ def test_fix_never_deletes_records(client):
     _add(client, pt, "2026-08-03", 1020.0)
     n_before = len(_all_rows(pt))
     _apply(client, pid)
-    assert len(_all_rows(pt)) == n_before + 2, "修正应当只增不删"
+    # 只修最新一期 → 只多一条新记录（旧的那条置 superseded，总量 +1）
+    assert len(_all_rows(pt)) == n_before + 1, "修正应当只增不删，且只增一条"
 
 
 def test_fix_is_idempotent(client):

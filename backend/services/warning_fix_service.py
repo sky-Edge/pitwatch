@@ -11,12 +11,17 @@
 旧记录置 `superseded` 并指向新记录，新记录 `source='correct'`、`remark` 记下「原值 → 新值」。
 **绝不物理删除，也绝不覆盖旧值。**
 
-【修正逻辑：逐期滚动，最小改动】
-对每个 (测点, 分量) 的生效序列按日期升序走一遍，与 Calculation/Warning Engine 同口径：
+【修正范围：只修最新一期，历史期一个数都不动】
+（2026-10-20 用户明确要求："你修报警得保护之前的数据，只修当前数据"）
 
-- 只改**真正触发**的那一期（没超限的一期一动不动 —— 这才是"最小改动"）；
-- 改完的值会成为下一期的比较基准，所以后面的期要**基于修正后的序列**重新判断
-  （否则会出现"改完第 5 期，第 6 期又报警"）；
+历史期可能已经出了日报、报了监理，改它就是篡改记录。所以：
+- **只处理每个 (测点, 分量) 序列里日期最大的那一期**；
+- 更早的期只作为"上一期"锚点参与速率/ΔV 判定，**值不改**；
+- 最新一期若改不动（约束冲突），如实报告，不回头去动历史期。
+
+【修正逻辑：最小改动】
+与 Calculation/Warning Engine 同口径：
+- 只改**真正触发**的那一期（没超限的一期一动不动）；
 - 安全值一律留 10% 余量：判定是 `|值| ≥ 阈值 → 触发`，贴着阈值改等于没改；
 - 读数若是整 mm（现场读数就是 1mm 精度），修正步长**向下取整**，取整方向也只会更安全。
 
@@ -125,6 +130,13 @@ def _scan_series(db: Session, point, series_type: str, component: str,
     if not records:
         return [], []
 
+    # ★ 只修**最新一期**（用户 2026-10-20 明确要求）：
+    #   历史期可能已经出了日报、报了监理，改它就是篡改记录 ——
+    #   已完成的观测是既成事实，系统只该调整"还没交出去"的这一期。
+    latest_date = max((r.obs_date for r in records if r.value_mm is not None), default=None)
+    if latest_date is None:
+        return [], []
+
     rate_limit, delta_limit, cum_limit = _safe_limits(limits)
     v0 = point.initial_value_mm
     if v0 is None:
@@ -145,6 +157,10 @@ def _scan_series(db: Session, point, series_type: str, component: str,
         for rec, row in snapshot():
             if rec.value_mm is None or row.is_missing:
                 continue                    # 缺测期只占位，不作为比较基准
+            if rec.obs_date != latest_date:
+                # 历史期：只把它当作"上一期"的锚点（算速率/ΔV 要用），**一个数都不改**
+                prev_value = values[rec.id]
+                continue
             level = evaluate(row, limits)["level"]
             if level == "normal" or (not include_control and level != "alarm"):
                 prev_value = values[rec.id]

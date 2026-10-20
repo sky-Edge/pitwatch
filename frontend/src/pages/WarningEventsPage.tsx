@@ -184,7 +184,7 @@ export default function WarningEventsPage({ projectId, onBack }: Props) {
         />
         <Space>
           <Button onClick={openFix} disabled={events.length === 0}>
-            一键修正报警值
+            修正最新一期超限值
           </Button>
           <Button type="primary" loading={recomputing} onClick={() => void recompute()}>
             重新计算预警
@@ -272,7 +272,7 @@ export default function WarningEventsPage({ projectId, onBack }: Props) {
 
       <Modal
         open={fixOpen}
-        title="一键修正报警值"
+        title="修正最新一期超限值"
         width={720}
         onCancel={() => setFixOpen(false)}
         onOk={() => void applyFix()}
@@ -284,8 +284,8 @@ export default function WarningEventsPage({ projectId, onBack }: Props) {
           <Alert
             type="warning"
             showIcon
-            message="这会修改观测数据"
-            description="修正走「更正」流程：原读数作废保留、可追溯，新读数标记为更正来源，不会删除任何数据。但改动会影响该测点的变化量与累计值，请确认后再执行。"
+            message="只修最新一期，历史期一个数都不动"
+            description="历史期可能已经出了日报、报了监理，改它就是篡改记录，所以系统只调整每个测点「最新一期」里超出限值的读数。修正走「更正」流程：原读数作废保留、可追溯，不会删除任何数据。"
           />
           <Radio.Group value={scope} onChange={(e) => changeScope(e.target.value)} disabled={applying}>
             <Radio value="all">预警 + 报警一起修（推荐）</Radio>
