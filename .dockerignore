@@ -31,6 +31,9 @@ venv/
 .gitignore
 *.md
 !README.md
+# Dockerfile 会 COPY 它（版本留痕），漏了这条构建会直接失败：
+# failed to compute cache key ... "/CHANGELOG.md": not found
+!CHANGELOG.md
 关闭服务.bat
 启动系统.bat
 UX-UI-优化分析报告.md

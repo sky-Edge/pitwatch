@@ -9,6 +9,10 @@
 
 ---
 
+## v1.1.12 — 2026-10-25
+
+- 修复 Docker 构建失败（.dockerignore 排掉了 CHANGELOG.md）
+
 ## v1.1.11 — 2026-10-25
 
 - 加一键部署脚本（Ubuntu + Docker）
