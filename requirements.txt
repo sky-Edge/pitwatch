@@ -1,4 +1,7 @@
 fastapi>=0.115
+# FastAPI 处理 multipart/form-data（Excel 上传、母版上传）必需；
+# 漏了它，容器启动时会在 import 阶段直接崩：RuntimeError: Form data requires "python-multipart"
+python-multipart>=0.0.18
 uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 pydantic>=2.7

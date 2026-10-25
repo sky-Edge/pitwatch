@@ -9,6 +9,10 @@
 
 ---
 
+## v1.1.13 — 2026-10-25
+
+- 修复容器启动崩溃：requirements 漏了 python-multipart
+
 ## v1.1.12 — 2026-10-25
 
 - 修复 Docker 构建失败（.dockerignore 排掉了 CHANGELOG.md）
