@@ -9,6 +9,10 @@
 
 ---
 
+## v1.1.14 — 2026-10-25
+
+- 开 GZip：前端包 2.69MB → 869KB
+
 ## v1.1.13 — 2026-10-25
 
 - 修复容器启动崩溃：requirements 漏了 python-multipart

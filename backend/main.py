@@ -9,6 +9,7 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.api.v1 import audit, backup, baselines, batch_import, bulk, calculation, chart, comparison, diagnostics, export_templates, generate, holidays, imports, points, projects, records, reports, settings as app_settings_api, warning_events, warning_rules
 from backend.core import reqlog
@@ -80,6 +81,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 压缩：前端打包产物 2.69MB，经公网裸传要好几秒。
+# gzip 之后约 800KB（JSON 接口同样受益）。minimum_size 大于 1KB 才压，
+# 小响应压了反而多几个字节的头。
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 
 #: 只读模式下仍然放行的路径 —— 解锁的入口本身必须能用，否则锁上就解不开
