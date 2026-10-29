@@ -63,6 +63,9 @@ HIDDEN_IMPORTS = [
     #   直到有人上传 .xls 才炸 ModuleNotFoundError —— 属于最难提前发现的一类。
     #   （用 `build_tools/scan_lazy_imports` 的思路扫过全后端，只有它一个。）
     "xlrd",
+    # pypdf 在 report_pdf_service.merge_pdfs() 的**函数体内**导入（只有批量打印才走到）。
+    # 漏收的后果：单期打印正常，一按「批量打印」就 ModuleNotFoundError。
+    "pypdf",
 ]
 
 BUILD_INFO = """基坑拉森钢板桩沉降与水平位移观测系统 · 测试版
