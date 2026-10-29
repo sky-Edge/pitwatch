@@ -748,6 +748,7 @@ export default function ProjectsPage({
     {
       title: '下一步',
       width: 170,
+      className: 'no-print',
       render: (_, record) => {
         const na = nextAction(record)
         return (
@@ -760,6 +761,7 @@ export default function ProjectsPage({
     {
       title: '操作',
       width: 260,
+      className: 'no-print',
       render: (_, record) => {
         // 导出日报是用户每天最想要的"成品"，提到与「下一步」同级的主按钮，
         // 不再藏在操作列里。有数据才可点，避免空项目点了没结果。
@@ -799,6 +801,7 @@ export default function ProjectsPage({
       {/* 周检提醒：导出日报超过 7 天没查过就提一句（用户 2026-10-12 选的「每周自动」） */}
       {auditDue && (
         <Alert
+          className="no-print"
           type="warning"
           showIcon
           message="该检查一下导出的日报了"
@@ -870,13 +873,14 @@ export default function ProjectsPage({
         />
       )}
       <Alert
+        className="no-print"
         type="info"
         showIcon
         message="怎么用？跟着每行的「下一步」按钮走就行"
         description="建项目 → 建测点并录初始值 → 录入或导入观测数据 → 导出日报。归档不删数据；「彻底删除」需输入编号确认，且删除前会自动备份。"
       />
       {/* 主界面把所有"和单个项目无关"的入口都收在这里 —— 不必点进某个项目再找 */}
-      <Card size="small">
+      <Card size="small" className="no-print">
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
           <Space wrap size={8}>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>

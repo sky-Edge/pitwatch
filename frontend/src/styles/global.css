@@ -72,3 +72,86 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ============================================================
+   打印（浏览器 Ctrl+P / 右键「打印」）
+   ———
+   起因（2026-10-29）：用户问「能不能装一个网页打印」。
+   其实不用装任何东西，浏览器自带；但原来的页面直接打印会把
+   导航条、按钮、分页器一起印出来，A4 纸上全是界面控件。
+
+   这里只做一件事：**把交互元素藏掉，让内容自己排**。
+   版式（横版/竖版、缩放到一页）交给浏览器打印对话框，
+   不在这里硬锁 —— 表格和曲线对纸张方向的需求正好相反。
+   ============================================================ */
+@media print {
+  /* 页边距：默认太宽，A4 上左右各留 2cm 会挤内容 */
+  @page {
+    margin: 12mm;
+  }
+
+  /* 页面显式标记「别印」的块：工具栏、引导条、行内操作列 */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 表格勾选框：纸上打勾没意义 */
+  .ant-table-selection-column {
+    display: none !important;
+  }
+
+  /* 交互控件一律不印：导航、按钮、切换器、分页、开关、提示气泡 */
+  .ant-layout-header,
+  .ant-layout-sider,
+  .ant-btn,
+  .ant-segmented,
+  .ant-tabs-nav,
+  .ant-pagination,
+  .ant-switch,
+  .ant-dropdown,
+  .ant-tooltip,
+  .ant-modal-close,
+  .ant-alert-icon,
+  .ant-spin {
+    display: none !important;
+  }
+
+  /* 去掉屏幕上的底色与阴影 —— 打印一片灰是要费墨的 */
+  html,
+  body,
+  .ant-layout,
+  .ant-card,
+  .ant-modal-content {
+    background: var(--wm-neutral-white) !important;
+    box-shadow: none !important;
+  }
+
+  .ant-card {
+    border: 1px solid var(--wm-grid-line) !important;
+    page-break-inside: avoid;
+  }
+
+  /* 表格：行不跨页断开；表头每页重复（长表翻页后还知道列是什么） */
+  .ant-table-thead {
+    display: table-header-group;
+  }
+  .ant-table-row,
+  .ant-table-expanded-row {
+    page-break-inside: avoid;
+  }
+  .ant-table-body {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* 图表：canvas 按纸张宽度缩放，宁可略糊也别被裁掉右半边 */
+  canvas {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* 链接不追加 URL（默认打印样式会加括号里的地址，纯噪音） */
+  a[href]::after {
+    content: "" !important;
+  }
+}

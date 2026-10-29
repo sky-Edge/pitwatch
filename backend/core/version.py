@@ -14,7 +14,7 @@
 """
 from __future__ import annotations
 
-__version__ = "1.1.14"
+__version__ = "1.1.15"
 
 #: 给人看的产品名（界面顶栏、日志抬头共用）
 APP_TITLE = "基坑监测"
