@@ -113,6 +113,44 @@ def export_excel(
     return _stream_response(buf, filename, info)
 
 
+@reports_router.get("/pdf")
+def export_pdf(
+    project_id: int,
+    obs_date: date | None = None,
+    template_id: int | None = None,
+    weather: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """导出日报 PDF —— 给浏览器直接打印用。
+
+    走的是**同一个** `_build_excel_one`：先出 Excel，再让 LibreOffice 转 PDF。
+    这样"打印出来的"和"下载的"永远是同一份文件，不会出现两套版式对不上。
+
+    `inline` 而不是 `attachment`：浏览器里直接显示，用户点打印就走，
+    不用先下载再找文件。
+    """
+    from backend.services.report_pdf_service import PdfConvertError, xlsx_to_pdf
+
+    get_project(db, project_id)
+    try:
+        buf, filename, _info = _build_excel_one(db, project_id, template_id, obs_date, weather)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    try:
+        pdf = xlsx_to_pdf(buf.getvalue())
+    except PdfConvertError as e:
+        # 503：服务端能力缺失或超时，不是用户填错了
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+    name = (filename.rsplit(".", 1)[0] if "." in filename else filename) + ".pdf"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(name)}"},
+    )
+
+
 @reports_router.get("/preview")
 def preview_excel(
     project_id: int,

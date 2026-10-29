@@ -22,8 +22,18 @@ ENV TZ=Asia/Shanghai \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
+# LibreOffice 只用来把日报 Excel**原样**转成 PDF（浏览器直接打印）。
+# 不用前端重画版式 —— 监理认的是母版那套格式，重画一份等于两套东西。
+#
+# ⚠ `fonts-noto-cjk` 不是可选项：容器里没有中文字体时，转出来的 PDF
+#   中文全是方块。这是无头转换最常见的翻车点。
+# 只装 calc（不装整套 office），体积控制在 ~400MB。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tzdata curl \
+    && apt-get install -y --no-install-recommends \
+       tzdata curl \
+       libreoffice-calc \
+       fonts-noto-cjk \
+       fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

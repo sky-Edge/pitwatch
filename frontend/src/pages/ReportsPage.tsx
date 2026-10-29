@@ -5,6 +5,7 @@ import {
   EyeOutlined,
   FileExcelOutlined,
   FileWordOutlined,
+  PrinterOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
@@ -65,6 +66,8 @@ export default function ReportsPage({ projectId, onBack }: Props) {
   const [templates, setTemplates] = useState<ExportTemplateInfo[]>([])
   const [templateId, setTemplateId] = useState<number | undefined>(undefined) // undefined = 内置标准
   const [weather, setWeather] = useState<string>('晴')
+  /** 正在把日报转 PDF（服务端转换要几秒，得让用户看见在转） */
+  const [printing, setPrinting] = useState(false)
   const [loadingExcel, setLoadingExcel] = useState(false)
   const [loadingWord, setLoadingWord] = useState(false)
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -221,6 +224,44 @@ export default function ReportsPage({ projectId, onBack }: Props) {
       setPreviewOpen(false)
     } finally {
       setPreviewing(false)
+    }
+  }
+
+  /** 打印日报：服务端把 Excel 原样转 PDF，浏览器里直接看/打。
+   *
+   *  为什么不用 window.open 直接开接口地址：转换要 3~8 秒（LibreOffice 启动），
+   *  新窗口会先白屏挂着，用户以为坏了。这里先 fetch 拿 blob，转完再开窗，
+   *  期间按钮上有 loading。
+   */
+  const printPdf = async () => {
+    if (batchDates.length !== 1) {
+      message.warning('打印一次只能选一期（多期请用批量导出 Excel）')
+      return
+    }
+    setPrinting(true)
+    try {
+      const params = new URLSearchParams({ obs_date: batchDates[0] })
+      if (templateId) params.set('template_id', String(templateId))
+      if (weather) params.set('weather', weather)
+      const res = await fetch(`/api/v1/projects/${projectId}/reports/pdf?${params.toString()}`)
+      if (!res.ok) {
+        let detail = `导出失败（HTTP ${res.status}）`
+        try {
+          const j = await res.json()
+          if (j?.detail) detail = j.detail
+        } catch {
+          /* 响应不是 JSON，用默认文案 */
+        }
+        throw new Error(detail)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setPrinting(false)
     }
   }
 
@@ -632,6 +673,22 @@ export default function ReportsPage({ projectId, onBack }: Props) {
                 onClick={() => void excel()}
               >
                 {batchDates.length > 1 ? `批量导出 Excel（${batchDates.length} 期 → ZIP）` : '导出 Excel 日报（单文件）'}
+              </Button>
+            </Tooltip>
+            <Tooltip
+              title={
+                batchDates.length > 1
+                  ? '打印请只选一期（批量打会跳出很多窗口）'
+                  : '在新窗口打开 PDF，可直接打印或另存为 PDF'
+              }
+            >
+              <Button
+                icon={<PrinterOutlined />}
+                loading={printing}
+                disabled={batchDates.length !== 1 || blockedByCheck}
+                onClick={() => void printPdf()}
+              >
+                打印日报（PDF）
               </Button>
             </Tooltip>
             <Button
