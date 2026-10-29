@@ -66,6 +66,9 @@ HIDDEN_IMPORTS = [
     # pypdf 在 report_pdf_service.merge_pdfs() 的**函数体内**导入（只有批量打印才走到）。
     # 漏收的后果：单期打印正常，一按「批量打印」就 ModuleNotFoundError。
     "pypdf",
+    # starlette 的 StaticFiles / responses 在 main.py 的 
+    # 块里才导入（没有前端产物时不导入），也算延迟导入。
+    "starlette",
 ]
 
 BUILD_INFO = """基坑拉森钢板桩沉降与水平位移观测系统 · 测试版

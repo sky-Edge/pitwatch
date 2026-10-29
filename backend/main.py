@@ -259,6 +259,37 @@ def health() -> dict:
 #   放前面会把 /api/* 全部拦掉。
 _static_dir = frontend_dist_dir()
 if _static_dir is not None:
-    from fastapi.staticfiles import StaticFiles
+    from starlette.responses import Response
+    from starlette.staticfiles import StaticFiles
+    from starlette.types import Scope
 
-    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="frontend")
+    class CachedStaticFiles(StaticFiles):
+        """带缓存的静态文件。
+
+        【为什么要自己写】
+        2026-10-29 用户反馈「打开网站很慢」，实测悉尼节点下行只有 **17 KB/s**，
+        前端主包 869 KB 要传 50 多秒。而 `StaticFiles` 默认**不发 Cache-Control**，
+        浏览器每次打开都要重新验证/下载 —— 慢上加慢。
+
+        【缓存策略】
+        · `assets/*`：Vite 产物文件名带内容 hash（`index-DTWSWfWM.js`），
+          改内容必改名，所以可以 `immutable` 缓存一年，浏览器**连请求都不发**。
+        · `index.html`：绝对不能缓存 —— 否则用户永远拿不到新版本的前端。
+        """
+
+        async def get_response(self, path: str, scope: Scope) -> Response:
+            response = await super().get_response(path, scope)
+            # ⚠ 用 **Content-Type** 判断 HTML，不看 path：
+            # `StaticFiles(html=True)` 把 `/` 交给 index.html 时，传进来的 path 是空串，
+            # 用 path 判断会漏掉首页 → 首页被缓存一小时 → 部署新版本后用户拿旧 index.html、
+            # 再去请求已被删掉的旧 JS，**整页白屏**。（第一版就是这么写的，实测发现。）
+            ctype = response.headers.get("content-type", "")
+            if path.startswith("assets/"):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            elif "text/html" in ctype:
+                response.headers["Cache-Control"] = "no-cache, must-revalidate"
+            else:
+                response.headers["Cache-Control"] = "public, max-age=3600"
+            return response
+
+    app.mount("/", CachedStaticFiles(directory=str(_static_dir), html=True), name="frontend")
