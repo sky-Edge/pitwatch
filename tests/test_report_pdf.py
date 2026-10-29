@@ -11,6 +11,8 @@
 """
 from __future__ import annotations
 
+import pytest
+
 from backend.services import report_pdf_service
 from tests.conftest import put_control_rules
 
@@ -28,6 +30,10 @@ def _project(client, code: str = "PRJ-PDF") -> int:
     # 没有控制值就出不了日报（422），测不出 PDF 那条路
     put_control_rules(client, pid)
     return pid
+
+
+def _first_point(client, pid: int) -> int:
+    return client.get(f"/api/v1/projects/{pid}/points").json()[0]["id"]
 
 
 def test_pdf_route_handles_both_environments(client) -> None:
@@ -60,3 +66,47 @@ def test_pdf_respects_missing_data(client) -> None:
     )
     r = client.get(f"/api/v1/projects/{pid}/reports/pdf")
     assert r.status_code in (200, 422, 404), f"异常状态码：{r.status_code} {r.text[:200]}"
+
+
+# ───────────────────── 批量打印（多期合成一份） ─────────────────────
+
+
+def test_batch_rejects_bad_date(client) -> None:
+    pid = _project(client, "PRJ-PDF3")
+    r = client.get(f"/api/v1/projects/{pid}/reports/pdf", params={"dates": "2026-13-99"})
+    assert r.status_code == 422
+    assert "日期格式" in r.json()["detail"]
+
+
+def test_batch_rejects_empty_dates(client) -> None:
+    pid = _project(client, "PRJ-PDF4")
+    r = client.get(f"/api/v1/projects/{pid}/reports/pdf", params={"dates": " , "})
+    assert r.status_code == 422
+
+
+def test_batch_caps_periods(client) -> None:
+    """一次最多 60 期：再多会转很久、把请求超时拖垮，提前挡住。"""
+    pid = _project(client, "PRJ-PDF5")
+    many = ",".join(f"2026-01-{d:02d}" for d in range(1, 32))
+    r = client.get(f"/api/v1/projects/{pid}/reports/pdf", params={"dates": many + "," + many})
+    assert r.status_code == 422
+    assert "60" in r.json()["detail"]
+
+
+def test_batch_merges_when_libreoffice_available(client) -> None:
+    """装了 LibreOffice 时：3 期合成一份 PDF，页数应当 ≥ 单期的 3 倍。"""
+    if not report_pdf_service.is_available():
+        pytest.skip("本机没有 LibreOffice，合并走服务器验证")
+
+    pid = _project(client, "PRJ-PDF6")
+    client.post(
+        f"/api/v1/points/{_first_point(client, pid)}/records",
+        json={"series_type": "settlement", "component": "value", "obs_date": "2026-07-31", "value_mm": 5002.0},
+    )
+
+    one = client.get(f"/api/v1/projects/{pid}/reports/pdf", params={"obs_date": "2026-07-30"})
+    both = client.get(f"/api/v1/projects/{pid}/reports/pdf", params={"dates": "2026-07-30,2026-07-31"})
+
+    assert one.status_code == 200 and both.status_code == 200
+    assert one.content[:4] == b"%PDF" and both.content[:4] == b"%PDF"
+    assert len(both.content) > len(one.content), "两期的合并 PDF 应该比单期大"

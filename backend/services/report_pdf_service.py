@@ -37,6 +37,29 @@ def is_available() -> bool:
     return _soffice() is not None
 
 
+def merge_pdfs(pdfs: list[bytes]) -> bytes:
+    """把多份 PDF 顺序合成一份（批量打印用）。
+
+    为什么要合成一份而不是给一个 ZIP：用户点"批量打印"是想要**一次打印全部**，
+    ZIP 里还得一个个打开、一个个按打印，等于没省事。
+    """
+    if not pdfs:
+        raise PdfConvertError("没有可合并的 PDF")
+    if len(pdfs) == 1:
+        return pdfs[0]
+
+    from io import BytesIO
+
+    from pypdf import PdfReader, PdfWriter
+
+    writer = PdfWriter()
+    for data in pdfs:
+        writer.append(PdfReader(BytesIO(data)))
+    out = BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
 def xlsx_to_pdf(xlsx_bytes: bytes, *, timeout: int = 120) -> bytes:
     """把 xlsx 字节流转成 PDF 字节流。失败抛 PdfConvertError。"""
     exe = _soffice()

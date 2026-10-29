@@ -227,37 +227,60 @@ export default function ReportsPage({ projectId, onBack }: Props) {
     }
   }
 
-  /** 打印日报：服务端把 Excel 原样转 PDF，浏览器里直接看/打。
+  /** 打印日报：服务端把 Excel 原样转 PDF，**直接调起浏览器打印框**。
    *
-   *  为什么不用 window.open 直接开接口地址：转换要 3~8 秒（LibreOffice 启动），
-   *  新窗口会先白屏挂着，用户以为坏了。这里先 fetch 拿 blob，转完再开窗，
-   *  期间按钮上有 loading。
+   *  用户 2026-10-29：「不能直接在系统中打印吗？还得跳转到 PDF 界面」
+   *  —— 所以这里不 window.open，而是塞进一个隐藏 iframe 再调 `print()`：
+   *  点一下 → 系统打印对话框直接弹出来，页面不跳走，打断感小很多。
+   *
+   *  多期时后端会合成一份 PDF，一次打印全部（不是开一堆窗口）。
+   *  个别浏览器不允许打印 iframe 里的 PDF，这时降级成新窗口打开。
    */
   const printPdf = async () => {
-    if (batchDates.length !== 1) {
-      message.warning('打印一次只能选一期（多期请用批量导出 Excel）')
+    if (batchDates.length === 0) {
+      message.warning('先选观测日期，再打印')
       return
     }
     setPrinting(true)
     try {
-      const params = new URLSearchParams({ obs_date: batchDates[0] })
+      const params = new URLSearchParams({ dates: batchDates.join(',') })
       if (templateId) params.set('template_id', String(templateId))
       if (weather) params.set('weather', weather)
       const res = await fetch(`/api/v1/projects/${projectId}/reports/pdf?${params.toString()}`)
       if (!res.ok) {
-        let detail = `导出失败（HTTP ${res.status}）`
+        let detail = `生成失败（HTTP ${res.status}）`
         try {
           const j = await res.json()
           if (j?.detail) detail = j.detail
         } catch {
-          /* 响应不是 JSON，用默认文案 */
+          /* 不是 JSON，用默认文案 */
         }
         throw new Error(detail)
       }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      window.open(url, '_blank')
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+
+      const iframe = document.createElement('iframe')
+      iframe.setAttribute('aria-hidden', 'true')
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;'
+      iframe.src = url
+      iframe.onload = () => {
+        // 等内置查看器把 PDF 渲染出来，立刻调打印会拿到空白页
+        window.setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus()
+            iframe.contentWindow?.print()
+          } catch {
+            window.open(url, '_blank')
+          }
+        }, 400)
+      }
+      document.body.appendChild(iframe)
+      // 打印框可能要开很久，留足时间再回收
+      window.setTimeout(() => {
+        iframe.remove()
+        URL.revokeObjectURL(url)
+      }, 180_000)
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -678,17 +701,17 @@ export default function ReportsPage({ projectId, onBack }: Props) {
             <Tooltip
               title={
                 batchDates.length > 1
-                  ? '打印请只选一期（批量打会跳出很多窗口）'
-                  : '在新窗口打开 PDF，可直接打印或另存为 PDF'
+                  ? `把选中的 ${batchDates.length} 期合成一份 PDF，直接调起打印框（一次打完）`
+                  : '生成 PDF 后直接弹出打印框，页面不跳转'
               }
             >
               <Button
                 icon={<PrinterOutlined />}
                 loading={printing}
-                disabled={batchDates.length !== 1 || blockedByCheck}
+                disabled={batchDates.length === 0 || blockedByCheck}
                 onClick={() => void printPdf()}
               >
-                打印日报（PDF）
+                {batchDates.length > 1 ? `打印日报（${batchDates.length} 期）` : '打印日报'}
               </Button>
             </Tooltip>
             <Button

@@ -117,33 +117,67 @@ def export_excel(
 def export_pdf(
     project_id: int,
     obs_date: date | None = None,
+    dates: str | None = None,
     template_id: int | None = None,
     weather: str | None = None,
     db: Session = Depends(get_db),
 ):
-    """导出日报 PDF —— 给浏览器直接打印用。
+    """导出日报 PDF —— 给浏览器直接打印用。支持一次打印多期。
 
     走的是**同一个** `_build_excel_one`：先出 Excel，再让 LibreOffice 转 PDF。
     这样"打印出来的"和"下载的"永远是同一份文件，不会出现两套版式对不上。
 
-    `inline` 而不是 `attachment`：浏览器里直接显示，用户点打印就走，
-    不用先下载再找文件。
+    - `obs_date`：打印某一期
+    - `dates`：逗号分隔的多期，**合成一个 PDF**（批量打印一次点完）
+    - 都不传：最新一期
+
+    多期为什么要合成一份而不是打包 ZIP：用户要的是"一次打印全部"，
+    ZIP 里还得一个个打开、一个个按打印，等于没省事。
+
+    `inline` 而不是 `attachment`：浏览器里直接显示/可直接调起打印。
+    临时文件全部在 `TemporaryDirectory` 里，响应发出时已删除 —— 服务器上不留 PDF。
     """
-    from backend.services.report_pdf_service import PdfConvertError, xlsx_to_pdf
+    from backend.services.report_pdf_service import PdfConvertError, merge_pdfs, xlsx_to_pdf
 
     get_project(db, project_id)
-    try:
-        buf, filename, _info = _build_excel_one(db, project_id, template_id, obs_date, weather)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
+
+    wanted: list[date | None]
+    if dates:
+        try:
+            wanted = [date.fromisoformat(x.strip()) for x in dates.split(",") if x.strip()]
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=f"日期格式不对：{e}") from e
+        if not wanted:
+            raise HTTPException(status_code=422, detail="没有选中任何日期")
+        if len(wanted) > 60:
+            raise HTTPException(status_code=422, detail="一次最多打印 60 期，请缩小日期范围")
+    elif obs_date:
+        wanted = [obs_date]
+    else:
+        wanted = [None]
+
+    pdfs: list[bytes] = []
+    first_name = ""
+    for one in wanted:
+        try:
+            buf, filename, _info = _build_excel_one(db, project_id, template_id, one, weather)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        if not first_name:
+            first_name = filename
+        try:
+            pdfs.append(xlsx_to_pdf(buf.getvalue()))
+        except PdfConvertError as e:
+            # 503：服务端能力缺失或超时，不是用户填错了
+            raise HTTPException(status_code=503, detail=str(e)) from e
 
     try:
-        pdf = xlsx_to_pdf(buf.getvalue())
+        pdf = merge_pdfs(pdfs)
     except PdfConvertError as e:
-        # 503：服务端能力缺失或超时，不是用户填错了
         raise HTTPException(status_code=503, detail=str(e)) from e
 
-    name = (filename.rsplit(".", 1)[0] if "." in filename else filename) + ".pdf"
+    stem = first_name.rsplit(".", 1)[0] if "." in first_name else first_name
+    name = f"{stem}.pdf" if len(wanted) == 1 else f"{stem}_等{len(wanted)}期.pdf"
     return Response(
         content=pdf,
         media_type="application/pdf",
