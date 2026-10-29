@@ -242,6 +242,13 @@ export default function ReportsPage({ projectId, onBack }: Props) {
       return
     }
     setPrinting(true)
+    // 服务端每期要起一个 LibreOffice（约 2 秒），批量时用户会干等 ——
+    // 给一条带数量和预估时间的提示，比一个转圈的按钮有用得多。
+    const estimate = Math.max(2, batchDates.length * 2)
+    const tip = message.loading(
+      `正在生成 ${batchDates.length} 期日报，约需 ${estimate} 秒…`,
+      0,
+    )
     try {
       const params = new URLSearchParams({ dates: batchDates.join(',') })
       if (templateId) params.set('template_id', String(templateId))
@@ -284,6 +291,7 @@ export default function ReportsPage({ projectId, onBack }: Props) {
     } catch (e) {
       message.error((e as Error).message)
     } finally {
+      tip()
       setPrinting(false)
     }
   }

@@ -21,6 +21,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -35,6 +36,38 @@ def _soffice() -> str | None:
 def is_available() -> bool:
     """这台机器能不能转 PDF（本地 Windows 通常没装，云端镜像内置）。"""
     return _soffice() is not None
+
+
+#: 同时起几个 LibreOffice。每个实例约 150~250 MB，4 个并行在 4 GB 机器上很安全；
+#: 再多收益递减（CPU 只有 2 核），也容易把内存吃紧。
+MAX_CONVERT_WORKERS = 4
+
+
+def convert_many(xlsx_list: list[bytes], workers: int = MAX_CONVERT_WORKERS) -> list[bytes]:
+    """**并行**把多份 Excel 转 PDF，返回顺序与输入一致。
+
+    为什么值得并行：每次转换都要**启动一个 LibreOffice 进程**，实测单份 2.07 秒里
+    有 1.64 秒是启动开销 —— 串行转 5 期就是 10.5 秒，用户点了要干等。
+
+    ⚠ 实测限制（2026-10-29，2 vCPU 机器）：5 期串行 10.5s → 并行 4 个 8.8s，
+    只快 17%。原因是启动开销是**纯 CPU**，2 核并行度实际只有 ~1.2。
+    真正能省掉启动的做法是让 LibreOffice 常驻（UNO socket + unoserver），
+    但本镜像的 Python 3.12 装不上 `uno` 绑定（Debian 只给系统 Python 提供），
+    要走那条路得换基础镜像 —— 代价太大，暂不做。
+    所以前端改成显示"正在生成 N 期，约需 2N 秒"，让用户知道在等什么。
+
+    ⚠ 每个转换都用独立的 `-env:UserInstallation`（见 `xlsx_to_pdf`），
+    否则多个 LibreOffice 会抢同一个用户配置目录而互相锁死。
+    """
+    if not xlsx_list:
+        return []
+    if len(xlsx_list) == 1:
+        return [xlsx_to_pdf(xlsx_list[0])]
+
+    n = max(1, min(workers, len(xlsx_list)))
+    with ThreadPoolExecutor(max_workers=n) as pool:
+        # map 保持输入顺序
+        return list(pool.map(lambda b: xlsx_to_pdf(b), xlsx_list))
 
 
 def merge_pdfs(pdfs: list[bytes]) -> bytes:

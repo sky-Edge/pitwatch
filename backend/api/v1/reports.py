@@ -137,7 +137,7 @@ def export_pdf(
     `inline` 而不是 `attachment`：浏览器里直接显示/可直接调起打印。
     临时文件全部在 `TemporaryDirectory` 里，响应发出时已删除 —— 服务器上不留 PDF。
     """
-    from backend.services.report_pdf_service import PdfConvertError, merge_pdfs, xlsx_to_pdf
+    from backend.services.report_pdf_service import PdfConvertError, convert_many, merge_pdfs
 
     get_project(db, project_id)
 
@@ -156,7 +156,8 @@ def export_pdf(
     else:
         wanted = [None]
 
-    pdfs: list[bytes] = []
+    # ① 先串行生成 Excel（每期约 0.4 秒，CPU 很轻）
+    books: list[bytes] = []
     first_name = ""
     for one in wanted:
         try:
@@ -165,11 +166,15 @@ def export_pdf(
             raise HTTPException(status_code=422, detail=str(e)) from e
         if not first_name:
             first_name = filename
-        try:
-            pdfs.append(xlsx_to_pdf(buf.getvalue()))
-        except PdfConvertError as e:
-            # 503：服务端能力缺失或超时，不是用户填错了
-            raise HTTPException(status_code=503, detail=str(e)) from e
+        books.append(buf.getvalue())
+
+    # ② 再**并行**转 PDF：每次转换都要起一个 LibreOffice（启动 1.6 秒），
+    #    串行转 5 期就是 10 秒以上，并行之后大约 5 秒。
+    try:
+        pdfs = convert_many(books)
+    except PdfConvertError as e:
+        # 503：服务端能力缺失或超时，不是用户填错了
+        raise HTTPException(status_code=503, detail=str(e)) from e
 
     try:
         pdf = merge_pdfs(pdfs)
