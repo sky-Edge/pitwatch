@@ -1507,6 +1507,8 @@ export interface AppSettings {
   generate_allow_warning?: boolean
   /** 只读锁定：打开后后端拒绝一切写操作 */
   readonly_mode?: boolean
+  /** 天气位置：配了之后导出日报自动填当天天气 */
+  weather_location?: { label: string; latitude: number; longitude: number } | null
 }
 
 export const settingsApi = {

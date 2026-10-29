@@ -20,6 +20,8 @@ class AppSettingsRead(BaseModel):
     generate_allow_warning: bool = True
     #: 只读锁定：打开后所有写操作被拒绝
     readonly_mode: bool = False
+    #: 天气位置（配了才自动取天气）
+    weather_location: dict | None = None
 
 
 class AppSettingsUpdate(BaseModel):
@@ -32,5 +34,6 @@ class AppSettingsUpdate(BaseModel):
     audit_last_run: str | None = Field(default=None, max_length=40)
     generate_allow_warning: bool | None = Field(default=None)
     readonly_mode: bool | None = Field(default=None)
+    weather_location: dict | None = Field(default=None)
 
     model_config = {"extra": "forbid"}

@@ -55,6 +55,30 @@ def _stream_response(buf, filename: str, info: dict | None = None) -> Response:
     return Response(content=buf.getvalue(), headers=headers)
 
 
+def _resolve_weather(db, weather: str | None, obs_date: date | None) -> str:
+    """导出时的天气：**用户指定 > 按配置位置自动查 > 晴**。
+
+    用户 2026-10-29：「导出的天气要自己修很麻烦，能不能自动取当地天气」。
+    配了位置（设置里的「天气位置」）就自动查那一天，不用每次手选。
+
+    ⚠ 自动查失败**绝不能挡住导出** —— 网络抖一下导不出日报是本末倒置，
+    查不到就退回"晴"，跟以前的行为一样。
+    """
+    if weather:
+        return weather
+
+    from backend.services import app_settings_service, weather_service
+
+    loc = (app_settings_service.get_settings(db).get("weather_location") or {}) if db is not None else {}
+    lat, lon = loc.get("latitude"), loc.get("longitude")
+    if lat is None or lon is None:
+        return "晴"
+    try:
+        return weather_service.weather_on(obs_date or date.today(), float(lat), float(lon)) or "晴"
+    except Exception:  # noqa: BLE001
+        return "晴"
+
+
 def _build_excel_one(db, project_id: int, template_id: int | None, obs_date: date | None, weather: str | None):
     """按模板版式生成单期 Excel（单日接口与批量接口共用同一分支逻辑）。
 
@@ -106,6 +130,7 @@ def export_excel(
     - weather：天气（晴/阴/雨…），写入数据表天气格
     """
     get_project(db, project_id)
+    weather = _resolve_weather(db, weather, obs_date)
     try:
         buf, filename, info = _build_excel_one(db, project_id, template_id, obs_date, weather)
     except ValueError as e:
@@ -161,7 +186,9 @@ def export_pdf(
     first_name = ""
     for one in wanted:
         try:
-            buf, filename, _info = _build_excel_one(db, project_id, template_id, one, weather)
+            buf, filename, _info = _build_excel_one(
+                db, project_id, template_id, one, _resolve_weather(db, weather, one)
+            )
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
         if not first_name:

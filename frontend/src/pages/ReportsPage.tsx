@@ -65,7 +65,8 @@ export default function ReportsPage({ projectId, onBack }: Props) {
   const [dates, setDates] = useState<string[]>([])
   const [templates, setTemplates] = useState<ExportTemplateInfo[]>([])
   const [templateId, setTemplateId] = useState<number | undefined>(undefined) // undefined = 内置标准
-  const [weather, setWeather] = useState<string>('晴')
+  // 空串 = 自动：按设置里的「天气位置」查当天天气，查不到后端回退「晴」
+  const [weather, setWeather] = useState<string>('')
   /** 正在把日报转 PDF（服务端转换要几秒，得让用户看见在转） */
   const [printing, setPrinting] = useState(false)
   const [loadingExcel, setLoadingExcel] = useState(false)
@@ -651,7 +652,10 @@ export default function ReportsPage({ projectId, onBack }: Props) {
                 style={{ width: 90, marginLeft: 8 }}
                 value={weather}
                 onChange={pickWeather}
-                options={['晴', '多云', '阴', '小雨', '中雨', '大雨'].map((w) => ({ value: w, label: w }))}
+                options={[
+                  { value: '', label: '自动' },
+                  ...['晴', '多云', '阴', '小雨', '中雨', '大雨'].map((w) => ({ value: w, label: w })),
+                ]}
               />
             </span>
             <Button icon={<ReloadOutlined />} onClick={() => void loadAll()}>

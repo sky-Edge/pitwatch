@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from backend.api.v1 import audit, backup, baselines, batch_import, bulk, calculation, chart, comparison, diagnostics, export_templates, generate, holidays, imports, points, projects, records, reports, settings as app_settings_api, warning_events, warning_rules
+from backend.api.v1 import audit, backup, baselines, batch_import, bulk, calculation, chart, comparison, diagnostics, export_templates, generate, holidays, imports, points, projects, records, reports, settings as app_settings_api, warning_events, warning_rules, weather
 from backend.core import reqlog
 from backend.core.config import frontend_dist_dir, settings
 from backend.core.db import harden_console, init_db
@@ -186,6 +186,7 @@ app.include_router(app_settings_api.settings_router, prefix=settings.api_prefix)
 app.include_router(bulk.bulk_router, prefix=settings.api_prefix)
 # 导出文件检查（用户 2026-10-12：检查我导出的日报）
 app.include_router(audit.audit_router, prefix=settings.api_prefix)
+app.include_router(weather.weather_router, prefix=settings.api_prefix)
 
 
 # 后端能力清单 —— 前端用它判断"正在跑的后端是不是最新代码"。

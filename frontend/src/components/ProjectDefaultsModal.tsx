@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Modal, Select, Space, Typography, message } from 'antd'
+import { Alert, Button, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
 import { reportApi, settingsApi, warningRuleApi, type ExportTemplateInfo, type WarningRuleSetInfo } from '../api/client'
 
 const WEATHERS = ['晴', '多云', '阴', '小雨', '中雨', '大雨']
+
+type WeatherLoc = { label: string; latitude: number; longitude: number }
+type GeoHit = { label: string; admin?: string; latitude: number; longitude: number }
 
 /**
  * 项目默认值 —— 新建项目自动带上规则套 / 母版 / 天气。
@@ -26,9 +29,29 @@ export default function ProjectDefaultsModal({
   const [templates, setTemplates] = useState<ExportTemplateInfo[]>([])
   const [ruleSetId, setRuleSetId] = useState<number | null>(null)
   const [templateId, setTemplateId] = useState<number | null>(null)
+  const [loc, setLoc] = useState<WeatherLoc | null>(null)
+  const [locQuery, setLocQuery] = useState('')
+  const [locHits, setLocHits] = useState<GeoHit[]>([])
+  const [locBusy, setLocBusy] = useState(false)
   const [weather, setWeather] = useState('晴')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const searchLoc = async () => {
+    const q = locQuery.trim()
+    if (!q) return
+    setLocBusy(true)
+    try {
+      const r = await fetch(`/api/v1/weather/geocode?name=${encodeURIComponent(q)}`)
+      const j = await r.json()
+      if (!r.ok) throw new Error(j?.detail || '没找到这个地名')
+      setLocHits(j as GeoHit[])
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setLocBusy(false)
+    }
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -44,6 +67,7 @@ export default function ProjectDefaultsModal({
       setRuleSetId(cfg.default_rule_set_id)
       setTemplateId(cfg.default_template_id)
       setWeather(cfg.default_weather || '晴')
+      setLoc((cfg as { weather_location?: WeatherLoc | null }).weather_location ?? null)
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -62,6 +86,7 @@ export default function ProjectDefaultsModal({
         default_rule_set_id: ruleSetId,
         default_template_id: templateId,
         default_weather: weather,
+        weather_location: loc,
       })
       message.success('已保存 —— 以后新建的项目会自动套上这些设置')
       onClose()
@@ -150,6 +175,47 @@ export default function ProjectDefaultsModal({
             onChange={setWeather}
             options={WEATHERS.map((w) => ({ value: w, label: w }))}
           />
+        </div>
+
+        <div>
+          <Typography.Text strong>天气位置（导出时自动填天气）</Typography.Text>
+          <br />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            配好之后，导出日报的天气会自动按当天当地填写，不用每次手选。
+            <b>中文地名可能搜不到，用拼音更稳</b>（Jiashan / Jiaxing / Shanghai）。
+          </Typography.Text>
+          <Space.Compact style={{ width: '100%', marginTop: 4 }}>
+            <Input
+              value={locQuery}
+              onChange={(e) => setLocQuery(e.target.value)}
+              placeholder="Jiashan"
+              onPressEnter={() => void searchLoc()}
+            />
+            <Button onClick={() => void searchLoc()} loading={locBusy}>
+              搜索
+            </Button>
+          </Space.Compact>
+          {locHits.length > 0 && (
+            <Select
+              style={{ width: '100%', marginTop: 6 }}
+              placeholder="选一个地点"
+              value={undefined}
+              onChange={(v) => {
+                const hit = locHits.find((h) => h.label === v)
+                if (hit) {
+                  setLoc({ label: hit.label, latitude: hit.latitude, longitude: hit.longitude })
+                  setLocHits([])
+                  setLocQuery('')
+                }
+              }}
+              options={locHits.map((h) => ({ value: h.label, label: `${h.label}${h.admin ? `（${h.admin}）` : ''}` }))}
+            />
+          )}
+          {loc && (
+            <Tag closable onClose={() => setLoc(null)} style={{ marginTop: 8 }} color="blue">
+              天气位置：{loc.label}
+            </Tag>
+          )}
         </div>
 
         <Alert
