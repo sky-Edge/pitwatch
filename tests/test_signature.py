@@ -304,3 +304,28 @@ def test_anchor_inside_merged_when_right_is_occupied() -> None:
     xml = zipfile.ZipFile(buf).read("xl/drawings/drawing1.xml").decode("utf-8")
     col = int(re.search(r"<col>(\d+)</col>", xml).group(1))
     assert col == 0, "应锚在 A 列（合并区左上角），而不是跑到 G 列压住监测单位"
+
+
+def test_transparent_signature_does_not_turn_black() -> None:
+    """透明底签名不能糊成黑块。
+
+    ⚠ 2026-11-13：用户上传的签名里有透明底 PNG（笔画黑、背景透明）。
+    RGBA→RGB 会把透明区变成黑，再经过对比增强，整个签名位就是一块纯黑。
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    _clear_all()
+    img = PILImage.new("RGBA", (400, 150), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.line([(30, 110), (150, 30), (280, 100), (370, 40)], fill=(0, 0, 0, 255), width=8)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    signature_service.save_role_signature("editor", buf.getvalue())
+
+    path = signature_service._path_for(signature_service.get_role("editor"))
+    out = signature_service._padded_image(path, 20, 26, 0)
+
+    with PILImage.open(out).convert("RGB") as im:
+        pixels = list(im.getdata())
+        dark = sum(1 for r, g, b in pixels if r < 40)
+    assert dark / len(pixels) < 0.5, "整块变黑了 —— 透明区没铺白底"

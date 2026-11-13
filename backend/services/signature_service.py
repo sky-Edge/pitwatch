@@ -275,11 +275,16 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
 
     src = PILImage.open(path).convert("RGBA")
 
+    # 先铺一层不透明白底。
+    # ⚠ 用户上传的签名有一部分是**透明底 PNG**（笔画黑、背景透明）。直接
+    #   `convert("RGB")` 会把透明区域变成**黑色** —— 黑底黑字，整块糊死；
+    #   再过一遍对比增强，整个签名位就是一块纯黑（2026-11-13 实测 3 处变黑块）。
+    if src.getchannel("A").getextrema()[0] < 255:
+        white = PILImage.new("RGBA", src.size, (255, 255, 255, 255))
+        src = PILImage.alpha_composite(white, src)
+
     # 提高对比：亮于 200 的一律压成纯白、暗于 110 的压成纯黑。
-    # 签名图缩到二十几像素高时，抗锯齿会把笔画糊成一片浅灰（用户 2026-11-13：
-    # "这都看不清了"），先把灰阶拉开再缩就实多了。
-    # ⚠ 不要改成"白底转透明"：LibreOffice 会把 alpha=0 的区域渲染成**黑色方块**
-    #   （实测整块变黑），所以这里保持不透明，只用颜色提高对比。
+    # 签名缩到二十几像素高时，抗锯齿会把笔画糊成一片浅灰（用户："看不清"）。
     _lut = [255 if v > 200 else (0 if v < 110 else int((v - 110) * 255 / 90)) for v in range(256)]
     rgb = src.convert("RGB").point(_lut * 3)
     src = rgb.convert("RGBA")
