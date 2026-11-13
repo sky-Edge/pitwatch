@@ -250,8 +250,12 @@ def test_anchor_stays_inside_merged_cell_near_text() -> None:
     col = int(re.search(r"<col>(\d+)</col>", xml).group(1))
     row = int(re.search(r"<row>(\d+)</row>", xml).group(1))
     col_off = int(re.search(r"<colOff>(\d+)</colOff>", xml).group(1))
-    assert col == 2, f"应留在 C 列（合并区内部），实际 {col}（0 基）"
-    assert col_off > 0, "要有横向偏移，紧贴「编　　制：」右端，不能留一大截空白"
+    ext_cx = int(re.search(r"<ext cx=\"(\d+)\"", xml).group(1))
+    assert col == 2, f"应锚在 C 列（合并区左上角），实际 {col}（0 基）"
+    # ⚠ 不能用 colOff 做水平偏移 —— LibreOffice 会忽略它，图又压回文字上。
+    #   改用"图片左侧画透明留白"，所以这里 colOff 必须是 0，而图片要更宽。
+    assert col_off == 0
+    assert ext_cx > 9525 * 80, "图片应该比签名本身宽（左侧有透明留白）"
     assert row == 16
 
 
@@ -295,6 +299,4 @@ def test_anchor_inside_merged_when_right_is_occupied() -> None:
     wb.save(buf)
     xml = zipfile.ZipFile(buf).read("xl/drawings/drawing1.xml").decode("utf-8")
     col = int(re.search(r"<col>(\d+)</col>", xml).group(1))
-    col_off = int(re.search(r"<colOff>(\d+)</colOff>", xml).group(1))
-    assert col == 0, "应留在 A 列（合并区内部），而不是跑到 G 列压住监测单位"
-    assert col_off > 0, "要有横向偏移，否则会盖住「项目负责人：」几个字"
+    assert col == 0, "应锚在 A 列（合并区左上角），而不是跑到 G 列压住监测单位"

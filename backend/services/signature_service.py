@@ -237,6 +237,32 @@ def _text_width_px(text: str) -> int:
     return width
 
 
+def _padded_image(path, pad_px: int, height_px: int) -> str:
+    """在签名图左边补透明留白，返回临时文件路径。
+
+    为什么要绕这一圈：合并单元格里放图片时，LibreOffice 只认"锚在哪个格"，
+    **会忽略 colOff 水平偏移**（实测导出 PDF 后签名又压回文字上）。
+    把留白画进图片里就绕开了这个限制 —— 锚点始终是合并区左上角，
+    左边那段透明像素自然让开「编　　制：」几个字。
+    """
+    import tempfile
+    from pathlib import Path as _Path
+
+    from PIL import Image as PILImage
+
+    src = PILImage.open(path).convert("RGBA")
+    if src.height != height_px and src.height > 0:
+        ratio = height_px / src.height
+        src = src.resize((max(1, int(src.width * ratio)), height_px), PILImage.LANCZOS)
+
+    canvas = PILImage.new("RGBA", (pad_px + src.width, height_px), (255, 255, 255, 0))
+    canvas.paste(src, (pad_px, 0), src)
+
+    out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_pad_{pad_px}_{src.width}.png"
+    canvas.save(out, format="PNG")
+    return str(out)
+
+
 def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, text: str = ""):
     """签名该锚在哪。返回 Excel 的 "E17" 字符串，或者一个偏移锚对象。
 
@@ -264,20 +290,10 @@ def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, text: str = ""):
         # 合并区窄到放不下「文字 + 图」—— 退回到右边一列，别硬塞压字
         return f"{get_column_letter(rng.max_col + 1)}{row}"
 
-    from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, TwoCellAnchor
-    from openpyxl.utils.units import pixels_to_EMU
-
-    left = pixels_to_EMU(offset)
-    top = pixels_to_EMU(4)
-    return TwoCellAnchor(
-        _from=AnchorMarker(col=rng.min_col - 1, colOff=left, row=row - 1, rowOff=top),
-        to=AnchorMarker(
-            col=rng.min_col - 1,
-            colOff=left + pixels_to_EMU(w_px),
-            row=row - 1,
-            rowOff=top + pixels_to_EMU(h_px),
-        ),
-    )
+    # ⚠ **不能用** AnchorMarker + colOff 做水平偏移：LibreOffice 转 PDF 时会忽略它，
+    #   把图直接对到合并区左上角 —— 实测签名又压回「编　　制：」几个字上。
+    #   所以改成"图片左侧留透明边距"，整图锚在合并区左上角（见 _padded_image）。
+    return ("pad", rng.min_col, offset)
 
 
 def stamp_workbook(wb) -> int:
@@ -323,12 +339,18 @@ def stamp_workbook(wb) -> int:
                         new_h = max(10, int(new_w * h / w))
                     img.height, img.width = new_h, new_w
 
-                anchor = _place_anchor(ws, row_idx, col_idx, new_w, new_h, ws.cell(row=row_idx, column=col_idx).value or "")
-                if isinstance(anchor, str):
-                    ws.add_image(img, anchor)
+                text = ws.cell(row=row_idx, column=col_idx).value or ""
+                plan = _place_anchor(ws, row_idx, col_idx, new_w, new_h, text)
+                if isinstance(plan, str):
+                    ws.add_image(img, plan)
                 else:
-                    img.anchor = anchor  # 偏移锚（合并区内部靠右）
-                    ws.add_image(img)
+                    # ("pad", 起始列, 左边距px)：图左侧画透明留白，锚在合并区左上角
+                    _, start_col, pad = plan
+                    padded = _padded_image(path, pad, new_h)
+                    pimg = XLImage(padded)
+                    pimg.height = new_h
+                    pimg.width = new_w + pad
+                    ws.add_image(pimg, f"{get_column_letter(start_col)}{row_idx}")
                 stamped += 1
             except Exception:  # noqa: BLE001 —— 某处贴不上不该影响整份日报
                 continue
