@@ -258,9 +258,112 @@ def test_anchor_lands_on_the_signature_line() -> None:
     ext_cy = int(re.search(r"cy=\"(\d+)\"", xml).group(1))
     assert col == 4, f"应锚到 E 列（签字线格 E17:G17），实际 {col}（0 基）"
     assert col_off == 0
-    # 行高 35pt(47px)、图高 34px → 顶部补 ~10px 让它压在横线上
-    assert ext_cy > 9525 * 34, "图片高度应该大于签名本身（顶部有留白，用来贴横线）"
+    # 图要比签名本身高（顶部有留白，用来贴横线）
+    assert ext_cy > 9525 * 34
     assert row == 16
+
+
+def _sign_page_book() -> Workbook:
+    """照着真母版搭一页：C17:D17「编　　制：」+ E17:G17 带下边框的签字线格。"""
+    wb = Workbook()
+    ws = wb.active
+    for col, width in (("C", 11), ("D", 16), ("E", 20.83)):
+        ws.column_dimensions[col].width = width
+    ws.row_dimensions[17].height = 35
+    ws.merge_cells("C17:D17")
+    ws["C17"] = "编       制："
+    ws.merge_cells("E17:G17")
+    ws["E17"].border = Border(bottom=Side(style="thin"))
+    return wb
+
+
+def _embedded(wb) -> tuple[list, str]:
+    """存盘后读回内嵌图片与 drawing1.xml。"""
+    from PIL import Image as PILImage
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    z = zipfile.ZipFile(buf)
+    imgs = [
+        PILImage.open(io.BytesIO(z.read(n))).convert("RGBA")
+        for n in z.namelist()
+        if n.startswith("xl/media/")
+    ]
+    return imgs, z.read("xl/drawings/drawing1.xml").decode("utf-8")
+
+
+def test_sign_page_signature_is_bigger_and_centered_on_line() -> None:
+    """签字页的签名要**大一号**，并且**在签字横线上居中**。
+
+    ⚠ 2026-11-13 用户：「签字页上的签名搞大一点，然后电子签名在中横线居中摆放」。
+    原来 34px 只占 35pt 行高的三分之二，而且贴着线格左边放（右边一大截空线）。
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    _clear_all()
+    # 2.3:1 的签名（用户那几张就这个比例），不会被宽度上限截短
+    img = PILImage.new("RGB", (460, 200), "white")
+    ImageDraw.Draw(img).line([(60, 165), (150, 40), (280, 160), (360, 60)], fill="black", width=8)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    signature_service.save_role_signature("editor", buf.getvalue())
+
+    wb = _sign_page_book()
+    assert signature_service.stamp_workbook(wb) == 1
+
+    imgs, _ = _embedded(wb)
+    assert len(imgs) == 1
+    im = imgs[0]
+    bbox = im.getchannel("A").getbbox()
+    ink_w, ink_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+    assert ink_h == signature_service.SIGN_PAGE_HEIGHT_PX, f"签名该撑到 46px，实际 {ink_h}"
+    assert ink_h > signature_service.SIGN_HEIGHT_PX, "签字页的签名要比数据表的大"
+
+    # 居中：左边补的留白 = (线格宽 - 图宽) / 2
+    span = signature_service._span_px(wb.active, 17, 5)
+    assert bbox[0] == (span - ink_w) // 2, "签名没有居中在签字横线上"
+
+
+def test_signature_borrows_row_above_when_row_too_short() -> None:
+    """行高不够时把图**往上长**，底边仍然压住横线。
+
+    ⚠ 母版里「项目 负责：」那行只有 20.25pt(27px)，签名撑到 46px 的话，
+    按老写法 pad_top 只能取 0 → 图整体下坠 19px，掉到横线下面去。
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    _clear_all()
+    img = PILImage.new("RGB", (460, 200), "white")
+    ImageDraw.Draw(img).line([(60, 165), (150, 40), (280, 160), (360, 60)], fill="black", width=8)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    signature_service.save_role_signature("editor", buf.getvalue())
+
+    wb = Workbook()
+    ws = wb.active
+    ws.column_dimensions["C"].width = 11
+    ws.column_dimensions["D"].width = 16
+    ws.row_dimensions[25].height = 20.25  # 真母版的行高
+    ws.merge_cells("C25:D25")
+    ws["C25"] = "编       制："
+    ws.merge_cells("E25:G25")
+    ws["E25"].border = Border(bottom=Side(style="thin"))
+
+    assert signature_service.stamp_workbook(wb) == 1
+
+    imgs, xml = _embedded(wb)
+    row0 = int(re.search(r"<row>(\d+)</row>", xml).group(1))
+    cy = int(re.search(r"cy=\"(\d+)\"", xml).group(1)) // 9525
+    assert row0 < 24, f"图比行高还高，锚点该往上借行，实际还在第 {row0 + 1} 行"
+
+    # 借了几行就得够用：图顶到本行底（横线）之间不能是负的
+    top_row = row0 + 1
+    cover = sum(
+        int(float(getattr(ws.row_dimensions.get(r), "height", None) or 14.25) * 96 / 72)
+        for r in range(top_row, 26)
+    )
+    assert cy <= cover, "往上借的行不够高，签名还是会掉到横线下面"
 
 
 def test_wide_signature_is_width_capped() -> None:

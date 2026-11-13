@@ -53,8 +53,15 @@ _MATCH: list[tuple[str, dict]] = sorted(
 #: 旧版通用签名：只有一张图时盖所有栏（兼容 2026-11-13 之前的装法）
 LEGACY_FILE = "default.png"
 
-#: 签名图高度（像素）。一行文字约 20px，签名稍大一点才像手写。
+#: 数据表小行的签名高度（像素）。一行文字约 20px，签名稍大一点才像手写。
 SIGN_HEIGHT_PX = 34
+
+#: 签字页（带签字横线的大行）的签名高度。行高 35pt(46px) 时几乎撑满 ——
+#: 原来 34px 只占三分之二，用户 2026-11-13：「签字页上的签名搞大一点」。
+SIGN_PAGE_HEIGHT_PX = 46
+
+#: 签名高度上限。行再高也别让签名长到压住上下两行。
+SIGN_MAX_HEIGHT_PX = 64
 
 #: 最大宽度。签名照片常是 4:1 的长条，只按高度缩放会横跨三四列，
 #: 压到隔壁栏（如「计算人」）上面去。超过这个宽度就按宽度等比缩。
@@ -356,50 +363,96 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
     return str(out)
 
 
+def _line_cell(ws, row: int, col: int):
+    """这一栏的「签字线格」—— 标签右边一块**空白且带下边框**的格子；没有返回 None。
+
+    母版把签字线做成**另一块合并格**（签字页：C17:D17「编　　制：」+
+    E17:G17 带下边框的空白格）。数据表那些「现场监测人：」右边只是普通空白列、
+    没有横线，不能当成签字线格（签名跑到那一列会和文字隔开 60~70pt，很散）。
+
+    ⚠ **只认「标签本身在合并区里」的那种排版**：数据表是逐格画边框的，
+    单格标签右边那格往往也带下边框（表格网格），按边框判会把签名甩到隔壁列去。
+    """
+    rng = _merged_of(ws, row, col)
+    if rng is None:
+        return None
+    next_col = rng.max_col + 1
+    cell = ws.cell(row=row, column=next_col)
+    has_rule = getattr(getattr(cell.border, "bottom", None), "style", None) is not None
+    if cell.value in (None, "") and has_rule:
+        return cell
+    return None
+
+
+def _span_px(ws, row: int, col: int) -> int:
+    """这一格（连同它所在的合并区）有多宽（像素）。"""
+    rng = _merged_of(ws, row, col)
+    cols = range(rng.min_col, rng.max_col + 1) if rng is not None else [col]
+    return sum(_col_px(ws, c) for c in cols)
+
+
+def _bottom_on_line(ws, row: int, col: int, h_px: int) -> tuple[int, int]:
+    """让图片**底边压住本行的下边框**（签字横线），返回 (锚点行, pad_top)。
+
+    图比这一行还高时**往上借行**，多出来的高度长在上面 —— 不能靠"pad_top 取 0"
+    凑合，那样图会整体下坠，跑到横线下面去（用户 2026-11-13 第二次：
+    「签字页上的签名搞大一点」，直接把图调高就会踩这个坑）。
+
+    借到的那一行如果是某个合并区的一部分，Excel 会把图画在合并区左上角，
+    所以锚点要跟着上移到合并区首行，并把跨过的行高补进 pad_top。
+    """
+    pad = _row_px(ws, row) - h_px - 2
+    anchor_row = row
+    while pad < 0 and anchor_row > 1:
+        anchor_row -= 1
+        pad += _row_px(ws, anchor_row)
+
+    rng = _merged_of(ws, anchor_row, col)
+    while rng is not None and rng.min_row < anchor_row:
+        for r in range(rng.min_row, anchor_row):
+            pad += _row_px(ws, r)
+        anchor_row = rng.min_row
+        rng = _merged_of(ws, anchor_row, col)
+
+    return anchor_row, max(0, pad)
+
+
 def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, cell=None):
-    """签名该锚在哪。返回 Excel 的 "E17" 字符串，或者一个偏移锚对象。
+    """签名该锚在哪。返回 (模式, 列, 行, pad_left, pad_top)。
 
     **合并单元格是这里最大的坑**：签字栏常写成 C17:D17 这种合并格
     （「编　　制：」后面留出签字的位置）。合并区里只有左上角格有效，
     图片锚在 D17 会被 Excel 画到 **C17** —— 正好盖住「编制：」那几个字。
 
     所以：
+    · 有签字线格（右边那块带下边框的空白格）→ 锚进去，**水平居中压在线上**；
     · 不在合并区 → 右边一格（紧挨着，最紧凑）；
-    · 在合并区 → **锚在合并区内部、紧贴文字右端**（用 colOff 偏移）。
-      既不用跑到合并区外面（那样「编制：」和签名之间会空出一整列，
-      用户 2026-11-13 提的就是这个："签名前不要留太多空白"），
-      也不会压到右边的「监测单位：」（那是另一块合并区）。
+    · 右边被占了（如「项目负责人：」右边是「监测单位：」）→ 塞回合并区内部、
+      紧贴文字右端（不用 colOff：LibreOffice 转 PDF 时会忽略它，图回到合并区
+      左上角压住文字）。
     """
-    # 纵向：签字要**压在横线上**。行高 35pt(47px)、图高 34px 时，
-    # 图直接锚在行左上角会浮在半空，横线（下边框）在行底 —— 用户 2026-11-13
-    # 报的"不在横线上"就是这个。所以往下留出 pad_top，让图底边贴住行底。
-    row_px = _row_px(ws, row)
-    pad_top = max(0, row_px - h_px - 2)
-
     rng = _merged_of(ws, row, col)
+
+    # ① 有签字线格：横向居中，纵向压线（图高超过行高就往上借行）
+    line = _line_cell(ws, row, col)
+    if line is not None:
+        span = _span_px(ws, row, line.column)
+        pad_left = max(0, (span - w_px) // 2)
+        anchor_row, pad_top = _bottom_on_line(ws, row, line.column, h_px)
+        return ("cell", line.column, anchor_row, pad_left, pad_top)
+
+    # ② 普通格子：右边一格，左对齐（那里没有横线，居中反而像乱放）
     if rng is None:
-        return ("cell", col + 1, 0, pad_top)
+        return ("cell", col + 1, row, 0, max(0, _row_px(ws, row) - h_px - 2))
 
-    # 标签右边一列如果是空白格、**而且带下边框**，那才是母版留的「签字线格」
-    # （签字页：C17:D17「编　　制：」+ E17:G17 带下边框的空白格）。
-    # 数据表那些「现场监测人：」右边只是普通空白列，没有横线 —— 签名要是也
-    # 跑到那一列，和文字之间会隔出 60~70pt 的空白，看着很散（用户 2026-11-13
-    # 截图："这是不是很不协调"）。那种情况用下面的"贴文字右端"。
-    next_col = rng.max_col + 1
-    next_cell = ws.cell(row=row, column=next_col)
-    has_rule = getattr(getattr(next_cell.border, "bottom", None), "style", None) is not None
-    if next_cell.value in (None, "") and has_rule:
-        return ("cell", next_col, 0, pad_top)
-
-    # 右边被占了（如「项目负责人：」右边是「监测单位：」）→ 塞回合并区内部，
-    # 紧贴文字右端。**不能用** AnchorMarker + colOff 做水平偏移：
-    # LibreOffice 转 PDF 时忽略它，图会回到合并区左上角压住文字。
+    # ③ 右边被占了 → 塞回合并区内部，紧贴文字右端。
+    # **不能用** AnchorMarker + colOff 做水平偏移：LibreOffice 转 PDF 时忽略它。
     total = sum(_col_px(ws, c) for c in range(rng.min_col, rng.max_col + 1))
     start, text_w = _text_metrics(cell, total) if cell is not None else (0.0, 0.0)
     offset = int(start + text_w) + 8
     if offset < 4:
         offset = 0
-    return ("pad", rng.min_col, offset, pad_top)
+    return ("pad", rng.min_col, row, offset, max(0, _row_px(ws, row) - h_px - 2))
 
 
 def stamp_workbook(wb) -> int:
@@ -437,15 +490,18 @@ def stamp_workbook(wb) -> int:
                 w, h = img.width, img.height
                 new_w, new_h = w, h
                 if w > 0 and h > 0:
-                    # 高度不能超过行高：超了 LibreOffice 会把整张图**按比例缩小**去
-                    # 适应单元格，连带把左留白也缩掉 —— 签名又跑回文字上，
-                    # 而且变小（2026-11-13 实测：34px 的图被压成 10pt）。
                     row_h = _row_px(ws, row_idx)
-                    # 数据表行高只有 19px，按"行高-3"只有 16px —— 再被 PDF 的
-                    # 页面缩放（这张横向表约 42%）一压，笔画糊成灰色，完全看不清
-                    # （用户 2026-11-13："这都看不清了"）。放到行高的 1.4 倍，
-                    # 略超出单元格没关系，手写签名本来就会压线。
-                    new_h = min(SIGN_HEIGHT_PX, max(18, int(row_h * 1.4)))
+                    if _line_cell(ws, row_idx, col_idx) is not None:
+                        # 签字页那种带横线的大行（35pt≈46px）：签名要**明显大一号**，
+                        # 撑到接近行高才像真手写（用户 2026-11-13：
+                        # 「签字页上的签名搞大一点」）。矮行靠 _bottom_on_line 往上借行。
+                        new_h = min(SIGN_MAX_HEIGHT_PX, max(SIGN_PAGE_HEIGHT_PX, int(row_h * 0.85)))
+                    else:
+                        # 数据表行高只有 19px，按"行高-3"只有 16px —— 再被 PDF 的
+                        # 页面缩放（这张横向表约 42%）一压，笔画糊成灰色，完全看不清
+                        # （用户 2026-11-13："这都看不清了"）。放到行高的 1.4 倍，
+                        # 略超出单元格没关系，手写签名本来就会压线。
+                        new_h = min(SIGN_HEIGHT_PX, max(18, int(row_h * 1.4)))
                     new_w = max(12, int(new_h * w / h))
                     if new_w > MAX_SIGN_WIDTH_PX:
                         new_w = MAX_SIGN_WIDTH_PX
@@ -453,7 +509,7 @@ def stamp_workbook(wb) -> int:
                     img.height, img.width = new_h, new_w
 
                 cell = ws.cell(row=row_idx, column=col_idx)
-                mode, start_col, pad_left, pad_top = _place_anchor(
+                mode, start_col, start_row, pad_left, pad_top = _place_anchor(
                     ws, row_idx, col_idx, new_w, new_h, cell
                 )
                 # 统一走 _padded_image（哪怕不留白）：它会顺手把 PNG 重存成
@@ -463,7 +519,7 @@ def stamp_workbook(wb) -> int:
                 pimg = XLImage(padded)
                 pimg.height = new_h + pad_top
                 pimg.width = new_w + pad_left
-                ws.add_image(pimg, f"{get_column_letter(start_col)}{row_idx}")
+                ws.add_image(pimg, f"{get_column_letter(start_col)}{start_row}")
                 stamped += 1
             except Exception:  # noqa: BLE001 —— 某处贴不上不该影响整份日报
                 continue
