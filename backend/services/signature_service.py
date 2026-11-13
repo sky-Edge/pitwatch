@@ -156,7 +156,8 @@ def save_signature(data: bytes, *, role: str | None = None) -> None:
 
     _role_dir().mkdir(parents=True, exist_ok=True)
     name = f"{target['name']}.png" if target else LEGACY_FILE
-    img.save(_role_dir() / name, format="PNG")
+    # 显式写 DPI：不写的话 LibreOffice 转 PDF 时会按默认比例把图缩到 0.4 倍
+    img.save(_role_dir() / name, format="PNG", dpi=(96, 96))
 
 
 def save_role_signature(role_key: str, data: bytes) -> None:
@@ -283,7 +284,7 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
     canvas.paste(src, (pad_px, pad_top), src)
 
     out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_pad_{pad_px}_{pad_top}_{src.width}.png"
-    canvas.save(out, format="PNG")
+    canvas.save(out, format="PNG", dpi=(96, 96))
     return str(out)
 
 
@@ -383,16 +384,14 @@ def stamp_workbook(wb) -> int:
                 mode, start_col, pad_left, pad_top = _place_anchor(
                     ws, row_idx, col_idx, new_w, new_h, cell
                 )
-                if pad_left == 0 and pad_top == 0:
-                    ws.add_image(img, f"{get_column_letter(start_col)}{row_idx}")
-                else:
-                    # 留白画进图片里：LibreOffice 会忽略 colOff/rowOff，
-                    # 只有"图里的透明像素"能可靠地把签名推到横线上、文字右侧。
-                    padded = _padded_image(path, pad_left, new_h, pad_top)
-                    pimg = XLImage(padded)
-                    pimg.height = new_h + pad_top
-                    pimg.width = new_w + pad_left
-                    ws.add_image(pimg, f"{get_column_letter(start_col)}{row_idx}")
+                # 统一走 _padded_image（哪怕不留白）：它会顺手把 PNG 重存成
+                # 96 DPI。用户上传的签名往往没有 DPI 信息，LibreOffice 会把
+                # 这种图统一缩到 0.4 倍（实测 17px 渲染成 5pt）。
+                padded = _padded_image(path, pad_left, new_h, pad_top)
+                pimg = XLImage(padded)
+                pimg.height = new_h + pad_top
+                pimg.width = new_w + pad_left
+                ws.add_image(pimg, f"{get_column_letter(start_col)}{row_idx}")
                 stamped += 1
             except Exception:  # noqa: BLE001 —— 某处贴不上不该影响整份日报
                 continue
