@@ -275,12 +275,14 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
 
     src = PILImage.open(path).convert("RGBA")
 
-    # 白底 → 透明，只留笔画。
-    # 两道好处：① 缩小时不会因为白底被平均成灰雾，笔画更实；② 贴到表格上
-    # 不会盖住格子线（用户 2026-11-13："这都看不清了"）。
-    gray = src.convert("L")
-    alpha = gray.point(lambda v: 0 if v > 215 else 255)
-    src.putalpha(alpha)
+    # 提高对比：亮于 200 的一律压成纯白、暗于 110 的压成纯黑。
+    # 签名图缩到二十几像素高时，抗锯齿会把笔画糊成一片浅灰（用户 2026-11-13：
+    # "这都看不清了"），先把灰阶拉开再缩就实多了。
+    # ⚠ 不要改成"白底转透明"：LibreOffice 会把 alpha=0 的区域渲染成**黑色方块**
+    #   （实测整块变黑），所以这里保持不透明，只用颜色提高对比。
+    _lut = [255 if v > 200 else (0 if v < 110 else int((v - 110) * 255 / 90)) for v in range(256)]
+    rgb = src.convert("RGB").point(_lut * 3)
+    src = rgb.convert("RGBA")
 
     if src.height != height_px and src.height > 0:
         ratio = height_px / src.height
