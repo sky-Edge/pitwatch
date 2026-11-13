@@ -7,6 +7,8 @@ const WEATHERS = ['晴', '多云', '阴', '小雨', '中雨', '大雨']
 
 type WeatherLoc = { label: string; latitude: number; longitude: number }
 type GeoHit = { label: string; admin?: string; latitude: number; longitude: number }
+type Instrument = { name: string; model: string; serial: string; calibrated_on: string }
+const EMPTY_INST: Instrument = { name: '', model: '', serial: '', calibrated_on: '' }
 
 /**
  * 项目默认值 —— 新建项目自动带上规则套 / 母版 / 天气。
@@ -37,6 +39,9 @@ export default function ProjectDefaultsModal({
   /** 电子签名预览（data URL）；null = 还没上传 */
   const [sigImage, setSigImage] = useState<string | null>(null)
   const [sigBusy, setSigBusy] = useState(false)
+  /** 仪器清单（全局一份，导出时选一台） */
+  const [insts, setInsts] = useState<Instrument[]>([])
+  const [instDraft, setInstDraft] = useState<Instrument>(EMPTY_INST)
   const [weather, setWeather] = useState('晴')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -113,6 +118,7 @@ export default function ProjectDefaultsModal({
       setWeather(cfg.default_weather || '晴')
       setLoc((cfg as { weather_location?: WeatherLoc | null }).weather_location ?? null)
       void loadSignature()
+      setInsts(((cfg as { instruments?: Instrument[] }).instruments ?? []) as Instrument[])
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -132,6 +138,7 @@ export default function ProjectDefaultsModal({
         default_template_id: templateId,
         default_weather: weather,
         weather_location: loc,
+        instruments: insts.filter((i) => i.model.trim() || i.serial.trim()),
       })
       message.success('已保存 —— 以后新建的项目会自动套上这些设置')
       onClose()
@@ -301,6 +308,67 @@ export default function ProjectDefaultsModal({
               还没上传 —— 现在导出日报是空着签字栏的。
             </Typography.Text>
           )}
+        </div>
+
+        <div>
+          <Typography.Text strong>测量仪器（导出时选一台）</Typography.Text>
+          <br />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            配好之后，导出页会多一个「仪器」下拉；选了哪台，日报里的「仪器型号 / 出厂编号 / 检定日期」就填哪台。
+          </Typography.Text>
+          {insts.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              {insts.map((it, idx) => (
+                <Tag
+                  key={idx}
+                  closable
+                  onClose={() => setInsts(insts.filter((_, i) => i !== idx))}
+                  style={{ marginBottom: 4 }}
+                >
+                  {it.name || '仪器'}
+                  {it.model ? ` ${it.model}` : ''}
+                  {it.serial ? ` #${it.serial}` : ''}
+                </Tag>
+              ))}
+            </div>
+          )}
+          <Space.Compact style={{ width: '100%', marginTop: 6 }}>
+            <Input
+              placeholder="名称（水准仪/全站仪）"
+              value={instDraft.name}
+              onChange={(e) => setInstDraft({ ...instDraft, name: e.target.value })}
+              style={{ width: '24%' }}
+            />
+            <Input
+              placeholder="型号"
+              value={instDraft.model}
+              onChange={(e) => setInstDraft({ ...instDraft, model: e.target.value })}
+              style={{ width: '28%' }}
+            />
+            <Input
+              placeholder="出厂编号"
+              value={instDraft.serial}
+              onChange={(e) => setInstDraft({ ...instDraft, serial: e.target.value })}
+              style={{ width: '24%' }}
+            />
+            <Input
+              placeholder="检定 2025-10-20"
+              value={instDraft.calibrated_on}
+              onChange={(e) => setInstDraft({ ...instDraft, calibrated_on: e.target.value })}
+              style={{ width: '24%' }}
+            />
+          </Space.Compact>
+          <Button
+            size="small"
+            style={{ marginTop: 6 }}
+            disabled={!instDraft.model.trim()}
+            onClick={() => {
+              setInsts([...insts, instDraft])
+              setInstDraft(EMPTY_INST)
+            }}
+          >
+            添加这台仪器
+          </Button>
         </div>
 
         <Alert

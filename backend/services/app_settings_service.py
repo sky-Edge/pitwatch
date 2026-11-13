@@ -35,6 +35,9 @@ DEFAULTS: dict[str, object] = {
     "generate_allow_warning": True,
     #: 只读锁定：打开后后端拒绝一切写操作（给同事看/演示时用，防止误操作把数据改坏）
     "readonly_mode": False,
+    #: 测量仪器清单 [{"name":"水准仪","model":"Leica TZ08","serial":"1621037","calibrated_on":"2025-10-20"}]
+    #: 导出日报时选一台，填进母版的「仪器型号/出厂编号/检定日期」
+    "instruments": [],
     #: 天气位置 {"label":"嘉善","latitude":30.85,"longitude":120.93}
     #: 配了之后导出日报会自动填当天天气，不用每次手选
     "weather_location": None,

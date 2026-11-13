@@ -67,6 +67,11 @@ export default function ReportsPage({ projectId, onBack }: Props) {
   const [templateId, setTemplateId] = useState<number | undefined>(undefined) // undefined = 内置标准
   // 空串 = 自动：按设置里的「天气位置」查当天天气，查不到后端回退「晴」
   const [weather, setWeather] = useState<string>('')
+  /** 设置里的仪器清单（全局一份，导出时选哪台填哪台） */
+  const [instruments, setInstruments] = useState<
+    { name: string; model: string; serial: string; calibrated_on: string }[]
+  >([])
+  const [instrumentId, setInstrumentId] = useState<number | undefined>(undefined)
   /** 正在把日报转 PDF（服务端转换要几秒，得让用户看见在转） */
   const [printing, setPrinting] = useState(false)
   const [loadingExcel, setLoadingExcel] = useState(false)
@@ -128,6 +133,12 @@ export default function ReportsPage({ projectId, onBack }: Props) {
       if (fallback) {
         setTemplateId((prev) => (prev && excelTpls.some((t) => t.id === prev) ? prev : fallback.id))
       }
+
+      // 仪器清单是全局的，每次进页面都读一次（用户在设置里加了仪器就能立刻看到）
+      const cfgInst = await settingsApi.get().catch(() => null)
+      const list = (cfgInst?.instruments as typeof instruments) ?? []
+      setInstruments(Array.isArray(list) ? list : [])
+      setInstrumentId((prev) => (prev !== undefined && prev < list.length ? prev : list.length ? 0 : undefined))
 
       const rememberedWeather = readPref(weatherPrefKey(projectId))
       if (rememberedWeather) {
@@ -254,6 +265,7 @@ export default function ReportsPage({ projectId, onBack }: Props) {
       const params = new URLSearchParams({ dates: batchDates.join(',') })
       if (templateId) params.set('template_id', String(templateId))
       if (weather) params.set('weather', weather)
+      if (instrumentId !== undefined) params.set('instrument_id', String(instrumentId))
       const res = await fetch(`/api/v1/projects/${projectId}/reports/pdf?${params.toString()}`)
       if (!res.ok) {
         let detail = `生成失败（HTTP ${res.status}）`
@@ -333,7 +345,9 @@ export default function ReportsPage({ projectId, onBack }: Props) {
     setLoadingExcel(true)
     try {
       if (batchDates.length === 1) {
-        const { blob, summary } = await reportApi.downloadExcel(projectId, batchDates[0], templateId, weather)
+        const { blob, summary } = await reportApi.downloadExcel(
+          projectId, batchDates[0], templateId, weather, instrumentId,
+        )
         downloadBlob(blob, `监测日报_${batchDates[0]}.xlsx`)
         message.success('日报已导出')
         // 母版点位比项目测点少时，后端会自动补行/补块 —— 必须说清楚，否则用户以为导错了
@@ -388,7 +402,7 @@ export default function ReportsPage({ projectId, onBack }: Props) {
           )
         }
       } else {
-        const blob = await reportApi.downloadExcelBatch(projectId, batchDates, templateId, weather)
+        const blob = await reportApi.downloadExcelBatch(projectId, batchDates, templateId, weather, instrumentId)
         downloadBlob(blob, `监测日报批量_${batchDates[0]}~${batchDates[batchDates.length - 1]}_共${batchDates.length}期.zip`)
         message.success(
           `已批量导出 ${n} 期日报（ZIP，用了 ${Math.round((Date.now() - t0) / 1000)} 秒）`,
@@ -646,6 +660,20 @@ export default function ReportsPage({ projectId, onBack }: Props) {
                 {...calendarPanel}
               />
             </span>
+            {instruments.length > 0 && (
+              <span>
+                仪器：
+                <Select
+                  style={{ width: 190, marginLeft: 8 }}
+                  value={instrumentId}
+                  onChange={setInstrumentId}
+                  options={instruments.map((it, idx) => ({
+                    value: idx,
+                    label: `${it.name || '仪器'}${it.model ? ` ${it.model}` : ''}`,
+                  }))}
+                />
+              </span>
+            )}
             <span>
               天气：
               <Select

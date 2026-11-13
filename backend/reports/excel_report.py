@@ -169,7 +169,16 @@ def _build_data_rows(db, point, series_type: str, component: str, obs_date: date
     }
 
 
-def _write_sheet(ws, project_name: str, obs_date: date, rows: list[dict], control_cum: float | None, control_rate: float | None, is_displacement: bool):
+def _write_sheet(
+    ws,
+    project_name: str,
+    obs_date: date,
+    rows: list[dict],
+    control_cum: float | None,
+    control_rate: float | None,
+    is_displacement: bool,
+    instrument: dict | None = None,
+):
     """写入单个数据 Sheet（竖向位移 / 水平位移），复刻模板版式。
 
     注意：openpyxl 合并单元格后非左上角变只读 MergedCell，
@@ -202,7 +211,11 @@ def _write_sheet(ws, project_name: str, obs_date: date, rows: list[dict], contro
     c.alignment = Alignment(horizontal="left", vertical="center")
 
     # R4 仪器
-    c = ws.cell(row=4, column=1, value="仪器型号：")
+    c = ws.cell(
+        row=4,
+        column=1,
+        value=f"仪器型号：{(instrument or {}).get('model', '')}" if instrument else "仪器型号：",
+    )
     c.font = FONT_HEAD
 
     # 元信息区横向合并（写在赋值之后）
@@ -288,7 +301,9 @@ def _write_sheet(ws, project_name: str, obs_date: date, rows: list[dict], contro
     ws.merge_cells(start_row=r + 3, start_column=1, end_row=r + 3, end_column=12)
 
 
-def build_period_excel(db, project_id: int, obs_date: date | None = None) -> tuple[BytesIO, str, dict]:
+def build_period_excel(
+    db, project_id: int, obs_date: date | None = None, instrument: dict | None = None
+) -> tuple[BytesIO, str, dict]:
     """生成单期日报 Excel（内存字节流）。
 
     返回 (bytes_io, filename, info)。
@@ -325,7 +340,7 @@ def build_period_excel(db, project_id: int, obs_date: date | None = None) -> tup
         if row:
             s_rows.append(row)
     control_cum_s, control_rate_s = _control_values(db, project_id, "settlement")
-    _write_sheet(ws1, project.name, eff_date, s_rows, control_cum_s, control_rate_s, is_displacement=False)
+    _write_sheet(ws1, project.name, eff_date, s_rows, control_cum_s, control_rate_s, is_displacement=False, instrument=instrument)
 
     # ---- Sheet 2: r.立柱结构水平位移 ----
     ws2 = wb.create_sheet("r.立柱结构水平位移")
@@ -338,7 +353,7 @@ def build_period_excel(db, project_id: int, obs_date: date | None = None) -> tup
             if row:
                 d_rows.append(row)
     control_cum_d, control_rate_d = _control_values(db, project_id, "displacement")
-    _write_sheet(ws2, project.name, eff_date, d_rows, control_cum_d, control_rate_d, is_displacement=True)
+    _write_sheet(ws2, project.name, eff_date, d_rows, control_cum_d, control_rate_d, is_displacement=True, instrument=instrument)
 
     buf = BytesIO()
     wb.save(buf)

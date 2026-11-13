@@ -1276,11 +1276,18 @@ export interface ReportPreviewDoc {
 
 export const reportApi = {
   /** 下载整卷监测日报（templateId 缺省=系统标准；weather 天气可选） */
-  downloadExcel: (projectId: number, obsDate?: string, templateId?: number, weather?: string) => {
+  downloadExcel: (
+    projectId: number,
+    obsDate?: string,
+    templateId?: number,
+    weather?: string,
+    instrumentId?: number,
+  ) => {
     const params = new URLSearchParams()
     if (obsDate) params.set('obs_date', obsDate)
     if (templateId) params.set('template_id', String(templateId))
     if (weather) params.set('weather', weather)
+    if (instrumentId !== undefined) params.set('instrument_id', String(instrumentId))
     const qs = params.toString()
     return http
       .get<Blob>(`/projects/${projectId}/reports/excel${qs ? `?${qs}` : ''}`, {
@@ -1291,11 +1298,18 @@ export const reportApi = {
       .then((r) => ({ blob: r.data, summary: readExportSummary(r.headers) }))
   },
   /** 批量下载多期日报（ZIP 打包，obsDates 逗号连接） */
-  downloadExcelBatch: (projectId: number, obsDates: string[], templateId?: number, weather?: string) => {
+  downloadExcelBatch: (
+    projectId: number,
+    obsDates: string[],
+    templateId?: number,
+    weather?: string,
+    instrumentId?: number,
+  ) => {
     const params = new URLSearchParams()
     if (obsDates.length > 0) params.set('obs_dates', obsDates.join(','))
     if (templateId) params.set('template_id', String(templateId))
     if (weather) params.set('weather', weather)
+    if (instrumentId !== undefined) params.set('instrument_id', String(instrumentId))
     const qs = params.toString()
     return http
       .get<Blob>(`/projects/${projectId}/reports/excel/batch${qs ? `?${qs}` : ''}`, {
@@ -1507,6 +1521,8 @@ export interface AppSettings {
   generate_allow_warning?: boolean
   /** 只读锁定：打开后后端拒绝一切写操作 */
   readonly_mode?: boolean
+  /** 测量仪器清单（导出时选一台） */
+  instruments?: { name: string; model: string; serial: string; calibrated_on: string }[] | null
   /** 天气位置：配了之后导出日报自动填当天天气 */
   weather_location?: { label: string; latitude: number; longitude: number } | null
 }

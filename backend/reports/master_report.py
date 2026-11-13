@@ -78,6 +78,8 @@ def build_master_report(
 
     weather: str = "",
 
+    instrument: dict | None = None,
+
 ) -> tuple[BytesIO, str, dict]:
 
     """以母版为底模生成最新一期（或指定期）完整整卷日报。
@@ -309,6 +311,11 @@ def build_master_report(
         )
 
 
+
+    # 测量仪器：把「仪器型号：Leica TZ08」这类格子的值换成选中的那台
+    from backend.services import instrument_service
+
+    instrument_service.apply_to_workbook(wb, instrument)
 
     # 电子签名：在保存前把签名图盖到「现场监测人：」「计算人：」这类标签右边。
     # 没上传签名时 stamp 直接返回 0，不影响导出。

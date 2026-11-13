@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
 from backend.reports import build_daily_docx, build_period_excel
+from backend.services import instrument_service
 from backend.services.project_service import get_project
 
 reports_router = APIRouter(prefix="/projects/{project_id}/reports", tags=["reports"])
@@ -79,7 +80,14 @@ def _resolve_weather(db, weather: str | None, obs_date: date | None) -> str:
         return "晴"
 
 
-def _build_excel_one(db, project_id: int, template_id: int | None, obs_date: date | None, weather: str | None):
+def _build_excel_one(
+    db,
+    project_id: int,
+    template_id: int | None,
+    obs_date: date | None,
+    weather: str | None,
+    instrument: dict | None = None,
+):
     """按模板版式生成单期 Excel（单日接口与批量接口共用同一分支逻辑）。
 
     返回 (buf, filename, info)；模板原件缺失等业务错误抛 ValueError。
@@ -95,7 +103,7 @@ def _build_excel_one(db, project_id: int, template_id: int | None, obs_date: dat
             raise HTTPException(status_code=404, detail="模板不存在")
         if tpl.is_builtin:
             # 内置标准模板（无原件文件）→ 等价于未选模板，走系统标准版式
-            return build_period_excel(db, project_id, obs_date)
+            return build_period_excel(db, project_id, obs_date, instrument=instrument)
         # 模板独立化之后模板有自己的"适用项目"清单 —— 用没绑本项目（且非通用）的母版导出，
         # 等于拿别的基坑的版式套本项目的数据，必须在源头拦下（此前这条校验是缺的）。
         if not export_template_service.is_usable_by(db, tpl, project_id):
@@ -108,7 +116,9 @@ def _build_excel_one(db, project_id: int, template_id: int | None, obs_date: dat
             )
         layout = tpl.layout_json or {}
         if layout.get("sheets") and layout.get("meta"):
-            return build_master_report(db, project_id, tpl, obs_date, weather=weather or "")
+            return build_master_report(
+                db, project_id, tpl, obs_date, weather=weather or "", instrument=instrument
+            )
         # 旧式模板（仅数据表）→ 退回既有版式填充
         return build_from_template(db, project_id, tpl, obs_date)
     return build_period_excel(db, project_id, obs_date)
@@ -120,6 +130,7 @@ def export_excel(
     obs_date: date | None = None,
     template_id: int | None = None,
     weather: str | None = None,
+    instrument_id: int | None = Query(None, description="用哪台仪器（设置里的仪器清单下标）"),
     db: Session = Depends(get_db),
 ):
     """导出整卷监测日报（单期）。
@@ -132,7 +143,10 @@ def export_excel(
     get_project(db, project_id)
     weather = _resolve_weather(db, weather, obs_date)
     try:
-        buf, filename, info = _build_excel_one(db, project_id, template_id, obs_date, weather)
+        buf, filename, info = _build_excel_one(
+            db, project_id, template_id, obs_date, weather,
+            instrument=instrument_service.get_instrument(db, locals().get('instrument_id')),
+        )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _stream_response(buf, filename, info)
@@ -145,6 +159,7 @@ def export_pdf(
     dates: str | None = None,
     template_id: int | None = None,
     weather: str | None = None,
+    instrument_id: int | None = Query(None, description="用哪台仪器"),
     db: Session = Depends(get_db),
 ):
     """导出日报 PDF —— 给浏览器直接打印用。支持一次打印多期。
@@ -187,7 +202,12 @@ def export_pdf(
     for one in wanted:
         try:
             buf, filename, _info = _build_excel_one(
-                db, project_id, template_id, one, _resolve_weather(db, weather, one)
+                db,
+                project_id,
+                template_id,
+                one,
+                _resolve_weather(db, weather, one),
+                instrument=instrument_service.get_instrument(db, instrument_id),
             )
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
@@ -239,7 +259,10 @@ def preview_excel(
 
     get_project(db, project_id)
     try:
-        buf, filename, info = _build_excel_one(db, project_id, template_id, obs_date, weather)
+        buf, filename, info = _build_excel_one(
+            db, project_id, template_id, obs_date, weather,
+            instrument=instrument_service.get_instrument(db, locals().get('instrument_id')),
+        )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     raw = buf.getvalue()
@@ -265,6 +288,7 @@ def export_excel_batch(
     obs_dates: str = Query("", description="逗号分隔的观测日期 YYYY-MM-DD，如 2026-09-02,2026-09-08"),
     template_id: int | None = None,
     weather: str | None = None,
+    instrument_id: int | None = Query(None, description="用哪台仪器"),
     db: Session = Depends(get_db),
 ):
     """批量导出多期日报：每个观测日期生成一份 Excel，打包为 ZIP 一次下载。
@@ -310,7 +334,10 @@ def export_excel_batch(
     with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_STORED) as zf:
         for d in dates:
             try:
-                buf, filename, _info = _build_excel_one(db, project_id, template_id, d, weather)
+                buf, filename, _info = _build_excel_one(
+                    db, project_id, template_id, d, weather,
+                    instrument=instrument_service.get_instrument(db, instrument_id),
+                )
                 zf.writestr(filename, buf.getvalue())
             except (ValueError, HTTPException) as e:
                 errors.append((d.isoformat(), str(e.detail) if isinstance(e, HTTPException) else str(e)))
