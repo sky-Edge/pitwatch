@@ -368,8 +368,11 @@ def stamp_workbook(wb) -> int:
                 w, h = img.width, img.height
                 new_w, new_h = w, h
                 if w > 0 and h > 0:
-                    # 先按高度缩，再兜住宽度上限（四个字的签名常是长条）
-                    new_h = SIGN_HEIGHT_PX
+                    # 高度不能超过行高：超了 LibreOffice 会把整张图**按比例缩小**去
+                    # 适应单元格，连带把左留白也缩掉 —— 签名又跑回文字上，
+                    # 而且变小（2026-11-13 实测：34px 的图被压成 10pt）。
+                    row_h = _row_px(ws, row_idx)
+                    new_h = min(SIGN_HEIGHT_PX, max(12, row_h - 3))
                     new_w = max(12, int(new_h * w / h))
                     if new_w > MAX_SIGN_WIDTH_PX:
                         new_w = MAX_SIGN_WIDTH_PX
