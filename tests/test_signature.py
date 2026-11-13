@@ -315,14 +315,55 @@ def test_sign_page_signature_is_bigger_and_centered_on_line() -> None:
     assert len(imgs) == 1
     im = imgs[0]
     bbox = im.getchannel("A").getbbox()
+    ss = signature_service.SIGN_SUPERSAMPLE
     ink_w, ink_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
 
-    assert ink_h == signature_service.SIGN_PAGE_HEIGHT_PX, f"签名该撑到 46px，实际 {ink_h}"
-    assert ink_h > signature_service.SIGN_HEIGHT_PX, "签字页的签名要比数据表的大"
+    # 位图是显示尺寸的 ss 倍（印出来才不糊），所以像素高度是 46 × ss
+    assert ink_h == signature_service.SIGN_PAGE_HEIGHT_PX * ss, f"签名该撑到 46px，实际 {ink_h}px"
+    assert ink_h > signature_service.SIGN_PAGE_HEIGHT_PX, "必须超采样，否则打印是马赛克"
 
-    # 居中：左边补的留白 = (线格宽 - 图宽) / 2
+    # 居中：左边补的留白 = (线格宽 - 图宽) / 2（显示尺寸，再乘 ss）
     span = signature_service._span_px(wb.active, 17, 5)
-    assert bbox[0] == (span - ink_w) // 2, "签名没有居中在签字横线上"
+    shown_w = ink_w // ss
+    assert bbox[0] == ((span - shown_w) // 2) * ss, "签名没有居中在签字横线上"
+
+
+def test_table_signature_is_big_and_row_grows_to_fit() -> None:
+    """数据表的签名也要大，行高不够就把**那一行**撑开。
+
+    ⚠ 2026-11-13 用户：「其他的字也高大一点，打印出来很小啊，都马赛克了」——
+    数据表行高 18px，签名原来只有 26px，横向表按 49% 打印，纸上才 3.4mm。
+    直接放大又会溢到下一行、跟下面的签字栏挤成一团，所以要把行撑高。
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    _clear_all()
+    img = PILImage.new("RGB", (460, 200), "white")
+    ImageDraw.Draw(img).line([(60, 165), (150, 40), (280, 160), (360, 60)], fill="black", width=8)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    signature_service.save_role_signature("observer", buf.getvalue())
+
+    wb = Workbook()
+    ws = wb.active
+    for col, width in (("A", 14), ("B", 20)):
+        ws.column_dimensions[col].width = width
+    ws.row_dimensions[35].height = 13.5  # 数据表的默认行高
+    ws.merge_cells("A35:B35")
+    ws["A35"] = "现场监测人："
+
+    assert signature_service.stamp_workbook(wb) == 1
+
+    # 行被撑到能装下签名（46 + 4 的余量，磅 = px × 0.75）
+    grown = ws.row_dimensions[35].height
+    assert grown >= signature_service.SIGN_TABLE_HEIGHT_PX * 0.75, f"行没撑高：{grown}pt"
+
+    imgs, _ = _embedded(wb)
+    bbox = imgs[0].getchannel("A").getbbox()
+    ink_h = bbox[3] - bbox[1]
+    assert ink_h == signature_service.SIGN_TABLE_HEIGHT_PX * signature_service.SIGN_SUPERSAMPLE, (
+        f"数据表签名该 46px（位图 ×{signature_service.SIGN_SUPERSAMPLE}），实际 {ink_h}px"
+    )
 
 
 def test_cjk_workbook_does_not_use_calibri_char_width() -> None:

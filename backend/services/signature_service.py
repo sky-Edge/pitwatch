@@ -53,8 +53,10 @@ _MATCH: list[tuple[str, dict]] = sorted(
 #: 旧版通用签名：只有一张图时盖所有栏（兼容 2026-11-13 之前的装法）
 LEGACY_FILE = "default.png"
 
-#: 数据表小行的签名高度（像素）。一行文字约 20px，签名稍大一点才像手写。
-SIGN_HEIGHT_PX = 34
+#: 数据表里签名的高度（像素）。跟签字页一样大 —— 以前只有 26px，
+#: 横向表整页按 49% 打印，落到纸上才 3.4mm（用户：「打印出来很小」）。
+#: 行高不够时会把那一行撑开，别让它溢到下面跟另一栏挤在一起。
+SIGN_TABLE_HEIGHT_PX = 46
 
 #: 签字页（带签字横线的大行）的签名高度。行高 35pt(46px) 时几乎撑满 ——
 #: 原来 34px 只占三分之二，用户 2026-11-13：「签字页上的签名搞大一点」。
@@ -62,6 +64,11 @@ SIGN_PAGE_HEIGHT_PX = 46
 
 #: 签名高度上限。行再高也别让签名长到压住上下两行。
 SIGN_MAX_HEIGHT_PX = 64
+
+#: 位图超采样倍数。图片**显示**多大由 `img.width/height` 决定，
+#: 像素数只影响清晰度 —— 按 1 倍塞进去，打印时是在放大一张几十像素的小图，
+#: 用户 2026-11-13 报的「都马赛克了」就是这个。
+SIGN_SUPERSAMPLE = 4
 
 #: 最大宽度。签名照片常是 4:1 的长条，只按高度缩放会横跨三四列，
 #: 压到隔壁栏（如「计算人」）上面去。超过这个宽度就按宽度等比缩。
@@ -326,10 +333,12 @@ def _paper_to_alpha(rgb):
     return PILImage.frombytes("RGBA", rgb.size, bytes(out))
 
 
-def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
+def _padded_image(
+    path, pad_px: int, height_px: int, pad_top: int = 0, supersample: int = 1
+) -> str:
     """把签名图转成"墨 + 透明底"、左边补透明留白，返回临时文件路径。
 
-    两件事：
+    三件事：
 
     1. **左边补透明留白**。合并单元格里放图片时，LibreOffice 只认"锚在哪个格"，
        **会忽略 colOff 水平偏移**（实测导出 PDF 后签名又压回文字上）。
@@ -339,6 +348,11 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
     2. **白底转透明**（`_paper_to_alpha`）。签名往往比行高、比签字线还高，
        再带一块不透明白底，就会把单元格下边框整段盖掉 —— 用户看到的
        「横线被吃了」。透明以后，横线从签名笔画之间照常穿过去，和真手写一样。
+
+    3. **超采样**（`supersample`）。位图按**显示尺寸的 N 倍**渲染，显示尺寸另由
+       `img.width/height` 指定 —— 图片的像素数不影响它在 Excel 里多大，只影响
+       清晰度。不这么做，26px 高的图印在纸上被放大 4 倍，就是一格一格的马赛克
+       （用户 2026-11-13：「打印出来很小啊 都马赛克了」）。
     """
     import hashlib
     import tempfile
@@ -346,6 +360,7 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
 
     from PIL import Image as PILImage
 
+    ss = max(1, int(supersample))
     src = PILImage.open(path).convert("RGBA")
 
     # 透明底 PNG 先铺白，统一按"白纸 + 墨"处理。
@@ -356,9 +371,10 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
         src = PILImage.alpha_composite(white, src)
     rgb = src.convert("RGB")
 
-    if rgb.height != height_px and rgb.height > 0:
-        ratio = height_px / rgb.height
-        rgb = rgb.resize((max(1, int(rgb.width * ratio)), height_px), PILImage.LANCZOS)
+    target_h = max(1, height_px * ss)
+    if rgb.height != target_h and rgb.height > 0:
+        ratio = target_h / rgb.height
+        rgb = rgb.resize((max(1, int(rgb.width * ratio)), target_h), PILImage.LANCZOS)
 
     # 提高对比：亮于 200 的一律压成纯白、暗于 110 的压成纯黑。
     # 签名缩到二十几像素高时，抗锯齿会把笔画糊成一片浅灰（用户："看不清"）。
@@ -367,20 +383,24 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
 
     ink = _paper_to_alpha(rgb)
 
+    # 留白也要按同样的倍数放大 —— 位图的尺寸是"显示尺寸 × 倍数"
     canvas = PILImage.new(
-        "RGBA", (pad_px + ink.width, pad_top + ink.height), (0, 0, 0, 0)
+        "RGBA",
+        (pad_px * ss + ink.width, pad_top * ss + ink.height),
+        (0, 0, 0, 0),
     )
-    canvas.alpha_composite(ink, (pad_px, pad_top))
+    canvas.alpha_composite(ink, (pad_px * ss, pad_top * ss))
 
     # 文件名带内容指纹：不同角色的签名若宽高、留白恰好一样，会写到同一个
     # 临时文件上 —— openpyxl 是**保存时才读文件**，后写的那张会把前面那几栏
     # 全盖成同一个人（签字人张冠李戴，比贴不上严重得多）。
     digest = hashlib.sha1(
-        b"%s|%d|%d|%d|" % (str(path).encode(), pad_px, height_px, pad_top)
+        b"%s|%d|%d|%d|%d|" % (str(path).encode(), pad_px, height_px, pad_top, ss)
         + _Path(path).read_bytes()
     ).hexdigest()[:16]
     out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_{digest}.png"
-    canvas.save(out, format="PNG", dpi=(96, 96))
+    # DPI 跟着倍数走：位图是显示尺寸的 ss 倍，标 96*ss 才能让阅读器按原大小显示
+    canvas.save(out, format="PNG", dpi=(96 * ss, 96 * ss))
     return str(out)
 
 
@@ -518,11 +538,15 @@ def stamp_workbook(wb) -> int:
                         # 「签字页上的签名搞大一点」）。矮行靠 _bottom_on_line 往上借行。
                         new_h = min(SIGN_MAX_HEIGHT_PX, max(SIGN_PAGE_HEIGHT_PX, int(row_h * 0.85)))
                     else:
-                        # 数据表行高只有 19px，按"行高-3"只有 16px —— 再被 PDF 的
-                        # 页面缩放（这张横向表约 42%）一压，笔画糊成灰色，完全看不清
-                        # （用户 2026-11-13："这都看不清了"）。放到行高的 1.4 倍，
-                        # 略超出单元格没关系，手写签名本来就会压线。
-                        new_h = min(SIGN_HEIGHT_PX, max(18, int(row_h * 1.4)))
+                        # 数据表：行高只有 18~19px，塞进去就是一个指甲盖大的小图，
+                        # 印出来只有 3mm 高、还糊（用户 2026-11-13：
+                        # 「其他的字也高大一点 打印出来很小啊 都马赛克了」）。
+                        # 直接放大又会溢到下面一行、跟下一个签字栏挤在一起
+                        # —— 所以**把这一行撑到装得下**，签名才做得大。
+                        new_h = SIGN_TABLE_HEIGHT_PX
+                        need_px = new_h + 4
+                        if need_px > row_h:
+                            ws.row_dimensions[row_idx].height = round(need_px * 0.75, 2)
                     new_w = max(12, int(new_h * w / h))
                     if new_w > MAX_SIGN_WIDTH_PX:
                         new_w = MAX_SIGN_WIDTH_PX
@@ -536,7 +560,11 @@ def stamp_workbook(wb) -> int:
                 # 统一走 _padded_image（哪怕不留白）：它会顺手把 PNG 重存成
                 # 96 DPI。用户上传的签名往往没有 DPI 信息，LibreOffice 会把
                 # 这种图统一缩到 0.4 倍（实测 17px 渲染成 5pt）。
-                padded = _padded_image(path, pad_left, new_h, pad_top)
+                # 位图按显示尺寸的 4 倍渲染：页面上看着一样大，印出来不糊
+                # （数据表整页按 49% 打印，26px 的图放大到纸面就是一格一格）。
+                padded = _padded_image(
+                    path, pad_left, new_h, pad_top, supersample=SIGN_SUPERSAMPLE
+                )
                 pimg = XLImage(padded)
                 pimg.height = new_h + pad_top
                 pimg.width = new_w + pad_left
