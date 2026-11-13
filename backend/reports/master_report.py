@@ -322,9 +322,14 @@ def build_master_report(
     # 大小取自设置（界面上可视化的那个滑块），读不到就用默认值。
     from backend.services import app_settings_service, signature_service
 
-    _sig_size = app_settings_service.get_settings(db).get("signature_size_px")
+    _sig = app_settings_service.get_settings(db)
 
-    signature_service.stamp_workbook(wb, size_px=_sig_size)
+    signature_service.stamp_workbook(
+        wb,
+        size_px=_sig.get("signature_size_px"),
+        offset_x=_sig.get("signature_offset_x") or 0,
+        offset_y=_sig.get("signature_offset_y") or 0,
+    )
 
     buf = BytesIO()
 

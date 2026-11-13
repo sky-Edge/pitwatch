@@ -142,7 +142,12 @@ def delete_signature():
 
 
 @settings_router.get("/signatures/preview")
-def signature_preview(role: str | None = None, size_px: int | None = None):
+def signature_preview(
+    role: str | None = None,
+    size_px: int | None = None,
+    offset_x: int = 0,
+    offset_y: int = 0,
+):
     """签名样张：这张图盖到签字页/数据表上多大、落在哪儿。
 
     用户 2026-11-13：「把签名的大小做个可视化调整功能 能看到对应位置关系」——
@@ -154,4 +159,9 @@ def signature_preview(role: str | None = None, size_px: int | None = None):
     """
     from backend.services import signature_service
 
-    return signature_service.preview_svg(role, size_px)
+    return signature_service.preview_svg(
+        role,
+        size_px,
+        max(-80, min(80, offset_x)),
+        max(-80, min(80, offset_y)),
+    )

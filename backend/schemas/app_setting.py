@@ -26,6 +26,9 @@ class AppSettingsRead(BaseModel):
     instruments: list[dict] | None = None
     #: 导出日报时签名的高度（像素，24~64）
     signature_size_px: int = 46
+    #: 签名位置微调（像素，正数=往右/往下）
+    signature_offset_x: int = 0
+    signature_offset_y: int = 0
 
 
 class AppSettingsUpdate(BaseModel):
@@ -41,5 +44,7 @@ class AppSettingsUpdate(BaseModel):
     weather_location: dict | None = Field(default=None)
     instruments: list[dict] | None = Field(default=None)
     signature_size_px: int | None = Field(default=None, ge=24, le=64)
+    signature_offset_x: int | None = Field(default=None, ge=-80, le=80)
+    signature_offset_y: int | None = Field(default=None, ge=-80, le=80)
 
     model_config = {"extra": "forbid"}

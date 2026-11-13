@@ -600,3 +600,40 @@ def test_preview_svg_shows_both_places(client) -> None:
     assert r2.status_code == 200
     assert r2.json()["has_image"] is False
     assert "stroke-dasharray" in r2.json()["svg"]
+
+
+def test_signature_offset_moves_the_image() -> None:
+    """位置微调要真的挪得动 —— 左右改锚点留白，上下改锚点行。
+
+    用户 2026-11-13：「不能调整位置 在改进一下」。
+    ⚠ 不能靠 colOff/rowOff 偏移：LibreOffice 转 PDF 时忽略它们（实测过）。
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    def stamp(off_x: int = 0, off_y: int = 0):
+        _clear_all()
+        img = PILImage.new("RGB", (460, 200), "white")
+        ImageDraw.Draw(img).line([(60, 165), (150, 40), (280, 160), (360, 60)], fill="black", width=8)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        signature_service.save_role_signature("editor", buf.getvalue())
+
+        wb = _sign_page_book()
+        assert signature_service.stamp_workbook(wb, size_px=46, offset_x=off_x, offset_y=off_y) == 1
+        imgs, xml = _embedded(wb)
+        row0 = int(re.search(r"<row>(\d+)</row>", xml).group(1))
+        return imgs[0].width, row0
+
+    base_w, base_row = stamp()
+
+    # 右移 20px → 图里左边多补 20px 留白（位图 × 超采样倍数）
+    right_w, _ = stamp(off_x=20)
+    assert right_w == base_w + 20 * signature_service.SIGN_SUPERSAMPLE
+
+    # 左移 20px → 留白变少，图变窄
+    left_w, _ = stamp(off_x=-20)
+    assert left_w == base_w - 20 * signature_service.SIGN_SUPERSAMPLE
+
+    # 上移 → 锚点行往上借
+    _, up_row = stamp(off_y=-30)
+    assert up_row < base_row, "上移没有真的挪上去"

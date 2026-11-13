@@ -44,6 +44,9 @@ DEFAULTS: dict[str, object] = {
     #: 导出日报时签名的高度（像素）。46 是母版签字行（35pt≈46px）的满高 ——
     #: 用户 2026-11-13 要「可视化调大小」，所以做成可调，界面上带样张预览
     "signature_size_px": 46,
+    #: 签名位置微调（像素，正数=往右/往下）。0 就是按母版算出来的位置
+    "signature_offset_x": 0,
+    "signature_offset_y": 0,
 }
 
 

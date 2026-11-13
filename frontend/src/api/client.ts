@@ -1527,6 +1527,9 @@ export interface AppSettings {
   weather_location?: { label: string; latitude: number; longitude: number } | null
   /** 导出日报时签名的高度（像素，24~64）—— 设置页有样张可视化调 */
   signature_size_px?: number
+  /** 签名位置微调（像素，正数=往右/往下） */
+  signature_offset_x?: number
+  signature_offset_y?: number
 }
 
 export const settingsApi = {

@@ -86,6 +86,8 @@ export default function ProjectDefaultsModal({
 
   /** 签名大小（像素）+ 样张：用户要"能看到对应位置关系"，所以拖滑块就重画 */
   const [sigSize, setSigSize] = useState(46)
+  const [sigOffX, setSigOffX] = useState(0)
+  const [sigOffY, setSigOffY] = useState(0)
   const [sigPreviewRole, setSigPreviewRole] = useState('editor')
   const [sigPreview, setSigPreview] = useState<{ url: string; has_image: boolean } | null>(null)
   /** 每重传/删除一次签名 +1，让样张跟着重画 */
@@ -218,6 +220,8 @@ export default function ProjectDefaultsModal({
       setInsts(((cfg as { instruments?: Instrument[] }).instruments ?? []) as Instrument[])
 
       setSigSize((cfg as { signature_size_px?: number }).signature_size_px ?? 46)
+      setSigOffX((cfg as { signature_offset_x?: number }).signature_offset_x ?? 0)
+      setSigOffY((cfg as { signature_offset_y?: number }).signature_offset_y ?? 0)
 
       void fetch('/api/v1/settings/instrument-presets')
 
@@ -261,14 +265,17 @@ export default function ProjectDefaultsModal({
   useEffect(() => {
     if (!open) return
     const t = setTimeout(() => {
-      fetch(`/api/v1/settings/signatures/preview?role=${sigPreviewRole}&size_px=${sigSize}`)
+      fetch(
+        `/api/v1/settings/signatures/preview?role=${sigPreviewRole}&size_px=${sigSize}` +
+          `&offset_x=${sigOffX}&offset_y=${sigOffY}`,
+      )
         .then((r) => (r.ok ? r.json() : null))
         .then((j) => setSigPreview(j ? { url: svgUrl(String(j.svg)), has_image: !!j.has_image } : null))
         .catch(() => setSigPreview(null))
     }, 120)
     return () => clearTimeout(t)
     // sigRev 用来在重传/删除签名后重画
-  }, [open, sigPreviewRole, sigSize, sigRev])
+  }, [open, sigPreviewRole, sigSize, sigOffX, sigOffY, sigRev])
 
 
 
@@ -291,6 +298,10 @@ export default function ProjectDefaultsModal({
         instruments: insts.filter((i) => i.model.trim() || i.serial.trim()),
 
         signature_size_px: sigSize,
+
+        signature_offset_x: sigOffX,
+
+        signature_offset_y: sigOffY,
 
       })
 
@@ -631,18 +642,19 @@ export default function ProjectDefaultsModal({
               background: 'var(--wm-focus-bg)',
             }}
           >
-            <Space size={12} wrap>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <Typography.Text strong>签名大小</Typography.Text>
               <Slider
-                style={{ width: 220, margin: '0 4px' }}
+                style={{ flex: 1, maxWidth: 240, margin: '0 4px' }}
                 min={24}
                 max={64}
                 step={1}
                 value={sigSize}
                 onChange={(v) => setSigSize(v as number)}
-                marks={{ 24: '小', 46: '满行', 64: '大' }}
               />
-              <Typography.Text type="secondary">{sigSize} px</Typography.Text>
+              <Typography.Text type="secondary" style={{ width: 48 }}>
+                {sigSize} px
+              </Typography.Text>
               <Select
                 size="small"
                 style={{ width: 132 }}
@@ -653,7 +665,52 @@ export default function ProjectDefaultsModal({
                   label: `${r.name}${r.exists ? '' : '（未设置）'}`,
                 }))}
               />
-            </Space>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
+              <Typography.Text strong style={{ whiteSpace: 'nowrap' }}>
+                位置微调
+              </Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                左右
+              </Typography.Text>
+              <Slider
+                style={{ flex: 1, maxWidth: 120, margin: '0 4px' }}
+                min={-60}
+                max={60}
+                step={1}
+                value={sigOffX}
+                onChange={(v) => setSigOffX(v as number)}
+                tooltip={{ formatter: (v) => `${v} px` }}
+              />
+              <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>
+                上下
+              </Typography.Text>
+              <Slider
+                style={{ flex: 1, maxWidth: 120, margin: '0 4px' }}
+                min={-40}
+                max={40}
+                step={1}
+                value={sigOffY}
+                onChange={(v) => setSigOffY(v as number)}
+                tooltip={{ formatter: (v) => `${v} px` }}
+              />
+              <Typography.Text type="secondary" style={{ width: 78 }}>
+                {sigOffX >= 0 ? '→' : '←'}
+                {Math.abs(sigOffX)} / {sigOffY >= 0 ? '↓' : '↑'}
+                {Math.abs(sigOffY)}
+              </Typography.Text>
+              <Button
+                size="small"
+                disabled={!sigOffX && !sigOffY}
+                onClick={() => {
+                  setSigOffX(0)
+                  setSigOffY(0)
+                }}
+              >
+                回正
+              </Button>
+            </div>
 
             <div
               style={{

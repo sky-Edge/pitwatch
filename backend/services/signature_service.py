@@ -474,6 +474,32 @@ def _bottom_on_line(ws, row: int, col: int, h_px: int) -> tuple[int, int]:
     return anchor_row, max(0, pad)
 
 
+def _apply_offset(ws, row: int, col: int, pad_left: int, pad_top: int, dx: int, dy: int):
+    """用户拖的"位置微调"（像素，正数=往右/往下），返回调整后的 (列, 行, pad_left, pad_top)。
+
+    图片在 Excel 里只能靠"锚在哪一格 + 图里补透明边"定位：
+    · 往右/往下 → 直接加大留白；
+    · 往左/往上 → 留白不能是负的，所以**把锚点挪到前一格/前一行**再把留白补回来。
+
+    ⚠ 不能用 `colOff`/`rowOff` 做偏移：LibreOffice 转 PDF 时忽略它们，
+      图会跳回格子左上角（2026-11-13 实测过）。
+    """
+    pad_left += dx
+    while pad_left < 0 and col > 1:
+        prev = col - 1
+        rng = _merged_of(ws, row, prev)
+        start = rng.min_col if rng is not None else prev
+        pad_left += sum(_col_px(ws, c) for c in range(start, col))
+        col = start
+
+    pad_top += dy
+    while pad_top < 0 and row > 1:
+        row -= 1
+        pad_top += _row_px(ws, row)
+
+    return col, row, max(0, pad_left), max(0, pad_top)
+
+
 def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, cell=None):
     """签名该锚在哪。返回 (模式, 列, 行, pad_left, pad_top)。
 
@@ -554,7 +580,12 @@ def _preview_sheet():
     return wb, ws
 
 
-def preview_svg(role_key: str | None = None, size_px: int | None = None) -> dict:
+def preview_svg(
+    role_key: str | None = None,
+    size_px: int | None = None,
+    offset_x: int = 0,
+    offset_y: int = 0,
+) -> dict:
     """给界面画的样张：这张签名盖到「签字页」和「数据表」上，多大、落在哪儿。
 
     返回 `{"svg": "<svg…>", "size_px": 46, "has_image": true}`。
@@ -671,8 +702,8 @@ def preview_svg(role_key: str | None = None, size_px: int | None = None) -> dict
     if path is not None:
         try:
             for pad_l, pad_t, px_x, px_y in (
-                (pad1_left, pad1_top, 10 + left1, img1_top),
-                (pad2_left, pad2_top, 10 + left2, y2 + pad2_top),
+                (pad1_left, pad1_top, 10 + left1 + offset_x, img1_top + offset_y),
+                (pad2_left, pad2_top, 10 + left2 + offset_x, y2 + pad2_top + offset_y),
             ):
                 png = _padded_image(path, pad_l, new_h, pad_t, supersample=2)
                 b64 = base64.b64encode(open(png, "rb").read()).decode()
@@ -684,8 +715,8 @@ def preview_svg(role_key: str | None = None, size_px: int | None = None) -> dict
             pass
     else:
         parts.append(
-            f'<rect x="{10 + left1 + pad1_left}" y="{img1_top + pad1_top}" width="{new_w}" '
-            f'height="{new_h}" fill="none" stroke="#f59e0b" stroke-dasharray="2 2"/>'
+            f'<rect x="{10 + left1 + pad1_left + offset_x}" y="{img1_top + pad1_top + offset_y}" '
+            f'width="{new_w}" height="{new_h}" fill="none" stroke="#f59e0b" stroke-dasharray="2 2"/>'
         )
 
     svg = (
@@ -698,16 +729,20 @@ def preview_svg(role_key: str | None = None, size_px: int | None = None) -> dict
     return {
         "svg": svg,
         "size_px": size,
+        "offset_x": offset_x,
+        "offset_y": offset_y,
         "role": role["name"],
         "has_image": path is not None,
     }
 
 
-def stamp_workbook(wb, size_px: int | None = None) -> int:
+def stamp_workbook(
+    wb, size_px: int | None = None, offset_x: int = 0, offset_y: int = 0
+) -> int:
     """把各角色的签名盖到对应签字栏。返回贴了几处（一张签名都没有返回 0）。
 
-    `size_px` 是设置里调的签名高度（像素），不传就用默认的满行高。
-    查找顺序：**该角色自己的图** → 旧的通用图 `default.png` → 都不盖。
+    `size_px` 是设置里调的签名高度；`offset_x/offset_y` 是位置微调（像素，
+    正数往右/往下）。查找顺序：**该角色自己的图** → 旧的通用图 `default.png` → 都不盖。
     """
     from openpyxl.drawing.image import Image as XLImage
 
@@ -763,9 +798,13 @@ def stamp_workbook(wb, size_px: int | None = None) -> int:
                     img.height, img.width = new_h, new_w
 
                 cell = ws.cell(row=row_idx, column=col_idx)
-                mode, start_col, start_row, pad_left, pad_top = _place_anchor(
+                _, start_col, start_row, pad_left, pad_top = _place_anchor(
                     ws, row_idx, col_idx, new_w, new_h, cell
                 )
+                if offset_x or offset_y:
+                    start_col, start_row, pad_left, pad_top = _apply_offset(
+                        ws, start_row, start_col, pad_left, pad_top, offset_x, offset_y
+                    )
                 # 统一走 _padded_image（哪怕不留白）：它会顺手把 PNG 重存成
                 # 96 DPI。用户上传的签名往往没有 DPI 信息，LibreOffice 会把
                 # 这种图统一缩到 0.4 倍（实测 17px 渲染成 5pt）。
