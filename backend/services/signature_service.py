@@ -225,11 +225,32 @@ def _row_px(ws, row: int) -> int:
     return int(float(height) * 96 / 72)
 
 
+def _mdw(ws) -> float:
+    """这个工作簿「1 个字符宽」等于多少像素（Excel 列宽单位 = 默认字体数字 0 的宽度）。
+
+    ⚠ 不能一律按 7 算（那是 Calibri 11）。中文母版的默认字体是**宋体 11**，
+    中文版 Excel 里是 8px，而服务器 LibreOffice 上宋体被 Noto CJK 顶替、
+    实际画出来约 9.15px。按 7 估会把签字线格算窄三成，
+    居中就明显偏左（2026-11-13 实测偏了线长的 11%）。
+
+    取 8.5 折中：Excel 与服务器 PDF 两边的偏差都在 4% 以内。
+    """
+    name = ""
+    try:
+        fonts = list(getattr(ws.parent, "_fonts", []) or [])
+        name = (getattr(fonts[0], "name", "") or "") if fonts else ""
+    except Exception:  # noqa: BLE001 —— 读不到就按拉丁字体算
+        name = ""
+    return 8.5 if any(k in name for k in ("宋", "黑体", "雅黑", "SimSun", "SimHei")) else 7.0
+
+
 def _col_px(ws, col: int) -> int:
-    """列宽（字符）→ 像素。Excel 默认字体下约 7px/字符 + 5px 内边距。"""
+    """列宽（字符）→ 像素。没设过就用工作表默认列宽（中文母版常是 9，不是 8.43）。"""
     dim = ws.column_dimensions.get(get_column_letter(col))
-    width = getattr(dim, "width", None) or 8.43
-    return int(width * 7 + 5)
+    width = getattr(dim, "width", None)
+    if not width:
+        width = getattr(ws.sheet_format, "defaultColWidth", None) or 8.43
+    return int(width * _mdw(ws) + 5)
 
 
 def _text_metrics(cell, total_px: float) -> tuple[float, float]:

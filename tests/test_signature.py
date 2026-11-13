@@ -325,9 +325,36 @@ def test_sign_page_signature_is_bigger_and_centered_on_line() -> None:
     assert bbox[0] == (span - ink_w) // 2, "签名没有居中在签字横线上"
 
 
+def test_cjk_workbook_does_not_use_calibri_char_width() -> None:
+    """中文母版（默认字体宋体）的列宽不能按 Calibri 的 7px/字符 算。
+
+    ⚠ 2026-11-13 实测：按 7 算，签字线格 E:G 估窄 28%（282 vs 实际 365），
+    居中就偏到线长的 38% 处，肉眼明显偏左。
+    """
+    from openpyxl.styles import Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.column_dimensions["E"].width = 20.83
+
+    assert signature_service._mdw(ws) == 7.0, "默认 Calibri 该按 7px/字符"
+    latin_span = signature_service._span_px(ws, 1, 5)
+
+    wb._fonts[0] = Font(name="宋体", sz=11)  # 中文母版的默认字体
+    assert signature_service._mdw(ws) > 7.0, "宋体不能按 Calibri 的 7px/字符 算"
+    assert signature_service._span_px(ws, 1, 5) > latin_span
+
+
+def test_col_px_falls_back_to_sheet_default_width() -> None:
+    """没单独设宽度的列要用工作表默认列宽 —— 中文母版常是 9，不是 8.43。"""
+    wb = Workbook()
+    ws = wb.active
+    ws.sheet_format.defaultColWidth = 9.0
+    assert signature_service._col_px(ws, 7) == int(9.0 * signature_service._mdw(ws) + 5)
+
+
 def test_signature_borrows_row_above_when_row_too_short() -> None:
     """行高不够时把图**往上长**，底边仍然压住横线。
-
     ⚠ 母版里「项目 负责：」那行只有 20.25pt(27px)，签名撑到 46px 的话，
     按老写法 pad_top 只能取 0 → 图整体下坠 19px，掉到横线下面去。
     """
