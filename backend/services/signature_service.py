@@ -274,6 +274,14 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
     from PIL import Image as PILImage
 
     src = PILImage.open(path).convert("RGBA")
+
+    # 白底 → 透明，只留笔画。
+    # 两道好处：① 缩小时不会因为白底被平均成灰雾，笔画更实；② 贴到表格上
+    # 不会盖住格子线（用户 2026-11-13："这都看不清了"）。
+    gray = src.convert("L")
+    alpha = gray.point(lambda v: 0 if v > 215 else 255)
+    src.putalpha(alpha)
+
     if src.height != height_px and src.height > 0:
         ratio = height_px / src.height
         src = src.resize((max(1, int(src.width * ratio)), height_px), PILImage.LANCZOS)
@@ -373,7 +381,11 @@ def stamp_workbook(wb) -> int:
                     # 适应单元格，连带把左留白也缩掉 —— 签名又跑回文字上，
                     # 而且变小（2026-11-13 实测：34px 的图被压成 10pt）。
                     row_h = _row_px(ws, row_idx)
-                    new_h = min(SIGN_HEIGHT_PX, max(12, row_h - 3))
+                    # 数据表行高只有 19px，按"行高-3"只有 16px —— 再被 PDF 的
+                    # 页面缩放（这张横向表约 42%）一压，笔画糊成灰色，完全看不清
+                    # （用户 2026-11-13："这都看不清了"）。放到行高的 1.4 倍，
+                    # 略超出单元格没关系，手写签名本来就会压线。
+                    new_h = min(SIGN_HEIGHT_PX, max(18, int(row_h * 1.4)))
                     new_w = max(12, int(new_h * w / h))
                     if new_w > MAX_SIGN_WIDTH_PX:
                         new_w = MAX_SIGN_WIDTH_PX
