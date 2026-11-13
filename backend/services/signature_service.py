@@ -210,6 +210,13 @@ def _merged_of(ws, row: int, col: int):
     return None
 
 
+def _row_px(ws, row: int) -> int:
+    """行高（磅）→ 像素。没设过就是默认 14.25 磅。"""
+    dim = ws.row_dimensions.get(row)
+    height = getattr(dim, "height", None) or 14.25
+    return int(float(height) * 96 / 72)
+
+
 def _col_px(ws, col: int) -> int:
     """列宽（字符）→ 像素。Excel 默认字体下约 7px/字符 + 5px 内边距。"""
     dim = ws.column_dimensions.get(get_column_letter(col))
@@ -252,7 +259,7 @@ def _text_metrics(cell, total_px: float) -> tuple[float, float]:
     return start, width
 
 
-def _padded_image(path, pad_px: int, height_px: int) -> str:
+def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
     """在签名图左边补透明留白，返回临时文件路径。
 
     为什么要绕这一圈：合并单元格里放图片时，LibreOffice 只认"锚在哪个格"，
@@ -270,10 +277,12 @@ def _padded_image(path, pad_px: int, height_px: int) -> str:
         ratio = height_px / src.height
         src = src.resize((max(1, int(src.width * ratio)), height_px), PILImage.LANCZOS)
 
-    canvas = PILImage.new("RGBA", (pad_px + src.width, height_px), (255, 255, 255, 0))
-    canvas.paste(src, (pad_px, 0), src)
+    canvas = PILImage.new(
+        "RGBA", (pad_px + src.width, pad_top + height_px), (255, 255, 255, 0)
+    )
+    canvas.paste(src, (pad_px, pad_top), src)
 
-    out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_pad_{pad_px}_{src.width}.png"
+    out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_pad_{pad_px}_{pad_top}_{src.width}.png"
     canvas.save(out, format="PNG")
     return str(out)
 
@@ -292,23 +301,31 @@ def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, cell=None):
       用户 2026-11-13 提的就是这个："签名前不要留太多空白"），
       也不会压到右边的「监测单位：」（那是另一块合并区）。
     """
+    # 纵向：签字要**压在横线上**。行高 35pt(47px)、图高 34px 时，
+    # 图直接锚在行左上角会浮在半空，横线（下边框）在行底 —— 用户 2026-11-13
+    # 报的"不在横线上"就是这个。所以往下留出 pad_top，让图底边贴住行底。
+    row_px = _row_px(ws, row)
+    pad_top = max(0, row_px - h_px - 2)
+
     rng = _merged_of(ws, row, col)
     if rng is None:
-        return f"{get_column_letter(col + 1)}{row}"
+        return ("cell", col + 1, 0, pad_top)
 
+    # 标签右边一列如果是空白格，那多半就是母版留的**签字线格**
+    # （这份母版：C17:D17「编　　制：」+ E17:G17 带下边框的空白格）。
+    next_col = rng.max_col + 1
+    if ws.cell(row=row, column=next_col).value in (None, ""):
+        return ("cell", next_col, 0, pad_top)
+
+    # 右边被占了（如「项目负责人：」右边是「监测单位：」）→ 塞回合并区内部，
+    # 紧贴文字右端。**不能用** AnchorMarker + colOff 做水平偏移：
+    # LibreOffice 转 PDF 时忽略它，图会回到合并区左上角压住文字。
     total = sum(_col_px(ws, c) for c in range(rng.min_col, rng.max_col + 1))
     start, text_w = _text_metrics(cell, total) if cell is not None else (0.0, 0.0)
-    # 签名紧跟在文字右端：留 8px 呼吸位。**允许溢出到合并区右边一列** ——
-    # 「编制：」16pt 居中后文字到 163px，合并区只有 199px，图只能溢出去。
     offset = int(start + text_w) + 8
-
     if offset < 4:
-        return f"{get_column_letter(rng.max_col + 1)}{row}"
-
-    # ⚠ **不能用** AnchorMarker + colOff 做水平偏移：LibreOffice 转 PDF 时会忽略它，
-    #   把图直接对到合并区左上角 —— 实测签名又压回「编　　制：」几个字上。
-    #   所以改成"图片左侧留透明边距"，整图锚在合并区左上角（见 _padded_image）。
-    return ("pad", rng.min_col, offset)
+        offset = 0
+    return ("pad", rng.min_col, offset, pad_top)
 
 
 def stamp_workbook(wb) -> int:
@@ -355,16 +372,18 @@ def stamp_workbook(wb) -> int:
                     img.height, img.width = new_h, new_w
 
                 cell = ws.cell(row=row_idx, column=col_idx)
-                plan = _place_anchor(ws, row_idx, col_idx, new_w, new_h, cell)
-                if isinstance(plan, str):
-                    ws.add_image(img, plan)
+                mode, start_col, pad_left, pad_top = _place_anchor(
+                    ws, row_idx, col_idx, new_w, new_h, cell
+                )
+                if pad_left == 0 and pad_top == 0:
+                    ws.add_image(img, f"{get_column_letter(start_col)}{row_idx}")
                 else:
-                    # ("pad", 起始列, 左边距px)：图左侧画透明留白，锚在合并区左上角
-                    _, start_col, pad = plan
-                    padded = _padded_image(path, pad, new_h)
+                    # 留白画进图片里：LibreOffice 会忽略 colOff/rowOff，
+                    # 只有"图里的透明像素"能可靠地把签名推到横线上、文字右侧。
+                    padded = _padded_image(path, pad_left, new_h, pad_top)
                     pimg = XLImage(padded)
-                    pimg.height = new_h
-                    pimg.width = new_w + pad
+                    pimg.height = new_h + pad_top
+                    pimg.width = new_w + pad_left
                     ws.add_image(pimg, f"{get_column_letter(start_col)}{row_idx}")
                 stamped += 1
             except Exception:  # noqa: BLE001 —— 某处贴不上不该影响整份日报

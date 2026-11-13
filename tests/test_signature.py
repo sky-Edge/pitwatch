@@ -220,14 +220,14 @@ def test_unknown_role_rejected(client) -> None:
     assert client.delete("/api/v1/settings/signatures/not-a-role").status_code == 404
 
 
-def test_anchor_stays_inside_merged_cell_near_text() -> None:
-    """标签在合并格里时，签名放在**合并区内部、紧贴文字右端**。
+def test_anchor_lands_on_the_signature_line() -> None:
+    """签名要锚在**签字线格**上，并往下贴住横线。
 
-    ⚠ 2026-11-13 用户报的两个问题，其实是同一处代码：
-    ① 锚 D17 会被 Excel 画回 C17（合并区左上角）→ 签名糊在「编制：」上；
-    ② 改成锚 E17（合并区外面）后不压字了，但标签和签名之间空出一整列
-       → 用户："签名前不要留太多空白"。
-    正解是留在合并区内部，用 colOff 贴到文字右端。
+    这份母版的结构是：C17:D17「编　　制：」+ E17:G17 带下边框的空白格。
+    ⚠ 2026-11-13 用户三次反馈串起来看：
+    ① 锚 D17 → 被画回 C17，压字；
+    ② 锚 E17 → 横向上对了，但图浮在行顶，横线在行底 → 用户："不在横线上"。
+    所以既要锚到右边那一格，也要用 pad_top 把它压到行底。
     """
     _clear_all()
     signature_service.save_role_signature("editor", _make_signature_png())
@@ -237,6 +237,7 @@ def test_anchor_stays_inside_merged_cell_near_text() -> None:
     # 用真实母版的列宽（C=11、D=16 字符）—— 默认 8.43 太窄，塞不下「文字 + 图」
     ws.column_dimensions["C"].width = 11
     ws.column_dimensions["D"].width = 16
+    ws.row_dimensions[17].height = 35  # 真实母版的签字行高（35pt）
     ws.merge_cells("C17:D17")
     ws["C17"] = "编       制："
 
@@ -250,12 +251,11 @@ def test_anchor_stays_inside_merged_cell_near_text() -> None:
     col = int(re.search(r"<col>(\d+)</col>", xml).group(1))
     row = int(re.search(r"<row>(\d+)</row>", xml).group(1))
     col_off = int(re.search(r"<colOff>(\d+)</colOff>", xml).group(1))
-    ext_cx = int(re.search(r"<ext cx=\"(\d+)\"", xml).group(1))
-    assert col == 2, f"应锚在 C 列（合并区左上角），实际 {col}（0 基）"
-    # ⚠ 不能用 colOff 做水平偏移 —— LibreOffice 会忽略它，图又压回文字上。
-    #   改用"图片左侧画透明留白"，所以这里 colOff 必须是 0，而图片要更宽。
+    ext_cy = int(re.search(r"cy=\"(\d+)\"", xml).group(1))
+    assert col == 4, f"应锚到 E 列（签字线格 E17:G17），实际 {col}（0 基）"
     assert col_off == 0
-    assert ext_cx > 9525 * 80, "图片应该比签名本身宽（左侧有透明留白）"
+    # 行高 35pt(47px)、图高 34px → 顶部补 ~10px 让它压在横线上
+    assert ext_cy > 9525 * 34, "图片高度应该大于签名本身（顶部有留白，用来贴横线）"
     assert row == 16
 
 
