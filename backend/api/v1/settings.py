@@ -139,3 +139,19 @@ def delete_signature():
 
     signature_service.delete_signature()
     return {"exists": False}
+
+
+@settings_router.get("/signatures/preview")
+def signature_preview(role: str | None = None, size_px: int | None = None):
+    """签名样张：这张图盖到签字页/数据表上多大、落在哪儿。
+
+    用户 2026-11-13：「把签名的大小做个可视化调整功能 能看到对应位置关系」——
+    光给一个数字（46px）没人判断得出"印出来多大"，所以直接画两张样张：
+    ① 签字页（压在横线上、左右居中）；② 数据表（紧跟文字、行高按需撑开）。
+
+    样张不是另写的画图逻辑 —— 它把 `_place_anchor()` 跑在"和真母版同构"的空表上，
+    所以看到的和导出的**是同一套算法**。
+    """
+    from backend.services import signature_service
+
+    return signature_service.preview_svg(role, size_px)

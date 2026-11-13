@@ -1525,6 +1525,8 @@ export interface AppSettings {
   instruments?: { name: string; model: string; serial: string; calibrated_on: string }[] | null
   /** 天气位置：配了之后导出日报自动填当天天气 */
   weather_location?: { label: string; latitude: number; longitude: number } | null
+  /** 导出日报时签名的高度（像素，24~64）—— 设置页有样张可视化调 */
+  signature_size_px?: number
 }
 
 export const settingsApi = {

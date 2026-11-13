@@ -24,6 +24,8 @@ class AppSettingsRead(BaseModel):
     weather_location: dict | None = None
     #: 测量仪器清单
     instruments: list[dict] | None = None
+    #: 导出日报时签名的高度（像素，24~64）
+    signature_size_px: int = 46
 
 
 class AppSettingsUpdate(BaseModel):
@@ -38,5 +40,6 @@ class AppSettingsUpdate(BaseModel):
     readonly_mode: bool | None = Field(default=None)
     weather_location: dict | None = Field(default=None)
     instruments: list[dict] | None = Field(default=None)
+    signature_size_px: int | None = Field(default=None, ge=24, le=64)
 
     model_config = {"extra": "forbid"}

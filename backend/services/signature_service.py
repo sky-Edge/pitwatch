@@ -53,14 +53,14 @@ _MATCH: list[tuple[str, dict]] = sorted(
 #: 旧版通用签名：只有一张图时盖所有栏（兼容 2026-11-13 之前的装法）
 LEGACY_FILE = "default.png"
 
-#: 数据表里签名的高度（像素）。跟签字页一样大 —— 以前只有 26px，
-#: 横向表整页按 49% 打印，落到纸上才 3.4mm（用户：「打印出来很小」）。
-#: 行高不够时会把那一行撑开，别让它溢到下面跟另一栏挤在一起。
-SIGN_TABLE_HEIGHT_PX = 46
-
 #: 签字页（带签字横线的大行）的签名高度。行高 35pt(46px) 时几乎撑满 ——
 #: 原来 34px 只占三分之二，用户 2026-11-13：「签字页上的签名搞大一点」。
+#: 设置里的 `signature_size_px` 会覆盖它（界面上可视化调）。
 SIGN_PAGE_HEIGHT_PX = 46
+
+#: 数据表里签名的高度跟签字页一样。行高不够时会把那一行撑开，
+#: 别让它溢到下面跟另一栏挤在一起。
+SIGN_TABLE_HEIGHT_PX = SIGN_PAGE_HEIGHT_PX
 
 #: 签名高度上限。行再高也别让签名长到压住上下两行。
 SIGN_MAX_HEIGHT_PX = 64
@@ -69,6 +69,22 @@ SIGN_MAX_HEIGHT_PX = 64
 #: 像素数只影响清晰度 —— 按 1 倍塞进去，打印时是在放大一张几十像素的小图，
 #: 用户 2026-11-13 报的「都马赛克了」就是这个。
 SIGN_SUPERSAMPLE = 4
+
+#: 用户可调的高度范围（像素）。下限是"再小就认不出是谁签的"，
+#: 上限是"再大就压到上下两行"。
+SIGN_SIZE_MIN = 24
+SIGN_SIZE_MAX = 64
+
+
+def _clamp_size(size_px: int | None) -> int:
+    """把设置里的签名高度夹到合理范围（配错值不该让导出崩掉）。"""
+    if not size_px:
+        return SIGN_PAGE_HEIGHT_PX
+    try:
+        n = int(size_px)
+    except (TypeError, ValueError):
+        return SIGN_PAGE_HEIGHT_PX
+    return max(SIGN_SIZE_MIN, min(SIGN_SIZE_MAX, n))
 
 #: 最大宽度。签名照片常是 4:1 的长条，只按高度缩放会横跨三四列，
 #: 压到隔壁栏（如「计算人」）上面去。超过这个宽度就按宽度等比缩。
@@ -482,9 +498,15 @@ def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, cell=None):
         anchor_row, pad_top = _bottom_on_line(ws, row, line.column, h_px)
         return ("cell", line.column, anchor_row, pad_left, pad_top)
 
-    # ② 普通格子：右边一格，左对齐（那里没有横线，居中反而像乱放）
+    # ② 普通格子：右边一格。
+    # 「现场监测人：」这类标签格往往比文字本身窄（列宽 82px、文字 88px），
+    # 文字会溢出到右格里 —— 签名要是从右格左边缘开始，就压在「：」上了。
+    # 所以按"文字溢出多少"把图往右推一点（图是透明底，但笔画会压字）。
     if rng is None:
-        return ("cell", col + 1, row, 0, max(0, _row_px(ws, row) - h_px - 2))
+        col_w = _col_px(ws, col)
+        start, text_w = _text_metrics(cell, col_w) if cell is not None else (0.0, 0.0)
+        spill = max(0, int(start + text_w) + 6 - col_w)
+        return ("cell", col + 1, row, spill, max(0, _row_px(ws, row) - h_px - 2))
 
     # ③ 右边被占了 → 塞回合并区内部，紧贴文字右端。
     # **不能用** AnchorMarker + colOff 做水平偏移：LibreOffice 转 PDF 时忽略它。
@@ -496,9 +518,195 @@ def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, cell=None):
     return ("pad", rng.min_col, row, offset, max(0, _row_px(ws, row) - h_px - 2))
 
 
-def stamp_workbook(wb) -> int:
+def _preview_sheet():
+    """搭一张"和真母版同构"的空表：一条带签字线的大行 + 一条数据表小行。
+
+    列宽/行高抄的是标准母版（C11 D16 E20.83 F9 G9；签字行 35pt、数据行 13.5pt）。
+    样张不是拿常量瞎画的 —— 它直接跑 `_place_anchor()`，所以**看到的和导出的**是同一套算法。
+    """
+    from copy import copy
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Border, Side
+
+    wb = Workbook()
+    ws = wb.active
+    for col, width in (("A", 9.1), ("B", 15.6), ("C", 11), ("D", 16), ("E", 20.83), ("F", 9), ("G", 9)):
+        ws.column_dimensions[col].width = width
+
+    # ① 签字页那一行：C:D「编　　制：」+ E:G 带下边框的签字线
+    ws.row_dimensions[17].height = 35
+    ws.merge_cells("C17:D17")
+    ws["C17"] = "编       制："
+    f = copy(ws["C17"].font)
+    f.sz = 16
+    ws["C17"].font = f
+    a = copy(ws["C17"].alignment)
+    a.horizontal = "center"
+    ws["C17"].alignment = a
+    ws.merge_cells("E17:G17")
+    ws["E17"].border = Border(bottom=Side(style="thin"))
+
+    # ② 数据表那一行：「现场监测人：」+ 右边空白列
+    ws.row_dimensions[35].height = 13.5
+    ws["A35"] = "现场监测人："
+
+    return wb, ws
+
+
+def preview_svg(role_key: str | None = None, size_px: int | None = None) -> dict:
+    """给界面画的样张：这张签名盖到「签字页」和「数据表」上，多大、落在哪儿。
+
+    返回 `{"svg": "<svg…>", "size_px": 46, "has_image": true}`。
+    前端直接当图片用（`data:image/svg+xml;base64,…`），不用写一套画图逻辑。
+    """
+    import base64
+
+    from PIL import Image as PILImage
+
+    def escape(t: str) -> str:  # 只转义这几个，别为一个转义去 import xml（打包要多收一个包）
+        return (
+            str(t)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
+
+    size = _clamp_size(size_px)
+    role = get_role(role_key or "") or ROLES[0]
+    path = _path_for(role) or _legacy_path()
+
+    wb, ws = _preview_sheet()
+    line_w, line_h = 0, 0
+    if path is not None:
+        with PILImage.open(path) as im:
+            line_w, line_h = im.size
+    if not line_w or not line_h:
+        # 没配签名时按 3:1 假设，样张照样能看比例
+        line_w, line_h = size * 3, size
+
+    # 名义尺寸（宽度按原图比例，跟导出一样有 150px 上限）
+    new_h = size
+    new_w = max(12, int(new_h * line_w / line_h))
+    if new_w > MAX_SIGN_WIDTH_PX:
+        new_w = MAX_SIGN_WIDTH_PX
+        new_h = max(10, int(new_w * line_h / line_w))
+
+    # —— ① 签字页：跑真实定位
+    m1 = _place_anchor(ws, 17, 3, new_w, new_h, ws["C17"])
+    _, col1, row1, pad1_left, pad1_top = m1
+    span1 = _span_px(ws, 17, col1)
+    left1 = sum(_col_px(ws, c) for c in range(3, col1))
+
+    # —— ② 数据表：行高会被撑开，先撑再定位，和导出顺序一致
+    need = new_h + 4
+    if need > _row_px(ws, 35):
+        ws.row_dimensions[35].height = round(need * 0.75, 2)
+    m2 = _place_anchor(ws, 35, 1, new_w, new_h, ws["A35"])
+    _, col2, _, pad2_left, pad2_top = m2
+    left2 = sum(_col_px(ws, c) for c in range(1, col2))
+
+    parts: list[str] = []
+    total_w = max(10 + max(left1 + span1, left2 + new_w + 40) + 10, 430)
+
+    # ① 签字页：图可能比行高，锚点会往上借行 —— 顶部位置要把借来的行算进去，
+    #    否则样张里的签名会比实际低一整行（第一版没算，图跑到了横线下面）。
+    y1 = 26
+    borrowed = sum(_row_px(ws, r) for r in range(row1, 17))
+    img1_top = y1 - borrowed + pad1_top
+    row1_h = _row_px(ws, 17)
+
+    parts.append(
+        '<text x="10" y="14" font-size="11" fill="#64748b">'
+        "① 签字页 —— 压在横线上、左右居中</text>"
+    )
+    parts.append(
+        f'<rect x="10" y="{y1}" width="{left1 + span1}" height="{row1_h}" fill="#fbfdff" '
+        f'stroke="#cbd5e1" stroke-dasharray="3 3"/>'
+    )
+    # 借行时图会越过这条线往上长 —— 画一条浅虚线说明"这一格之外了"
+    if borrowed:
+        parts.append(
+            f'<line x1="10" y1="{y1}" x2="{10 + left1 + span1}" y2="{y1}" '
+            f'stroke="#e2e8f0" stroke-dasharray="2 4"/>'
+        )
+    parts.append(
+        f'<text x="{10 + 6}" y="{y1 + 31}" font-size="21.3" font-family="SimSun, 宋体, serif" '
+        f'fill="#334155">{escape("编　　制：")}</text>'
+    )
+    parts.append(
+        f'<line x1="{10 + left1}" y1="{y1 + row1_h}" x2="{10 + left1 + span1}" '
+        f'y2="{y1 + row1_h}" stroke="#334155" stroke-width="1"/>'
+    )
+
+    # ② 数据表
+    grown = _row_px(ws, 35)
+    y2 = y1 + row1_h + 46
+    parts.append(
+        f'<text x="10" y="{y2 - 12}" font-size="11" fill="#64748b">'
+        f"② 数据表 —— 紧跟文字，行高自动撑到 {round(grown * 0.75, 1)}pt</text>"
+    )
+    parts.append(
+        f'<rect x="10" y="{y2}" width="{left2 + new_w + 20}" height="{grown}" fill="#fbfdff" '
+        f'stroke="#cbd5e1" stroke-dasharray="3 3"/>'
+    )
+    # 原来的行高（14.25pt≈19px）—— 放不下 46px 的签名，所以要撑开
+    parts.append(
+        f'<line x1="10" y1="{y2 + 19}" x2="{10 + left2 + new_w + 20}" y2="{y2 + 19}" '
+        f'stroke="#e2e8f0" stroke-dasharray="2 4"/>'
+    )
+    parts.append(
+        f'<text x="{10 + left2 + new_w + 26}" y="{y2 + 22}" font-size="10" fill="#94a3b8">'
+        "↑ 这一行原来只有 19px，撑开了</text>"
+    )
+    parts.append(
+        f'<text x="{10 + 6}" y="{y2 + 30}" font-size="14.7" font-family="SimSun, 宋体, serif" '
+        f'fill="#334155">{escape("现场监测人：")}</text>'
+    )
+
+    total_h = y2 + grown + 20
+
+    # 签名图：就是导出时那张（同一函数、同样留白），放在算好的位置上
+    if path is not None:
+        try:
+            for pad_l, pad_t, px_x, px_y in (
+                (pad1_left, pad1_top, 10 + left1, img1_top),
+                (pad2_left, pad2_top, 10 + left2, y2 + pad2_top),
+            ):
+                png = _padded_image(path, pad_l, new_h, pad_t, supersample=2)
+                b64 = base64.b64encode(open(png, "rb").read()).decode()
+                parts.append(
+                    f'<image x="{px_x}" y="{px_y}" width="{pad_l + new_w}" '
+                    f'height="{pad_t + new_h}" href="data:image/png;base64,{b64}"/>'
+                )
+        except Exception:  # noqa: BLE001 —— 样张画不出来不该影响设置页
+            pass
+    else:
+        parts.append(
+            f'<rect x="{10 + left1 + pad1_left}" y="{img1_top + pad1_top}" width="{new_w}" '
+            f'height="{new_h}" fill="none" stroke="#f59e0b" stroke-dasharray="2 2"/>'
+        )
+
+    svg = (
+        f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        f'viewBox="0 0 {total_w} {total_h}" width="{total_w}" height="{total_h}">'
+        f'<rect width="{total_w}" height="{total_h}" fill="#ffffff"/>'
+        + "".join(parts)
+        + "</svg>"
+    )
+    return {
+        "svg": svg,
+        "size_px": size,
+        "role": role["name"],
+        "has_image": path is not None,
+    }
+
+
+def stamp_workbook(wb, size_px: int | None = None) -> int:
     """把各角色的签名盖到对应签字栏。返回贴了几处（一张签名都没有返回 0）。
 
+    `size_px` 是设置里调的签名高度（像素），不传就用默认的满行高。
     查找顺序：**该角色自己的图** → 旧的通用图 `default.png` → 都不盖。
     """
     from openpyxl.drawing.image import Image as XLImage
@@ -507,6 +715,7 @@ def stamp_workbook(wb) -> int:
     if not has_signature():
         return 0
 
+    base_h = _clamp_size(size_px)
     stamped = 0
 
     for ws in wb.worksheets:
@@ -533,17 +742,17 @@ def stamp_workbook(wb) -> int:
                 if w > 0 and h > 0:
                     row_h = _row_px(ws, row_idx)
                     if _line_cell(ws, row_idx, col_idx) is not None:
-                        # 签字页那种带横线的大行（35pt≈46px）：签名要**明显大一号**，
-                        # 撑到接近行高才像真手写（用户 2026-11-13：
-                        # 「签字页上的签名搞大一点」）。矮行靠 _bottom_on_line 往上借行。
-                        new_h = min(SIGN_MAX_HEIGHT_PX, max(SIGN_PAGE_HEIGHT_PX, int(row_h * 0.85)))
+                        # 签字页那种带横线的大行：尺寸就是用户调的那个值
+                        # （以前会按行高 0.85 倍自动放大，但用户明确调了大小就得听他的）。
+                        # 图比行高时靠 _bottom_on_line 往上借行，底边仍压在横线上。
+                        new_h = min(SIGN_MAX_HEIGHT_PX, base_h)
                     else:
                         # 数据表：行高只有 18~19px，塞进去就是一个指甲盖大的小图，
                         # 印出来只有 3mm 高、还糊（用户 2026-11-13：
                         # 「其他的字也高大一点 打印出来很小啊 都马赛克了」）。
                         # 直接放大又会溢到下面一行、跟下一个签字栏挤在一起
                         # —— 所以**把这一行撑到装得下**，签名才做得大。
-                        new_h = SIGN_TABLE_HEIGHT_PX
+                        new_h = min(SIGN_MAX_HEIGHT_PX, base_h)
                         need_px = new_h + 4
                         if need_px > row_h:
                             ws.row_dimensions[row_idx].height = round(need_px * 0.75, 2)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import { Alert, Button, Input, Modal, Select, Space, Tag, Typography, Upload, message } from 'antd'
+import { Alert, Button, Input, Modal, Select, Slider, Space, Tag, Typography, Upload, message } from 'antd'
 
 import { UploadOutlined } from '@ant-design/icons'
 
@@ -84,6 +84,13 @@ export default function ProjectDefaultsModal({
 
   const [sigBusy, setSigBusy] = useState<string | null>(null)
 
+  /** 签名大小（像素）+ 样张：用户要"能看到对应位置关系"，所以拖滑块就重画 */
+  const [sigSize, setSigSize] = useState(46)
+  const [sigPreviewRole, setSigPreviewRole] = useState('editor')
+  const [sigPreview, setSigPreview] = useState<{ url: string; has_image: boolean } | null>(null)
+  /** 每重传/删除一次签名 +1，让样张跟着重画 */
+  const [sigRev, setSigRev] = useState(0)
+
   /** 仪器清单（全局一份，导出时选一台） */
 
   const [insts, setInsts] = useState<Instrument[]>([])
@@ -153,6 +160,7 @@ export default function ProjectDefaultsModal({
       const j = await r.json()
       if (!r.ok) throw new Error(j?.detail || '上传失败')
       await loadSignatures()
+      setSigRev((n) => n + 1)
       message.success('已保存')
     } catch (e) {
       message.error((e as Error).message)
@@ -166,6 +174,7 @@ export default function ProjectDefaultsModal({
     try {
       await fetch(`/api/v1/settings/signatures/${role}`, { method: 'DELETE' })
       await loadSignatures()
+      setSigRev((n) => n + 1)
       message.success('已删除，这一栏会留空')
     } catch (e) {
       message.error((e as Error).message)
@@ -208,6 +217,8 @@ export default function ProjectDefaultsModal({
 
       setInsts(((cfg as { instruments?: Instrument[] }).instruments ?? []) as Instrument[])
 
+      setSigSize((cfg as { signature_size_px?: number }).signature_size_px ?? 46)
+
       void fetch('/api/v1/settings/instrument-presets')
 
         .then((r) => (r.ok ? r.json() : []))
@@ -238,6 +249,29 @@ export default function ProjectDefaultsModal({
 
 
 
+  /** SVG → data URL（直接当图片显示，不用 dangerouslySetInnerHTML） */
+  const svgUrl = (svg: string) => {
+    const bytes = new TextEncoder().encode(svg)
+    let bin = ''
+    for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i])
+    return `data:image/svg+xml;base64,${btoa(bin)}`
+  }
+
+  // 样张：拖滑块 / 换角色 / 重传签名都会重画（120ms 防抖，别每动一下就请求）
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      fetch(`/api/v1/settings/signatures/preview?role=${sigPreviewRole}&size_px=${sigSize}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => setSigPreview(j ? { url: svgUrl(String(j.svg)), has_image: !!j.has_image } : null))
+        .catch(() => setSigPreview(null))
+    }, 120)
+    return () => clearTimeout(t)
+    // sigRev 用来在重传/删除签名后重画
+  }, [open, sigPreviewRole, sigSize, sigRev])
+
+
+
   const save = async () => {
 
     setSaving(true)
@@ -255,6 +289,8 @@ export default function ProjectDefaultsModal({
         weather_location: loc,
 
         instruments: insts.filter((i) => i.model.trim() || i.serial.trim()),
+
+        signature_size_px: sigSize,
 
       })
 
@@ -584,6 +620,70 @@ export default function ProjectDefaultsModal({
             也可以直接把 PNG 放进服务器的 <code>database/signatures/</code>，文件名用栏名（如{' '}
             <code>编制.png</code>），刷新本页即可。
           </Typography.Text>
+
+          {/* 签名大小：拖滑块就重画样张，能直接看出"多大、压在哪儿" */}
+          <div
+            style={{
+              marginTop: 14,
+              padding: '10px 12px',
+              border: '1px solid var(--wm-grid-line)',
+              borderRadius: 8,
+              background: 'var(--wm-focus-bg)',
+            }}
+          >
+            <Space size={12} wrap>
+              <Typography.Text strong>签名大小</Typography.Text>
+              <Slider
+                style={{ width: 220, margin: '0 4px' }}
+                min={24}
+                max={64}
+                step={1}
+                value={sigSize}
+                onChange={(v) => setSigSize(v as number)}
+                marks={{ 24: '小', 46: '满行', 64: '大' }}
+              />
+              <Typography.Text type="secondary">{sigSize} px</Typography.Text>
+              <Select
+                size="small"
+                style={{ width: 132 }}
+                value={sigPreviewRole}
+                onChange={setSigPreviewRole}
+                options={sigRoles.map((r) => ({
+                  value: r.role,
+                  label: `${r.name}${r.exists ? '' : '（未设置）'}`,
+                }))}
+              />
+            </Space>
+
+            <div
+              style={{
+                marginTop: 8,
+                background: 'var(--wm-neutral-white)',
+                borderRadius: 6,
+                overflow: 'hidden',
+              }}
+            >
+              {sigPreview ? (
+                <img
+                  src={sigPreview.url}
+                  alt="签名样张"
+                  style={{ width: '100%', display: 'block' }}
+                />
+              ) : (
+                <div style={{ height: 120, display: 'flex', alignItems: 'center', paddingLeft: 12 }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    正在生成样张…
+                  </Typography.Text>
+                </div>
+              )}
+            </div>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+              上面两张是 1:1 的示意：① 签字页那行——签名压在横线上、左右居中；
+              ② 数据表那行——紧跟文字，行高会自动撑到装得下。
+              {sigPreview && !sigPreview.has_image ? '（这个角色还没上传签名，框出来的是占位）' : ''}
+              导出的日报按这个尺寸盖，打印时整页还会按母版缩放到 A4。
+            </Typography.Text>
+          </div>
         </div>
 
         <div>

@@ -319,9 +319,12 @@ def build_master_report(
 
     # 电子签名：在保存前把签名图盖到「现场监测人：」「计算人：」这类标签右边。
     # 没上传签名时 stamp 直接返回 0，不影响导出。
-    from backend.services import signature_service
+    # 大小取自设置（界面上可视化的那个滑块），读不到就用默认值。
+    from backend.services import app_settings_service, signature_service
 
-    signature_service.stamp_workbook(wb)
+    _sig_size = app_settings_service.get_settings(db).get("signature_size_px")
+
+    signature_service.stamp_workbook(wb, size_px=_sig_size)
 
     buf = BytesIO()
 

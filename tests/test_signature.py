@@ -531,3 +531,72 @@ def test_signature_does_not_cover_underline(tmp_path) -> None:
         # 笔画中间那块白纸也要透（横线从字缝里穿过去，才像真手写）
         clear = sum(1 for v in alpha.getdata() if v == 0)
         assert clear / (w * h) > 0.3
+
+
+# ─────────────────── 可视化调大小（2026-11-13） ───────────────────
+
+
+def test_signature_size_setting_roundtrip(client) -> None:
+    """设置里能存/读签名大小，越界的值被夹回来。"""
+    r = client.put("/api/v1/settings", json={"signature_size_px": 58})
+    assert r.status_code == 200, r.text
+    assert r.json()["signature_size_px"] == 58
+    assert client.get("/api/v1/settings").json()["signature_size_px"] == 58
+
+    # 超范围直接 422（别让它默默写到 200px 把表格撑爆）
+    assert client.put("/api/v1/settings", json={"signature_size_px": 200}).status_code == 422
+    assert client.put("/api/v1/settings", json={"signature_size_px": 4}).status_code == 422
+
+
+def test_stamp_uses_configured_size() -> None:
+    """导出时按设置里的尺寸盖，不是写死 46。"""
+    from PIL import Image as PILImage, ImageDraw
+
+    _clear_all()
+    img = PILImage.new("RGB", (460, 200), "white")
+    ImageDraw.Draw(img).line([(60, 165), (150, 40), (280, 160), (360, 60)], fill="black", width=8)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    signature_service.save_role_signature("editor", buf.getvalue())
+
+    wb = _sign_page_book()
+    assert signature_service.stamp_workbook(wb, size_px=32) == 1
+    imgs, xml = _embedded(wb)
+    ss = signature_service.SIGN_SUPERSAMPLE
+    bbox = imgs[0].getchannel("A").getbbox()
+    assert bbox[3] - bbox[1] == 32 * ss, "没有按设置的 32px 盖"
+
+
+def test_preview_svg_shows_both_places(client) -> None:
+    """样张要画出两处位置：签字页（压线居中）和数据表（紧跟文字）。
+
+    用户 2026-11-13：「把签名的大小做个可视化调整功能 能看到对应位置关系」——
+    光给个 46px，谁也判断不出印出来多大。
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    _clear_all()
+    img = PILImage.new("RGB", (460, 200), "white")
+    ImageDraw.Draw(img).line([(60, 165), (150, 40), (280, 160), (360, 60)], fill="black", width=8)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    signature_service.save_role_signature("editor", buf.getvalue())
+
+    r = client.get("/api/v1/settings/signatures/preview?role=editor&size_px=52")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    svg = body["svg"]
+
+    assert body["size_px"] == 52
+    assert body["has_image"] is True
+    assert svg.startswith("<svg") and svg.rstrip().endswith("</svg>")
+    assert "① 签字页" in svg and "② 数据表" in svg
+    assert "<line" in svg, "签字页要画出那条横线，才看得出'压在线上'"
+    assert "data:image/png;base64," in svg, "样张得用真签名图，不是画个方块"
+    assert 'width="52"' in svg or "52" in svg
+
+    # 没配签名的角色也要能出图（给个占位框）
+    r2 = client.get("/api/v1/settings/signatures/preview?role=checker&size_px=40")
+    assert r2.status_code == 200
+    assert r2.json()["has_image"] is False
+    assert "stroke-dasharray" in r2.json()["svg"]

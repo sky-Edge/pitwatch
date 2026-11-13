@@ -41,6 +41,9 @@ DEFAULTS: dict[str, object] = {
     #: 天气位置 {"label":"嘉善","latitude":30.85,"longitude":120.93}
     #: 配了之后导出日报会自动填当天天气，不用每次手选
     "weather_location": None,
+    #: 导出日报时签名的高度（像素）。46 是母版签字行（35pt≈46px）的满高 ——
+    #: 用户 2026-11-13 要「可视化调大小」，所以做成可调，界面上带样张预览
+    "signature_size_px": 46,
 }
 
 
