@@ -52,9 +52,52 @@ def read_instrument_presets():
 # ─────────────────────── 电子签名 ───────────────────────
 
 
+@settings_router.get("/signatures")
+def list_signatures():
+    """六个签字角色各自有没有签名、长什么样。
+
+    用户 2026-11-13：「把这些签字栏都单独拉出来，我来自己放 png 签名」——
+    一张图盖 11 处，等于让一个人同时签编制/审核/校核，资料上说不通。
+    """
+    from backend.services import signature_service
+
+    return {"roles": signature_service.list_roles()}
+
+
+@settings_router.post("/signatures/{role}")
+async def upload_role_signature(role: str, file: UploadFile = File(...)):
+    """给某个签字角色上传专属签名（编制/审核/现场监测人…）。"""
+    from backend.services import signature_service
+
+    if signature_service.get_role(role) is None:
+        raise HTTPException(status_code=404, detail=f"没有这个签字栏：{role}")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="文件是空的")
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="签名图片不要超过 8 MB")
+    try:
+        signature_service.save_role_signature(role, data)
+    except signature_service.SignatureError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"role": role, "exists": True}
+
+
+@settings_router.delete("/signatures/{role}")
+def delete_role_signature(role: str):
+    """删掉某个角色的签名 —— 该栏之后留空。"""
+    from backend.services import signature_service
+
+    if signature_service.get_role(role) is None:
+        raise HTTPException(status_code=404, detail=f"没有这个签字栏：{role}")
+    signature_service.delete_signature(role)
+    return {"role": role, "exists": False}
+
+
 @settings_router.get("/signature")
 def get_signature():
-    """有没有电子签名、长什么样（前端决定显示"已上传"还是"去上传"）。"""
+    """旧的通用签名（一张图盖所有栏）。新界面用 /signatures，这里保留兼容。"""
     from backend.services import signature_service
 
     if not signature_service.has_signature():

@@ -116,3 +116,103 @@ def test_signature_is_trimmed_and_converted() -> None:
         # 原图 240x80 四周有白边，裁完应当明显小一圈
         assert im.width <= 240 and im.height <= 80
         assert im.width < 240 or im.height < 80
+
+
+# ───────────── 每个签字栏一张（2026-11-13 用户要求） ─────────────
+
+
+def _clear_all() -> None:
+    signature_service.delete_signature()  # 旧通用图
+    for r in signature_service.ROLES:
+        signature_service.delete_signature(r["key"])
+
+
+def test_roles_cover_the_whole_template() -> None:
+    """六个角色要覆盖母版里的 11 处签字栏。"""
+    names = {r["name"] for r in signature_service.ROLES}
+    assert names == {"编制", "审核", "项目负责人", "现场监测人", "计算人", "校核人"}
+
+
+def test_each_role_stamps_its_own_slot() -> None:
+    """编制和审核是两个人 → 各盖各的栏；没配的栏留空，不拿别人的顶。"""
+    _clear_all()
+    signature_service.save_role_signature("editor", _make_signature_png())
+    signature_service.save_role_signature("reviewer", _make_signature_png())
+
+    wb = Workbook()
+    ws = wb.active
+    ws["A1"] = "编       制："
+    ws["A2"] = "审       核："
+    ws["A3"] = "现场监测人："
+
+    assert signature_service.stamp_workbook(wb) == 2, "只该盖编制和审核两栏"
+    assert len(ws._images) == 2
+
+
+def test_same_role_in_two_sheets_uses_one_file() -> None:
+    """两处数据表的「计算人」是同一个人 → 一张图，两个 sheet 都盖。"""
+    _clear_all()
+    signature_service.save_role_signature("calculator", _make_signature_png())
+
+    wb = Workbook()
+    ws1 = wb.active
+    ws1["A1"] = "计算人："
+    ws2 = wb.create_sheet("第二张")
+    ws2["A1"] = "计算人："
+
+    assert signature_service.stamp_workbook(wb) == 2
+    assert len(ws1._images) == 1 and len(ws2._images) == 1
+
+
+def test_unset_roles_are_left_blank() -> None:
+    """一张都没配 → 一个字都不盖（不能因为别人配了就顺手签上）。"""
+    _clear_all()
+    wb = Workbook()
+    ws = wb.active
+    ws["A1"] = "现场监测人："
+    ws["A2"] = "计算人："
+    assert signature_service.stamp_workbook(wb) == 0
+    assert not getattr(ws, "_images", [])
+
+
+def test_legacy_single_signature_still_works() -> None:
+    """老装法只有一张 default.png → 所有栏都用它（向后兼容）。"""
+    _clear_all()
+    signature_service.save_signature(_make_signature_png())
+
+    wb = Workbook()
+    ws = wb.active
+    ws["A1"] = "现场监测人："
+    ws["A2"] = "计算人："
+    assert signature_service.stamp_workbook(wb) == 2
+
+
+def test_role_endpoints(client) -> None:
+    _clear_all()
+    roles = client.get("/api/v1/settings/signatures").json()["roles"]
+    assert len(roles) == 6
+    assert all(r["exists"] is False for r in roles)
+
+    r = client.post(
+        "/api/v1/settings/signatures/editor",
+        files={"file": ("s.png", _make_signature_png(), "image/png")},
+    )
+    assert r.status_code == 200, r.text
+
+    after = {x["role"]: x for x in client.get("/api/v1/settings/signatures").json()["roles"]}
+    assert after["editor"]["exists"] is True
+    assert after["editor"]["image"].startswith("data:image/png;base64,")
+    assert after["reviewer"]["exists"] is False
+
+    assert client.delete("/api/v1/settings/signatures/editor").status_code == 200
+    back = {x["role"]: x for x in client.get("/api/v1/settings/signatures").json()["roles"]}
+    assert back["editor"]["exists"] is False
+
+
+def test_unknown_role_rejected(client) -> None:
+    r = client.post(
+        "/api/v1/settings/signatures/not-a-role",
+        files={"file": ("s.png", _make_signature_png(), "image/png")},
+    )
+    assert r.status_code == 404
+    assert client.delete("/api/v1/settings/signatures/not-a-role").status_code == 404
