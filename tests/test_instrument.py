@@ -89,3 +89,61 @@ def test_date_format() -> None:
     assert instrument_service._fmt_date("2026-03-05") == "2026.03.05"
     assert instrument_service._fmt_date("") == ""
     assert instrument_service._fmt_date("乱写") == "乱写"
+
+
+# ───────────────────── 常见仪器备选库 ─────────────────────
+
+
+def test_presets_endpoint_lists_common_instruments(client) -> None:
+    """备选库要能取到，且条数够用（用户：「把市面上的仪器都放在备选库了吧」）。"""
+    r = client.get("/api/v1/settings/instrument-presets")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    assert len(data) >= 20, f"备选库太少（{len(data)} 条），等于还得手打"
+
+    for item in data:
+        assert set(item) == {"category", "name", "model"}
+        assert all(isinstance(item[k], str) and item[k].strip() for k in item)
+
+
+def test_presets_cover_the_two_workhorses(client) -> None:
+    """沉降靠水准仪、位移靠全站仪 —— 这两个品类不能缺。"""
+    cats = {x["category"] for x in client.get("/api/v1/settings/instrument-presets").json()}
+    assert "电子水准仪" in cats
+    assert "全站仪" in cats
+
+
+def test_presets_include_field_common_models(client) -> None:
+    """现场最常报的两个型号必须在库里，否则搜索照样落空。"""
+    models = {x["model"] for x in client.get("/api/v1/settings/instrument-presets").json()}
+    assert "Leica DNA03" in models
+    assert "Leica TS16" in models
+
+
+def test_presets_have_no_duplicates(client) -> None:
+    data = client.get("/api/v1/settings/instrument-presets").json()
+    keys = [(x["category"], x["model"]) for x in data]
+    assert len(keys) == len(set(keys)), "备选库里有重复条目"
+
+
+def test_presets_are_readonly(client) -> None:
+    """备选库是内置常量，取它不能顺手把用户自己的仪器清单改掉。"""
+    client.get("/api/v1/settings/instrument-presets")
+    assert client.get("/api/v1/settings").json()["instruments"] in (None, [])
+
+
+def test_preset_choice_becomes_a_normal_instrument(client) -> None:
+    """选了备选库里的型号后，存下来就是普通仪器 —— 用户可以接着改编号/日期。"""
+    preset = client.get("/api/v1/settings/instrument-presets").json()[0]
+    mine = {
+        "name": preset["name"],
+        "model": preset["model"],
+        "serial": "SN-001",
+        "calibrated_on": "2026-01-15",
+    }
+    client.put("/api/v1/settings", json={"instruments": [mine]})
+
+    saved = client.get("/api/v1/settings").json()["instruments"]
+    assert saved == [mine]
+    assert saved[0]["model"] == preset["model"]

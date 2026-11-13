@@ -34,6 +34,21 @@ def write_settings(payload: AppSettingsUpdate, db: Session = Depends(get_db)):
     return AppSettingsRead(**app_settings_service.update_settings(db, data))
 
 
+@settings_router.get("/instrument-presets")
+def read_instrument_presets():
+    """常见测量仪器备选库（只读）。
+
+    用户 2026-11-13：「你把市面上的仪器都放在备选库了吧」—— 之前只能手打型号，
+    打错一个字（莱卡 / Leica、DNA-03 / DNA03）验收时对不上。这里给出下拉预填。
+
+    只返回厂牌 + 型号：精度、量程这类参数不同批次不一样，写死在库里会误导；
+    验收看的是检定证书，不是这里的字。
+    """
+    from backend.services import instrument_service
+
+    return instrument_service.list_presets()
+
+
 # ─────────────────────── 电子签名 ───────────────────────
 
 

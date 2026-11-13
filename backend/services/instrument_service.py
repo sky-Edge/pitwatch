@@ -22,6 +22,69 @@ from sqlalchemy.orm import Session
 
 from backend.services import app_settings_service
 
+#: 常见仪器备选库：工程监测现场这几年真在用的型号。
+#:
+#: 用户 2026-11-13：「你把市面上的仪器都放在备选库了吧」—— 原先只有空白输入框，
+#: 型号得自己敲（「Leica DNA03」打成「莱卡 DNA-03」就对不上验收资料）。
+#: 这里给出下拉，选完只需补「出厂编号」和「检定日期」两个真正因人而异的字段。
+#:
+#: ⚠ 只写**厂牌 + 型号**，不写精度、量程这些参数：一类仪器不同批次参数不同，
+#:   写死在库里反而会误导（且验收看的是检定证书，不是这里的字）。
+#: ⚠ 这份表是**只读**的，用户自己的仪器仍然存在 app_settings.instruments 里；
+#:   选了只是"预填"，存下来的是副本，之后随便改。
+PRESET_CATALOG: list[dict] = [
+    # —— 电子水准仪：沉降观测的主力，二等水准基本是这几台 ——
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "Leica DNA03"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "Leica DNA10"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "Leica Sprinter 250M"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "Trimble DiNi 03"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "Trimble DiNi 12"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "SOKKIA SDL30"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "SOKKIA SDL50"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "Topcon DL-502"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "Topcon DL-101C"},
+    {"category": "电子水准仪", "name": "电子水准仪", "model": "南方 DL-2003"},
+    # —— 光学水准仪：三、四等和施工抄平用 ——
+    {"category": "光学水准仪", "name": "水准仪", "model": "苏州一光 DSZ2"},
+    {"category": "光学水准仪", "name": "水准仪", "model": "苏州一光 DS3"},
+    {"category": "光学水准仪", "name": "水准仪", "model": "博飞 DZS3-1"},
+    {"category": "光学水准仪", "name": "水准仪", "model": "Leica NA2"},
+    # —— 全站仪：水平位移、坐标放样 ——
+    {"category": "全站仪", "name": "全站仪", "model": "Leica TS16"},
+    {"category": "全站仪", "name": "全站仪", "model": "Leica TS15"},
+    {"category": "全站仪", "name": "全站仪", "model": "Leica TS09 Plus"},
+    {"category": "全站仪", "name": "全站仪", "model": "Leica TS02"},
+    {"category": "全站仪", "name": "全站仪", "model": "Leica TM30"},
+    {"category": "全站仪", "name": "全站仪", "model": "Leica TM50"},
+    {"category": "全站仪", "name": "全站仪", "model": "Trimble S8"},
+    {"category": "全站仪", "name": "全站仪", "model": "Trimble S9"},
+    {"category": "全站仪", "name": "全站仪", "model": "Topcon MS05A"},
+    {"category": "全站仪", "name": "全站仪", "model": "Topcon ES-52"},
+    {"category": "全站仪", "name": "全站仪", "model": "SOKKIA NET05AXII"},
+    {"category": "全站仪", "name": "全站仪", "model": "SOKKIA FX-101"},
+    {"category": "全站仪", "name": "全站仪", "model": "南方 NTS-342R"},
+    {"category": "全站仪", "name": "全站仪", "model": "南方 NTS-391R"},
+    {"category": "全站仪", "name": "全站仪", "model": "中海达 ZTS-420R"},
+    {"category": "全站仪", "name": "全站仪", "model": "宾得 R-202NE"},
+    # —— 静力水准仪：自动化沉降，基坑周边建筑常用 ——
+    {"category": "静力水准仪", "name": "静力水准仪", "model": "基康 BGK-4675LV"},
+    {"category": "静力水准仪", "name": "静力水准仪", "model": "南京葛南 GN-1"},
+    {"category": "静力水准仪", "name": "静力水准仪", "model": "长沙金码 JMZX-1000"},
+    # —— 测斜仪：深层水平位移 ——
+    {"category": "测斜仪", "name": "测斜仪", "model": "基康 GK-600"},
+    {"category": "测斜仪", "name": "测斜仪", "model": "长沙金码 JMZX-7000"},
+    # —— 其他 ——
+    {"category": "其他", "name": "水位计", "model": "基康 BGK-4500S"},
+    {"category": "其他", "name": "GNSS 接收机", "model": "Leica GS18"},
+    {"category": "其他", "name": "GNSS 接收机", "model": "Trimble R12"},
+]
+
+
+def list_presets() -> list[dict]:
+    """常见仪器备选库（只读）。前端按 category 分组显示。"""
+    return [dict(item) for item in PRESET_CATALOG]
+
+
 #: 标签 → 字段。按"包含"匹配，越靠前越优先（长标签先匹配，避免被短标签抢先）。
 _LABEL_FIELDS: list[tuple[str, str]] = [
     ("仪器出厂编号", "serial"),

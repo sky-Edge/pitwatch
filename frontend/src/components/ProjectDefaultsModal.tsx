@@ -8,6 +8,7 @@ const WEATHERS = ['晴', '多云', '阴', '小雨', '中雨', '大雨']
 type WeatherLoc = { label: string; latitude: number; longitude: number }
 type GeoHit = { label: string; admin?: string; latitude: number; longitude: number }
 type Instrument = { name: string; model: string; serial: string; calibrated_on: string }
+type InstrumentPreset = { category: string; name: string; model: string }
 const EMPTY_INST: Instrument = { name: '', model: '', serial: '', calibrated_on: '' }
 
 /**
@@ -42,6 +43,8 @@ export default function ProjectDefaultsModal({
   /** 仪器清单（全局一份，导出时选一台） */
   const [insts, setInsts] = useState<Instrument[]>([])
   const [instDraft, setInstDraft] = useState<Instrument>(EMPTY_INST)
+  /** 常见仪器备选库（后端只读清单，选一台就预填名称+型号） */
+  const [presets, setPresets] = useState<InstrumentPreset[]>([])
   const [weather, setWeather] = useState('晴')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -119,6 +122,10 @@ export default function ProjectDefaultsModal({
       setLoc((cfg as { weather_location?: WeatherLoc | null }).weather_location ?? null)
       void loadSignature()
       setInsts(((cfg as { instruments?: Instrument[] }).instruments ?? []) as Instrument[])
+      void fetch('/api/v1/settings/instrument-presets')
+        .then((r) => (r.ok ? r.json() : []))
+        .then((j) => setPresets(Array.isArray(j) ? (j as InstrumentPreset[]) : []))
+        .catch(() => setPresets([]))
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -315,6 +322,7 @@ export default function ProjectDefaultsModal({
           <br />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             配好之后，导出页会多一个「仪器」下拉；选了哪台，日报里的「仪器型号 / 出厂编号 / 检定日期」就填哪台。
+            下面能搜型号（常见款已预置），库里没有的照旧手输。
           </Typography.Text>
           {insts.length > 0 && (
             <div style={{ marginTop: 6 }}>
@@ -332,6 +340,29 @@ export default function ProjectDefaultsModal({
               ))}
             </div>
           )}
+          {/* 从备选库选：型号不用背，选中只预填名称和型号，
+              出厂编号、检定日期还得自己填（那两样因人而异，库里不可能有） */}
+          <Select
+            showSearch
+            style={{ width: '100%', marginTop: 6 }}
+            placeholder={
+              presets.length
+                ? `从常见仪器里选（可搜型号，如 DNA03 / TS16），共 ${presets.length} 款`
+                : '从常见仪器里选（型号可搜）'
+            }
+            value={undefined}
+            optionFilterProp="label"
+            onChange={(v: string) => {
+              const hit = presets.find((x) => x.model === v)
+              if (hit) setInstDraft({ ...instDraft, name: hit.name, model: hit.model })
+            }}
+            options={Array.from(new Set(presets.map((x) => x.category))).map((cat) => ({
+              label: cat,
+              options: presets
+                .filter((x) => x.category === cat)
+                .map((x) => ({ value: x.model, label: `${x.model}（${x.name}）` })),
+            }))}
+          />
           <Space.Compact style={{ width: '100%', marginTop: 6 }}>
             <Input
               placeholder="名称（水准仪/全站仪）"
