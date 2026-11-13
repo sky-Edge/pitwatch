@@ -17,6 +17,7 @@ import zipfile
 
 import pytest
 from openpyxl import Workbook
+from openpyxl.styles import Border, Side
 
 from backend.services import signature_service
 
@@ -240,6 +241,9 @@ def test_anchor_lands_on_the_signature_line() -> None:
     ws.row_dimensions[17].height = 35  # 真实母版的签字行高（35pt）
     ws.merge_cells("C17:D17")
     ws["C17"] = "编       制："
+    # 母版里签字线是**另一块带下边框的合并格**（E17:G17），没有它就不算签字线
+    ws.merge_cells("E17:G17")
+    ws["E17"].border = Border(bottom=Side(style="thin"))
 
     assert signature_service.stamp_workbook(wb) == 1
 

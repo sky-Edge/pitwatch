@@ -311,10 +311,15 @@ def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, cell=None):
     if rng is None:
         return ("cell", col + 1, 0, pad_top)
 
-    # 标签右边一列如果是空白格，那多半就是母版留的**签字线格**
-    # （这份母版：C17:D17「编　　制：」+ E17:G17 带下边框的空白格）。
+    # 标签右边一列如果是空白格、**而且带下边框**，那才是母版留的「签字线格」
+    # （签字页：C17:D17「编　　制：」+ E17:G17 带下边框的空白格）。
+    # 数据表那些「现场监测人：」右边只是普通空白列，没有横线 —— 签名要是也
+    # 跑到那一列，和文字之间会隔出 60~70pt 的空白，看着很散（用户 2026-11-13
+    # 截图："这是不是很不协调"）。那种情况用下面的"贴文字右端"。
     next_col = rng.max_col + 1
-    if ws.cell(row=row, column=next_col).value in (None, ""):
+    next_cell = ws.cell(row=row, column=next_col)
+    has_rule = getattr(getattr(next_cell.border, "bottom", None), "style", None) is not None
+    if next_cell.value in (None, "") and has_rule:
         return ("cell", next_col, 0, pad_top)
 
     # 右边被占了（如「项目负责人：」右边是「监测单位：」）→ 塞回合并区内部，
