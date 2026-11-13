@@ -44,8 +44,10 @@ BUNDLED_DOCS = [
 
 # 明确排除：后端一个都没用到（已用脚本扫过全部 import），
 # pandas+numpy 排除掉能省 150MB 以上。
+# ⚠ PIL 原在此表 —— 2026-11-13 电子签名上线后成了必需依赖（openpyxl 插图要 Pillow）。
+#   只加 hidden-import 而不从这里删掉，PyInstaller 仍会排除它。
 EXCLUDES = [
-    "pandas", "numpy", "matplotlib", "scipy", "tkinter", "PIL",
+    "pandas", "numpy", "matplotlib", "scipy", "tkinter",
     "pytest", "IPython", "notebook", "jupyter", "sqlalchemy.testing",
     "setuptools", "pip", "wheel",
 ]
@@ -69,6 +71,9 @@ HIDDEN_IMPORTS = [
     # starlette 的 StaticFiles / responses 在 main.py 的 
     # 块里才导入（没有前端产物时不导入），也算延迟导入。
     "starlette",
+    # PIL：signature_service 在函数体内 from PIL import Image（上传/盖签名才走到），
+    # openpyxl 插图片也依赖它。原被列在 EXCLUDES 里，2026-11-13 移出。
+    "PIL",
 ]
 
 BUILD_INFO = """基坑拉森钢板桩沉降与水平位移观测系统 · 测试版

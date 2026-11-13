@@ -46,12 +46,13 @@ COPY launcher.py VERSION CHANGELOG.md ./
 COPY --from=frontend /build/dist ./frontend/dist
 
 # 运行数据统一放 /data，方便挂持久卷；不挂也能跑（演示模式下重启会自己长回示例数据）
-RUN mkdir -p /data/database /data/templates /data/uploads /data/backups /data/logs /data/cache/holidays
+RUN mkdir -p /data/database /data/templates /data/uploads /data/backups /data/logs /data/cache/holidays /data/signatures
 
 ENV MONITOR_DB_URL=sqlite:////data/database/monitor.db \
     MONITOR_TEMPLATES_DIR=/data/templates \
     MONITOR_BACKUP_DIR=/data/backups \
     MONITOR_UPLOAD_DIR=/data/uploads \
+    MONITOR_SIGNATURE_DIR=/data/signatures \
     MONITOR_HOLIDAY_CACHE_DIR=/data/cache/holidays \
     MONITOR_LOG_DIR=/data/logs \
     MONITOR_DEMO_SEED=1

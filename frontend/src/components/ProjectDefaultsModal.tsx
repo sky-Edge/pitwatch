@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Alert, Button, Input, Modal, Select, Space, Tag, Typography, message } from 'antd'
+import { Alert, Button, Input, Modal, Select, Space, Tag, Typography, Upload, message } from 'antd'
+import { UploadOutlined } from '@ant-design/icons'
 import { reportApi, settingsApi, warningRuleApi, type ExportTemplateInfo, type WarningRuleSetInfo } from '../api/client'
 
 const WEATHERS = ['晴', '多云', '阴', '小雨', '中雨', '大雨']
@@ -33,6 +34,9 @@ export default function ProjectDefaultsModal({
   const [locQuery, setLocQuery] = useState('')
   const [locHits, setLocHits] = useState<GeoHit[]>([])
   const [locBusy, setLocBusy] = useState(false)
+  /** 电子签名预览（data URL）；null = 还没上传 */
+  const [sigImage, setSigImage] = useState<string | null>(null)
+  const [sigBusy, setSigBusy] = useState(false)
   const [weather, setWeather] = useState('晴')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -53,6 +57,46 @@ export default function ProjectDefaultsModal({
     }
   }
 
+  const loadSignature = async () => {
+    try {
+      const r = await fetch('/api/v1/settings/signature')
+      const j = await r.json()
+      setSigImage(j.exists ? j.image : null)
+    } catch {
+      setSigImage(null)
+    }
+  }
+
+  const uploadSignature = async (file: File) => {
+    setSigBusy(true)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const r = await fetch('/api/v1/settings/signature', { method: 'POST', body: fd })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j?.detail || '上传失败')
+      await loadSignature()
+      message.success('签名已保存，以后导出的日报会自动签上')
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setSigBusy(false)
+    }
+  }
+
+  const removeSignature = async () => {
+    setSigBusy(true)
+    try {
+      await fetch('/api/v1/settings/signature', { method: 'DELETE' })
+      setSigImage(null)
+      message.success('已删除，以后的日报不再自动签名')
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setSigBusy(false)
+    }
+  }
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
@@ -68,6 +112,7 @@ export default function ProjectDefaultsModal({
       setTemplateId(cfg.default_template_id)
       setWeather(cfg.default_weather || '晴')
       setLoc((cfg as { weather_location?: WeatherLoc | null }).weather_location ?? null)
+      void loadSignature()
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -215,6 +260,46 @@ export default function ProjectDefaultsModal({
             <Tag closable onClose={() => setLoc(null)} style={{ marginTop: 8 }} color="blue">
               天气位置：{loc.label}
             </Tag>
+          )}
+        </div>
+
+        <div>
+          <Typography.Text strong>电子签名（导出日报时自动签）</Typography.Text>
+          <br />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            传一张手写签名的照片或扫描件（白纸黑字最清楚）。导出的日报会自动盖到
+            「现场监测人：」「计算人：」「校核人：」「项目负责人：」这些签字栏上，不用每天手签。
+          </Typography.Text>
+          <div style={{ marginTop: 6 }}>
+            <Space>
+              <Upload
+                accept="image/*"
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  void uploadSignature(file as File)
+                  return false
+                }}
+              >
+                <Button icon={<UploadOutlined />} loading={sigBusy}>
+                  {sigImage ? '重新上传签名' : '上传签名'}
+                </Button>
+              </Upload>
+              {sigImage && (
+                <Button danger onClick={() => void removeSignature()} loading={sigBusy}>
+                  删除签名
+                </Button>
+              )}
+            </Space>
+          </div>
+          {sigImage && (
+            <div style={{ marginTop: 8, padding: 6, background: 'var(--wm-neutral-white)', border: '1px solid var(--wm-grid-line)', display: 'inline-block' }}>
+              <img src={sigImage} alt="电子签名" style={{ maxHeight: 56, display: 'block' }} />
+            </div>
+          )}
+          {!sigImage && (
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 6 }}>
+              还没上传 —— 现在导出日报是空着签字栏的。
+            </Typography.Text>
           )}
         </div>
 

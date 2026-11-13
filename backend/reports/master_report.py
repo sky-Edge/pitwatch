@@ -310,6 +310,12 @@ def build_master_report(
 
 
 
+    # 电子签名：在保存前把签名图盖到「现场监测人：」「计算人：」这类标签右边。
+    # 没上传签名时 stamp 直接返回 0，不影响导出。
+    from backend.services import signature_service
+
+    signature_service.stamp_workbook(wb)
+
     buf = BytesIO()
 
     wb.save(buf)

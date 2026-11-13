@@ -16,6 +16,7 @@ os.environ["MONITOR_DB_URL"] = f"sqlite:///{_TMP_DIR / 'test.db'}"
 os.environ["MONITOR_BACKUP_DIR"] = str(_TMP_DIR / "backups")
 os.environ["MONITOR_TEMPLATES_DIR"] = str(_TMP_DIR / "templates")
 os.environ["MONITOR_UPLOAD_DIR"] = str(_TMP_DIR / "uploads")
+os.environ["MONITOR_SIGNATURE_DIR"] = str(_TMP_DIR / "signatures")
 # 节假日缓存：测试会往里写"假年份"的缓存。若指向生产目录，这些假数据会留在用户的
 # 日期面板里（功能数据被污染比丢个临时文件严重得多）。
 os.environ["MONITOR_HOLIDAY_CACHE_DIR"] = str(_TMP_DIR / "holidays")

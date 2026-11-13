@@ -6,9 +6,10 @@
 
 用户 2026-10-11：「能不能把一些操作集中主界面上？每个项目都要调单独设置有点繁琐」
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from backend.core.config import settings
 from backend.core.db import get_db
 from backend.schemas.app_setting import AppSettingsRead, AppSettingsUpdate
 from backend.services import app_settings_service
@@ -31,3 +32,52 @@ def write_settings(payload: AppSettingsUpdate, db: Session = Depends(get_db)):
     """
     data = payload.model_dump(exclude_unset=True)
     return AppSettingsRead(**app_settings_service.update_settings(db, data))
+
+
+# ─────────────────────── 电子签名 ───────────────────────
+
+
+@settings_router.get("/signature")
+def get_signature():
+    """有没有电子签名、长什么样（前端决定显示"已上传"还是"去上传"）。"""
+    from backend.services import signature_service
+
+    if not signature_service.has_signature():
+        return {"exists": False, "image": None}
+    import base64
+
+    path = settings.signature_dir / "default.png"  # type: ignore[attr-defined]
+    return {
+        "exists": True,
+        "image": "data:image/png;base64," + base64.b64encode(path.read_bytes()).decode(),
+    }
+
+
+@settings_router.post("/signature")
+async def upload_signature(file: UploadFile = File(...)):
+    """上传电子签名（PNG/JPG）。会转成 PNG 并裁掉四周白边。
+
+    用户 2026-10-13：「给日报里加个电子签名，每天都签字很烦人」。
+    上传一次，以后导出的日报会自动盖在「现场监测人：」等签字栏右边。
+    """
+    from backend.services import signature_service
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="文件是空的")
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="签名图片不要超过 8 MB")
+    try:
+        signature_service.save_signature(data)
+    except signature_service.SignatureError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"exists": True}
+
+
+@settings_router.delete("/signature")
+def delete_signature():
+    """删掉电子签名 —— 之后的日报不再自动签名。"""
+    from backend.services import signature_service
+
+    signature_service.delete_signature()
+    return {"exists": False}

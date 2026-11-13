@@ -67,6 +67,13 @@ class Settings:
     backup_dir: Path = Path(
         os.environ.get("MONITOR_BACKUP_DIR", str(BASE_DIR / "database" / "backups"))
     )
+    # 电子签名图片目录（导出日报时盖到签字栏）。
+    # 同样必须可覆盖：签名是**会写盘**的用户文件，测试里若指向生产目录，
+    # 一次清理就会把用户上传的签名删掉（这类事故以前发生过 29 次备份丢失）。
+    signature_dir: Path = Path(
+        os.environ.get("MONITOR_SIGNATURE_DIR", str(BASE_DIR / "database" / "signatures"))
+    )
+
     # Excel 导入的上传暂存目录。同样需要覆盖：测试会往里写文件，
     # 若指向生产目录就会把测试用的假台账混进真实上传目录（实测一次全量测试写进 19 个）。
     upload_dir: Path = Path(
@@ -93,6 +100,7 @@ class Settings:
         self.templates_dir.mkdir(parents=True, exist_ok=True)
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self.signature_dir.mkdir(parents=True, exist_ok=True)
         self.holiday_cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 

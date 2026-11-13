@@ -10,6 +10,8 @@ openpyxl>=3.1
 python-docx>=1.1
 pytest>=8.0
 httpx>=0.27
+# 电子签名：openpyxl 往 xlsx 里插图片依赖它（本地可能早就装了，容器里没有会报错）
+Pillow>=10.0
 # 批量打印：把多期日报的 PDF 合成一份（纯 Python，无系统依赖）
 pypdf>=5.0
 xlrd>=2.0
