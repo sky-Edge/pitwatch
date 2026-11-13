@@ -59,6 +59,63 @@ WMO_CN: dict[int, str] = {
     99: "雷阵雨",
 }
 
+#: 备用源：wttr.in。2026-11-13 实测**这台服务器到 Open-Meteo 完全不通**
+#: （连续三次 10 秒超时，exit 28），而 wttr.in 1.5 秒返回、坐标能定位到嘉善。
+#: 代价：只给今天 + 2 天预报，**查不了历史** —— 补录旧日报仍得靠 Open-Meteo。
+_WTTR_URL = "https://wttr.in/{lat},{lon}?format=j1"
+
+#: wttr.in 用的是 WWO 天气码（113/176/296…），和 WMO 不是一套，必须单独映射。
+_WWO_CN: dict[int, str] = {
+    113: "晴",
+    116: "多云",
+    119: "多云",
+    122: "阴",
+    143: "雾",
+    176: "阵雨",
+    179: "阵雪",
+    182: "雨夹雪",
+    185: "冻雨",
+    200: "雷阵雨",
+    227: "雪",
+    230: "大雪",
+    248: "雾",
+    260: "雾",
+    263: "毛毛雨",
+    266: "毛毛雨",
+    281: "冻雨",
+    284: "冻雨",
+    293: "小雨",
+    296: "小雨",
+    299: "中雨",
+    302: "中雨",
+    305: "大雨",
+    308: "大雨",
+    311: "冻雨",
+    314: "冻雨",
+    317: "雨夹雪",
+    320: "雨夹雪",
+    323: "小雪",
+    326: "小雪",
+    329: "中雪",
+    332: "中雪",
+    335: "大雪",
+    338: "大雪",
+    350: "冰粒",
+    353: "阵雨",
+    356: "阵雨",
+    359: "暴雨",
+    362: "雨夹雪",
+    365: "雨夹雪",
+    368: "阵雪",
+    371: "阵雪",
+    374: "冰粒",
+    377: "冰粒",
+    386: "雷阵雨",
+    389: "雷阵雨",
+    392: "雷阵雪",
+    395: "雷阵雪",
+}
+
 _GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 _FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 _ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
@@ -138,6 +195,58 @@ def _key_of(day: dt.date, latitude: float, longitude: float) -> tuple[str, float
     return (day.isoformat(), round(float(latitude), 4), round(float(longitude), 4))
 
 
+#: 源级冷却：某个天气源刚失败过，就别再为它白等一次超时。
+#: 按日期缓存只能挡"同一天"，挡不住"另一天的历史查询又去撞同一堵墙"。
+_SOURCE_COOLDOWN = 30 * 60
+_down: dict[str, float] = {}
+
+
+def _is_down(name: str) -> bool:
+    return time.time() - _down.get(name, 0) < _SOURCE_COOLDOWN
+
+
+def _mark_down(name: str) -> None:
+    _down[name] = time.time()
+
+
+def _mark_up(name: str) -> None:
+    _down.pop(name, None)
+
+
+def wwo_to_cn(code: Any) -> str | None:
+    try:
+        return _WWO_CN.get(int(code))
+    except (TypeError, ValueError):
+        return None
+
+
+def _wttr_on(day: dt.date, latitude: float, longitude: float, *, timeout: float = 3.0) -> str | None:
+    """从 wttr.in 取某天天气（只覆盖今天 + 2 天预报）。"""
+    delta = (dt.date.today() - day).days
+    if delta < 0 or delta > 2 or _is_down("wttr"):
+        return None
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            r = client.get(_WTTR_URL.format(lat=latitude, lon=longitude))
+            r.raise_for_status()
+            data = r.json()
+    except Exception:  # noqa: BLE001
+        _mark_down("wttr")
+        return None
+    _mark_up("wttr")
+
+    for item in data.get("weather") or []:
+        if item.get("date") != day.isoformat():
+            continue
+        hourly = item.get("hourly") or []
+        if not hourly:
+            return None
+        # 取中午 12 点那一档，比凌晨更能代表全天的天气
+        pick = hourly[4] if len(hourly) > 4 else hourly[0]
+        return wwo_to_cn(pick.get("weatherCode"))
+    return None
+
+
 def wmo_to_cn(code: Any) -> str | None:
     try:
         return WMO_CN.get(int(code))
@@ -194,6 +303,17 @@ def weather_on(day: dt.date, latitude: float, longitude: float, *, timeout: floa
     today = dt.date.today()
     delta = (today - day).days
 
+    # 近期日期（今天 + 2 天）先试 wttr.in：这台机器上它 1.5 秒能回，
+    # open-meteo 却完全不通。查历史（delta > 2）才只能依赖 open-meteo。
+    if 0 <= delta <= 2:
+        cn = _wttr_on(day, latitude, longitude, timeout=min(timeout, 3.0))
+        if cn:
+            _remember(key, cn)
+            return cn
+
+    if _is_down("open-meteo"):
+        return None
+
     try:
         with httpx.Client(timeout=timeout) as client:
             if 0 <= delta <= 7:
@@ -226,8 +346,10 @@ def weather_on(day: dt.date, latitude: float, longitude: float, *, timeout: floa
             data = r.json()
     except Exception:  # noqa: BLE001
         # 失败也记下来（TTL 30 分钟）：网络不通时不能每次导出都干等 3 秒
+        _mark_down("open-meteo")
         _remember(key, None)
         return None
+    _mark_up("open-meteo")
 
     daily = data.get("daily") or {}
     times = daily.get("time") or []
@@ -282,7 +404,32 @@ def weather_many(
             if day in want_set and day in expect:
                 _remember(_key_of(day, latitude, longitude), wmo_to_cn(codes[i]))
 
-    if recent:
+    # 近期日期先试 wttr（1 个请求覆盖 3 天，且这台机器上它是通的）
+    wttr_days = [d for d in recent if (today - d).days <= 2]
+    if wttr_days and not _is_down("wttr"):
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                r = client.get(_WTTR_URL.format(lat=latitude, lon=longitude))
+                r.raise_for_status()
+                wdata = r.json()
+            _mark_up("wttr")
+            for item in wdata.get("weather") or []:
+                try:
+                    day = dt.date.fromisoformat(item.get("date") or "")
+                except ValueError:
+                    continue
+                if day not in set(wttr_days):
+                    continue
+                hourly = item.get("hourly") or []
+                if hourly:
+                    pick = hourly[4] if len(hourly) > 4 else hourly[0]
+                    cn = wwo_to_cn(pick.get("weatherCode"))
+                    if cn:
+                        _remember(_key_of(day, latitude, longitude), cn)
+        except Exception:  # noqa: BLE001
+            _mark_down("wttr")
+
+    if recent and not _is_down("open-meteo"):
         back = max((today - d).days for d in recent)
         _pull(
             _FORECAST_URL,

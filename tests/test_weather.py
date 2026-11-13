@@ -143,6 +143,7 @@ def _fake_httpx(monkeypatch, payload, calls, *, boom: bool = False):
 def _reset_cache():
     weather_service.clear_cache(disk=True)
     weather_service._disk = None
+    weather_service._down.clear()
 
 
 def test_failed_lookup_is_cached(monkeypatch) -> None:
@@ -153,8 +154,11 @@ def test_failed_lookup_is_cached(monkeypatch) -> None:
     today = dt.date.today()
 
     assert weather_service.weather_on(today, 30.85, 120.93) is None
+    first = len(calls)
+    assert first >= 1, "第一次就该去查（可能两个源都试）"
+
     assert weather_service.weather_on(today, 30.85, 120.93) is None
-    assert len(calls) == 1, "失败结果没缓存，导出会每次等 3 秒"
+    assert len(calls) == first, "失败结果没缓存，导出会每次等 3 秒"
 
 
 def test_disk_cache_survives_restart(monkeypatch) -> None:
@@ -166,14 +170,15 @@ def test_disk_cache_survives_restart(monkeypatch) -> None:
     _fake_httpx(monkeypatch, payload, calls)
 
     assert weather_service.weather_on(today, 30.85, 120.93) == "小雨"
-    assert len(calls) == 1
+    first = len(calls)
+    assert first >= 1
 
     # 模拟进程重启：内存清空、磁盘保留
     weather_service._cache.clear()
     weather_service._disk = None
 
     assert weather_service.weather_on(today, 30.85, 120.93) == "小雨"
-    assert len(calls) == 1, "磁盘缓存没命中，重启后每次导出都要重查"
+    assert len(calls) == first, "磁盘缓存没命中，重启后每次导出都要重查"
 
 
 def test_weather_many_uses_one_request_for_range(monkeypatch) -> None:
@@ -192,7 +197,10 @@ def test_weather_many_uses_one_request_for_range(monkeypatch) -> None:
     _fake_httpx(monkeypatch, payload, calls)
 
     got = weather_service.weather_many(days, 30.85, 120.93)
-    assert len(calls) == 1, f"应该是 1 次请求，实际 {len(calls)} 次"
+    # 近期日期会先试 wttr、再试 open-meteo，**但每个源最多 1 次**（不是 5 次）
+    assert len([c for c in calls if "wttr.in" in c]) <= 1
+    assert len([c for c in calls if "open-meteo" in c]) <= 1
+    assert len(calls) <= 2, f"5 期不该发 {len(calls)} 个请求"
     assert len(got) == 5
     assert got[ordered[0].isoformat()] == "晴"
     assert got[ordered[-1].isoformat()] == "小雨"
@@ -220,3 +228,89 @@ def test_timeout_is_short_because_it_blocks_export() -> None:
     sig = inspect.signature(weather_service.weather_on)
     assert sig.parameters["timeout"].default <= 3.0
     assert inspect.signature(weather_service.weather_many).parameters["timeout"].default <= 3.0
+
+
+# ───────────── 备用源：这台服务器上 Open-Meteo 不通 ─────────────
+
+
+def _fake_multi(monkeypatch, routes, calls):
+    """按 URL 片段路由的 fake client；payload 为 None 表示抛错。"""
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url, params=None):
+            calls.append(url)
+            for frag, payload in routes.items():
+                if frag in url:
+                    if payload is None:
+                        raise RuntimeError("source down")
+                    return _FakeResp(payload)
+            raise RuntimeError(f"unexpected url {url}")
+
+    monkeypatch.setattr(weather_service.httpx, "Client", FakeClient)
+
+
+def test_wttr_is_used_for_recent_days(monkeypatch) -> None:
+    """近期日期走 wttr.in —— 这台机器上 Open-Meteo 完全不通。"""
+    _reset_cache()
+    calls = []
+    today = dt.date.today()
+    routes = {
+        "wttr.in": {
+            "weather": [
+                {"date": today.isoformat(), "hourly": [{"weatherCode": "176"}] * 8}
+            ]
+        },
+        "open-meteo": None,
+    }
+    _fake_multi(monkeypatch, routes, calls)
+
+    assert weather_service.weather_on(today, 30.85, 120.93) == "阵雨"
+    assert any("wttr.in" in c for c in calls)
+
+
+def test_open_meteo_still_used_for_history(monkeypatch) -> None:
+    """补录旧日报（超过 2 天）wttr 给不了，只能靠 Open-Meteo 的存档。"""
+    _reset_cache()
+    calls = []
+    day = dt.date.today() - dt.timedelta(days=20)
+    routes = {
+        "wttr.in": {"weather": []},
+        "archive-api": {"daily": {"time": [day.isoformat()], "weathercode": [3]}},
+    }
+    _fake_multi(monkeypatch, routes, calls)
+
+    assert weather_service.weather_on(day, 30.85, 120.93) == "阴"
+    assert any("archive-api" in c for c in calls)
+
+
+def test_dead_source_is_skipped_within_cooldown(monkeypatch) -> None:
+    """一个源刚挂过，30 分钟内换另一天也不该再去白等它。"""
+    _reset_cache()
+    calls = []
+    day = dt.date.today() - dt.timedelta(days=10)
+    other = dt.date.today() - dt.timedelta(days=11)
+    _fake_multi(monkeypatch, {"open-meteo": None, "wttr.in": None}, calls)
+
+    assert weather_service.weather_on(day, 30.85, 120.93) is None
+    first = len(calls)
+    assert first >= 1
+
+    assert weather_service.weather_on(other, 30.85, 120.93) is None
+    assert len(calls) == first, "源已标记不可用，换一天还去请求了一次"
+
+
+def test_wwo_code_mapping() -> None:
+    assert weather_service.wwo_to_cn(113) == "晴"
+    assert weather_service.wwo_to_cn(176) == "阵雨"
+    assert weather_service.wwo_to_cn(296) == "小雨"
+    assert weather_service.wwo_to_cn(122) == "阴"
+    assert weather_service.wwo_to_cn("9999") is None
