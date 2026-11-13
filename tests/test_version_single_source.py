@@ -32,6 +32,35 @@ def test_version_file_matches_code() -> None:
     )
 
 
+def test_small_changes_do_not_bump_version() -> None:
+    """小改**不涨号**，只记说明 —— 用户 2026-11-13：「只做大版本 小改不做版本更替 只做说明」。
+
+    所以 `save` 只能跳整版（1.1.41 → 1.2.0），永远不该产出 1.1.42 这种补丁号；
+    想只记录就用 `note`。
+    """
+    import sys
+
+    sys.path.insert(0, str(ROOT / "tools"))
+    try:
+        import version as vtool  # noqa: PLC0415
+
+        assert vtool.bump_minor("1.1.41") == "1.2.0"
+        assert vtool.bump_minor("1.9.3") == "2.0.0"
+        assert not hasattr(vtool, "bump_patch"), "补丁号递增的入口该删掉，否则又会被手滑用上"
+
+        text = "# 版本记录\n\n---\n\n## v1.0.0 — 2026-01-01\n\n- 起始\n"
+        text = vtool.add_note_text(text, "调了个位置", "2026-11-13")
+        merged = vtool.add_note_text(text, "又改一句", "2026-11-13")
+        assert vtool.takes_notes(merged) == ["2026-11-13 调了个位置", "2026-11-13 又改一句"]
+
+        folded, notes = vtool.fold_notes_text(merged, "1.2.0", "2026-11-14", "发一版")
+        assert len(notes) == 2
+        assert "## v1.2.0" in folded and "调了个位置" in folded
+        assert vtool.NOTE_HEADING not in folded, "汇总后要把「未发版改动」这一节清掉"
+    finally:
+        sys.path.pop(0)
+
+
 def test_version_format_and_changelog() -> None:
     assert re.fullmatch(r"\d+\.\d+\.\d+", __version__), f"版本号格式不对：{__version__}"
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
