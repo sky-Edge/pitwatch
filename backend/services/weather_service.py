@@ -19,7 +19,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import threading
+import time
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -60,9 +63,79 @@ _GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 _FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 _ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 
-#: 简单内存缓存：同一天同一地点反复导出只查一次（日报批量导出会连着查很多次）
-_cache: dict[tuple[str, float, float], str] = {}
+#: 内存缓存：同一天同一地点反复导出只查一次（日报批量导出会连着查很多次）
+#: 值可以是 None —— 表示"查过了、没查到"，同样要缓存，否则网络不通时每次导出都干等。
+_cache: dict[tuple[str, float, float], str | None] = {}
 _cache_lock = threading.Lock()
+
+#: 磁盘缓存的 TTL。历史天气基本不会变，今天的会变，失败的要早点重试。
+_TTL_OK_PAST = 30 * 86400
+_TTL_OK_TODAY = 6 * 3600
+_TTL_FAIL = 30 * 60
+
+_MISS = object()
+_disk: dict[str, dict] | None = None
+_disk_lock = threading.Lock()
+
+
+def _disk_path() -> Path:
+    """缓存文件位置。
+
+    放在 `holiday_cache_dir` 的上级目录（即 cache/），**跟随既有环境变量隔离** ——
+    铁律①：任何会写盘的目录都必须能被测试指向临时目录，不能碰生产。
+    """
+    from backend.core.config import settings
+
+    return settings.holiday_cache_dir.parent / "weather.json"
+
+
+def _disk_load() -> dict:
+    global _disk
+    with _disk_lock:
+        if _disk is None:
+            try:
+                p = _disk_path()
+                _disk = json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+            except Exception:  # noqa: BLE001 —— 缓存坏了当没有，不能挡导出
+                _disk = {}
+        return _disk
+
+
+def _disk_read(key: str) -> Any:
+    item = _disk_load().get(key)
+    if not item:
+        return _MISS
+    day = key.split("|", 1)[0]
+    if item.get("w"):
+        # 历史日期查到的天气不会再变；当天/未来的可能变，只放 6 小时
+        ttl = _TTL_OK_TODAY if day >= dt.date.today().isoformat() else _TTL_OK_PAST
+    else:
+        ttl = _TTL_FAIL  # 查失败的 30 分钟后再试，别每次导出都等超时
+    if time.time() - float(item.get("t") or 0) > ttl:
+        return _MISS
+    return item.get("w")
+
+
+def _disk_write(key: str, value: str | None) -> None:
+    global _disk
+    data = _disk_load()
+    data[key] = {"w": value, "t": time.time()}
+    try:
+        p = _disk_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass  # 写不进去只影响下次要重查，不影响本次导出
+
+
+def _remember(key: tuple[str, float, float], value: str | None) -> None:
+    with _cache_lock:
+        _cache[key] = value
+    _disk_write("|".join(str(x) for x in key), value)
+
+
+def _key_of(day: dt.date, latitude: float, longitude: float) -> tuple[str, float, float]:
+    return (day.isoformat(), round(float(latitude), 4), round(float(longitude), 4))
 
 
 def wmo_to_cn(code: Any) -> str | None:
@@ -99,12 +172,24 @@ def geocode(name: str, *, count: int = 5, timeout: float = 8.0) -> list[dict]:
     return out
 
 
-def weather_on(day: dt.date, latitude: float, longitude: float, *, timeout: float = 8.0) -> str | None:
-    """查某地某天的天气（中文）。查不到返回 None —— 调用方要能容忍。"""
-    key = (day.isoformat(), round(float(latitude), 4), round(float(longitude), 4))
+def weather_on(day: dt.date, latitude: float, longitude: float, *, timeout: float = 3.0) -> str | None:
+    """查某地某天的天气（中文）。查不到返回 None —— 调用方要能容忍。
+
+    ⚠ 超时 3 秒（不是 8 秒）：这是在**导出日报的主路径**上同步等着的。
+    2026-11-13 实测悉尼节点到 Open-Meteo 要 8 秒（直连甚至 300 秒超时），
+    导出从 0.45 秒变成 8.7 秒 —— 用户会以为系统卡死。
+    等 3 秒拿不到就认输，回退「晴」，别让一个天气字段拖垮导出。
+    """
+    key = _key_of(day, latitude, longitude)
     with _cache_lock:
         if key in _cache:
             return _cache[key]
+
+    cached = _disk_read("|".join(str(x) for x in key))
+    if cached is not _MISS:
+        with _cache_lock:
+            _cache[key] = cached
+        return cached
 
     today = dt.date.today()
     delta = (today - day).days
@@ -140,6 +225,8 @@ def weather_on(day: dt.date, latitude: float, longitude: float, *, timeout: floa
             r.raise_for_status()
             data = r.json()
     except Exception:  # noqa: BLE001
+        # 失败也记下来（TTL 30 分钟）：网络不通时不能每次导出都干等 3 秒
+        _remember(key, None)
         return None
 
     daily = data.get("daily") or {}
@@ -150,13 +237,97 @@ def weather_on(day: dt.date, latitude: float, longitude: float, *, timeout: floa
         if idx < len(codes):
             cn = wmo_to_cn(codes[idx])
             if cn:
-                with _cache_lock:
-                    _cache[key] = cn
+                _remember(key, cn)
                 return cn
+    _remember(key, None)
     return None
 
 
-def clear_cache() -> None:
+def weather_many(
+    days: list[dt.date], latitude: float, longitude: float, *, timeout: float = 3.0
+) -> dict[str, str]:
+    """**一次**查多天（批量打印 N 期日报时用）。
+
+    逐天调 `weather_on` 会发 N 个请求，每期都等一次超时 —— 批量打印 20 期就是
+    20 次往返，用户点完要等一分钟。这里把日期按接口分成两段，
+    每段只发一个请求，再按返回的时间序列回填缓存。
+    """
+    if not days:
+        return {}
+
+    wanted = sorted(set(days))
+    today = dt.date.today()
+    want_set = set(wanted)
+    recent = [d for d in wanted if 0 <= (today - d).days <= 7]
+    older = [d for d in wanted if (today - d).days > 7]
+
+    def _pull(url: str, params: dict, expect: set[dt.date]) -> None:
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                r = client.get(url, params=params)
+                r.raise_for_status()
+                data = r.json()
+        except Exception:  # noqa: BLE001 —— 查不到就靠调用方回退，绝不往上抛
+            return
+        daily = data.get("daily") or {}
+        times = daily.get("time") or []
+        codes = daily.get("weathercode") or []
+        for i, text in enumerate(times):
+            if i >= len(codes):
+                break
+            try:
+                day = dt.date.fromisoformat(text)
+            except ValueError:
+                continue
+            if day in want_set and day in expect:
+                _remember(_key_of(day, latitude, longitude), wmo_to_cn(codes[i]))
+
+    if recent:
+        back = max((today - d).days for d in recent)
+        _pull(
+            _FORECAST_URL,
+            {
+                "latitude": latitude,
+                "longitude": longitude,
+                "daily": "weathercode",
+                "timezone": "Asia/Shanghai",
+                "past_days": max(1, back),
+                "forecast_days": 1,
+            },
+            set(recent),
+        )
+    if older:
+        _pull(
+            _ARCHIVE_URL,
+            {
+                "latitude": latitude,
+                "longitude": longitude,
+                "start_date": older[0].isoformat(),
+                "end_date": older[-1].isoformat(),
+                "daily": "weathercode",
+                "timezone": "Asia/Shanghai",
+            },
+            set(older),
+        )
+
+    out: dict[str, str] = {}
+    for day in wanted:
+        with _cache_lock:
+            value = _cache.get(_key_of(day, latitude, longitude))
+        if value:
+            out[day.isoformat()] = value
+    return out
+
+
+def clear_cache(*, disk: bool = False) -> None:
     """测试用：清掉缓存（同一天改了位置时也能立即生效）。"""
+    global _disk
     with _cache_lock:
         _cache.clear()
+    if disk:
+        with _disk_lock:
+            _disk = {}
+        try:
+            _disk_path().unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass

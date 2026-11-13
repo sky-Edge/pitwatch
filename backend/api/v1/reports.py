@@ -196,7 +196,23 @@ def export_pdf(
     else:
         wanted = [None]
 
-    # ① 先串行生成 Excel（每期约 0.4 秒，CPU 很轻）
+    # ① 批量打印时**一次性**把天气查完。
+    #    逐期在循环里查，每期都要等一次超时（实测悉尼到 Open-Meteo 要 8 秒），
+    #    5 期就多等 40 秒 —— 用户会以为系统挂了。
+    if not weather:
+        from backend.services import app_settings_service, weather_service
+
+        loc = app_settings_service.get_settings(db).get("weather_location") or {}
+        lat, lon = loc.get("latitude"), loc.get("longitude")
+        if lat is not None and lon is not None:
+            try:
+                weather_service.weather_many(
+                    [d or date.today() for d in wanted], float(lat), float(lon)
+                )
+            except Exception:  # noqa: BLE001 —— 天气拿不到就回退"晴"
+                pass
+
+    # ② 先串行生成 Excel（每期约 0.4 秒，CPU 很轻）
     books: list[bytes] = []
     first_name = ""
     for one in wanted:
@@ -215,7 +231,7 @@ def export_pdf(
             first_name = filename
         books.append(buf.getvalue())
 
-    # ② 再**并行**转 PDF：每次转换都要起一个 LibreOffice（启动 1.6 秒），
+    # ③ 再**并行**转 PDF：每次转换都要起一个 LibreOffice（启动 1.6 秒），
     #    串行转 5 期就是 10 秒以上，并行之后大约 5 秒。
     try:
         pdfs = convert_many(books)

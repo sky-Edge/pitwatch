@@ -10,6 +10,10 @@
 """
 from __future__ import annotations
 
+import datetime as dt
+import time
+
+import pytest
 from datetime import date
 
 import pytest
@@ -98,3 +102,121 @@ def test_wmo_mapping() -> None:
     assert weather_service.wmo_to_cn(95) == "雷阵雨"
     assert weather_service.wmo_to_cn(9999) is None
     assert weather_service.wmo_to_cn(None) is None
+
+
+# ───────────── 缓存：导出不能被天气拖慢（2026-11-13 实测 8.7s） ─────────────
+
+
+class _FakeResp:
+    def __init__(self, payload):
+        self._payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
+def _fake_httpx(monkeypatch, payload, calls, *, boom: bool = False):
+    """把 httpx.Client 换掉，记录请求次数。"""
+
+    class FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url, params=None):
+            calls.append((url, params))
+            if boom:
+                raise RuntimeError("network down")
+            return _FakeResp(payload)
+
+    monkeypatch.setattr(weather_service.httpx, "Client", FakeClient)
+
+
+def _reset_cache():
+    weather_service.clear_cache(disk=True)
+    weather_service._disk = None
+
+
+def test_failed_lookup_is_cached(monkeypatch) -> None:
+    """查失败也要记下来 —— 否则网络不通时每次导出都干等一次超时。"""
+    _reset_cache()
+    calls = []
+    _fake_httpx(monkeypatch, None, calls, boom=True)
+    today = dt.date.today()
+
+    assert weather_service.weather_on(today, 30.85, 120.93) is None
+    assert weather_service.weather_on(today, 30.85, 120.93) is None
+    assert len(calls) == 1, "失败结果没缓存，导出会每次等 3 秒"
+
+
+def test_disk_cache_survives_restart(monkeypatch) -> None:
+    """容器重启后不该重新查 —— 内存清了，磁盘还在。"""
+    _reset_cache()
+    calls = []
+    today = dt.date.today()
+    payload = {"daily": {"time": [today.isoformat()], "weathercode": [61]}}
+    _fake_httpx(monkeypatch, payload, calls)
+
+    assert weather_service.weather_on(today, 30.85, 120.93) == "小雨"
+    assert len(calls) == 1
+
+    # 模拟进程重启：内存清空、磁盘保留
+    weather_service._cache.clear()
+    weather_service._disk = None
+
+    assert weather_service.weather_on(today, 30.85, 120.93) == "小雨"
+    assert len(calls) == 1, "磁盘缓存没命中，重启后每次导出都要重查"
+
+
+def test_weather_many_uses_one_request_for_range(monkeypatch) -> None:
+    """批量打印 5 期只发 1 个请求，不是 5 个。"""
+    _reset_cache()
+    calls = []
+    today = dt.date.today()
+    days = [today - dt.timedelta(days=i) for i in range(5)]
+    ordered = sorted(days)
+    payload = {
+        "daily": {
+            "time": [d.isoformat() for d in ordered],
+            "weathercode": [0, 1, 2, 3, 61],
+        }
+    }
+    _fake_httpx(monkeypatch, payload, calls)
+
+    got = weather_service.weather_many(days, 30.85, 120.93)
+    assert len(calls) == 1, f"应该是 1 次请求，实际 {len(calls)} 次"
+    assert len(got) == 5
+    assert got[ordered[0].isoformat()] == "晴"
+    assert got[ordered[-1].isoformat()] == "小雨"
+
+
+def test_stale_disk_entry_is_ignored(monkeypatch) -> None:
+    """超过 TTL 的缓存要重查（历史 30 天、当天 6 小时、失败 30 分钟）。"""
+    _reset_cache()
+    calls = []
+    day = dt.date.today() - dt.timedelta(days=40)
+    weather_service._disk = {
+        f"{day.isoformat()}|30.85|120.93": {"w": "小雨", "t": time.time() - 40 * 86400}
+    }
+    payload = {"daily": {"time": [day.isoformat()], "weathercode": [3]}}
+    _fake_httpx(monkeypatch, payload, calls)
+
+    assert weather_service.weather_on(day, 30.85, 120.93) == "阴"
+    assert len(calls) == 1, "过期缓存没有重查"
+
+
+def test_timeout_is_short_because_it_blocks_export() -> None:
+    """默认超时必须短：它在导出主路径上同步等着的。"""
+    import inspect
+
+    sig = inspect.signature(weather_service.weather_on)
+    assert sig.parameters["timeout"].default <= 3.0
+    assert inspect.signature(weather_service.weather_many).parameters["timeout"].default <= 3.0
