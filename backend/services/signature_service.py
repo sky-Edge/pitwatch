@@ -217,24 +217,39 @@ def _col_px(ws, col: int) -> int:
     return int(width * 7 + 5)
 
 
-def _text_width_px(text: str) -> int:
-    """估算标签文字排出来有多宽（像素）。
+def _text_metrics(cell, total_px: float) -> tuple[float, float]:
+    """算出标签文字在这块合并区里**从哪开始、有多宽**（像素）。
 
-    中文按 16px、标点 8px、半角 7px —— 比实际略宽一点，宁可让签名离字稍远，
-    也不能压到「编制：」上。
+    两个细节不能漏，漏了就压字：
+    1. **字号**：母版里签字栏常是 16pt（不是默认 11pt）→ 每个汉字约 21px，
+       按 11pt 估会少算 40%，签名正好落在「制：」上（2026-11-13 实测）。
+    2. **对齐方式**：这块是 `center` —— 文字浮在合并区中间，左边还空着一段。
+       按"左对齐"估同样会压字。
+
+    字符宽度按"汉字 = 字号×96/72"，半角字符按一半算。
     """
-    t = (text or "").strip()
-    width = 0
-    for ch in t:
-        if ch in "：:、，。":
-            width += 8
-        elif ch == " ":
-            width += 7
-        elif ord(ch) > 127:  # 中文、全角空格
-            width += 16
+    text = cell.value if isinstance(cell.value, str) else ""
+    size_pt = getattr(cell.font, "sz", None) or 11
+    unit = float(size_pt) * 96 / 72  # 磅 → 像素
+
+    width = 0.0
+    for ch in text.strip():
+        if ch == " ":
+            width += unit * 0.5
+        elif ord(ch) > 127:
+            width += unit
         else:
-            width += 7
-    return width
+            width += unit * 0.5
+
+    align = (getattr(cell.alignment, "horizontal", None) or "general").lower()
+    if align == "center":
+        start = max(0.0, (total_px - width) / 2)
+    elif align == "right":
+        start = max(0.0, total_px - width)
+    else:
+        start = 0.0
+
+    return start, width
 
 
 def _padded_image(path, pad_px: int, height_px: int) -> str:
@@ -263,7 +278,7 @@ def _padded_image(path, pad_px: int, height_px: int) -> str:
     return str(out)
 
 
-def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, text: str = ""):
+def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, cell=None):
     """签名该锚在哪。返回 Excel 的 "E17" 字符串，或者一个偏移锚对象。
 
     **合并单元格是这里最大的坑**：签字栏常写成 C17:D17 这种合并格
@@ -282,12 +297,12 @@ def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, text: str = ""):
         return f"{get_column_letter(col + 1)}{row}"
 
     total = sum(_col_px(ws, c) for c in range(rng.min_col, rng.max_col + 1))
-    # 文字宽 ×1.15 + 10px 呼吸位；再兜住合并区右边界（留 4px）
-    offset = int(_text_width_px(text) * 1.15) + 10
-    offset = max(0, min(offset, total - w_px - 4))
+    start, text_w = _text_metrics(cell, total) if cell is not None else (0.0, 0.0)
+    # 签名紧跟在文字右端：留 8px 呼吸位。**允许溢出到合并区右边一列** ——
+    # 「编制：」16pt 居中后文字到 163px，合并区只有 199px，图只能溢出去。
+    offset = int(start + text_w) + 8
 
     if offset < 4:
-        # 合并区窄到放不下「文字 + 图」—— 退回到右边一列，别硬塞压字
         return f"{get_column_letter(rng.max_col + 1)}{row}"
 
     # ⚠ **不能用** AnchorMarker + colOff 做水平偏移：LibreOffice 转 PDF 时会忽略它，
@@ -339,8 +354,8 @@ def stamp_workbook(wb) -> int:
                         new_h = max(10, int(new_w * h / w))
                     img.height, img.width = new_h, new_w
 
-                text = ws.cell(row=row_idx, column=col_idx).value or ""
-                plan = _place_anchor(ws, row_idx, col_idx, new_w, new_h, text)
+                cell = ws.cell(row=row_idx, column=col_idx)
+                plan = _place_anchor(ws, row_idx, col_idx, new_w, new_h, cell)
                 if isinstance(plan, str):
                     ws.add_image(img, plan)
                 else:
