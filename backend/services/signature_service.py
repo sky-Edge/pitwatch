@@ -217,32 +217,52 @@ def _col_px(ws, col: int) -> int:
     return int(width * 7 + 5)
 
 
-def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int):
+def _text_width_px(text: str) -> int:
+    """估算标签文字排出来有多宽（像素）。
+
+    中文按 16px、标点 8px、半角 7px —— 比实际略宽一点，宁可让签名离字稍远，
+    也不能压到「编制：」上。
+    """
+    t = (text or "").strip()
+    width = 0
+    for ch in t:
+        if ch in "：:、，。":
+            width += 8
+        elif ch == " ":
+            width += 7
+        elif ord(ch) > 127:  # 中文、全角空格
+            width += 16
+        else:
+            width += 7
+    return width
+
+
+def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int, text: str = ""):
     """签名该锚在哪。返回 Excel 的 "E17" 字符串，或者一个偏移锚对象。
 
     **合并单元格是这里最大的坑**：签字栏常写成 C17:D17 这种合并格
     （「编　　制：」后面留出签字的位置）。合并区里只有左上角格有效，
     图片锚在 D17 会被 Excel 画到 **C17** —— 正好盖住「编制：」那几个字。
-    （2026-11-13 用户截图报的就是这个：签名糊在标签上。）
 
-    分三种情况：
-    ① 不在合并区 → 右边一格；
-    ② 在合并区、且右边那一格是空的 → 合并区右边一列；
-    ③ 在合并区、但右边被别的东西占了（如「项目负责人：」右边紧挨着
-       「监测单位：中铁二十四局…」）→ **放到合并区内部靠右**，带横向偏移。
-       这种情况不能再往右找，那里全是「监测单位」那串字。
+    所以：
+    · 不在合并区 → 右边一格（紧挨着，最紧凑）；
+    · 在合并区 → **锚在合并区内部、紧贴文字右端**（用 colOff 偏移）。
+      既不用跑到合并区外面（那样「编制：」和签名之间会空出一整列，
+      用户 2026-11-13 提的就是这个："签名前不要留太多空白"），
+      也不会压到右边的「监测单位：」（那是另一块合并区）。
     """
     rng = _merged_of(ws, row, col)
     if rng is None:
         return f"{get_column_letter(col + 1)}{row}"
 
-    next_col = rng.max_col + 1
-    if ws.cell(row=row, column=next_col).value in (None, ""):
-        return f"{get_column_letter(next_col)}{row}"
-
-    # ③ 合并区内部靠右：整块宽度减去图宽，留 8px 边距
     total = sum(_col_px(ws, c) for c in range(rng.min_col, rng.max_col + 1))
-    offset = max(60, total - w_px - 8)
+    # 文字宽 ×1.15 + 10px 呼吸位；再兜住合并区右边界（留 4px）
+    offset = int(_text_width_px(text) * 1.15) + 10
+    offset = max(0, min(offset, total - w_px - 4))
+
+    if offset < 4:
+        # 合并区窄到放不下「文字 + 图」—— 退回到右边一列，别硬塞压字
+        return f"{get_column_letter(rng.max_col + 1)}{row}"
 
     from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, TwoCellAnchor
     from openpyxl.utils.units import pixels_to_EMU
@@ -303,7 +323,7 @@ def stamp_workbook(wb) -> int:
                         new_h = max(10, int(new_w * h / w))
                     img.height, img.width = new_h, new_w
 
-                anchor = _place_anchor(ws, row_idx, col_idx, new_w, new_h)
+                anchor = _place_anchor(ws, row_idx, col_idx, new_w, new_h, ws.cell(row=row_idx, column=col_idx).value or "")
                 if isinstance(anchor, str):
                     ws.add_image(img, anchor)
                 else:

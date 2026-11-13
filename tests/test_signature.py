@@ -220,17 +220,23 @@ def test_unknown_role_rejected(client) -> None:
     assert client.delete("/api/v1/settings/signatures/not-a-role").status_code == 404
 
 
-def test_anchor_skips_merged_cell() -> None:
-    """标签在合并格里时，图要锚到合并区右边。
+def test_anchor_stays_inside_merged_cell_near_text() -> None:
+    """标签在合并格里时，签名放在**合并区内部、紧贴文字右端**。
 
-    ⚠ 2026-11-13 用户截图：签名糊在「编制：」「审核：」文字上。
-    原因是签字栏写成 C17:D17 合并格，锚 D17 会被 Excel 画回 C17（合并区左上角）。
+    ⚠ 2026-11-13 用户报的两个问题，其实是同一处代码：
+    ① 锚 D17 会被 Excel 画回 C17（合并区左上角）→ 签名糊在「编制：」上；
+    ② 改成锚 E17（合并区外面）后不压字了，但标签和签名之间空出一整列
+       → 用户："签名前不要留太多空白"。
+    正解是留在合并区内部，用 colOff 贴到文字右端。
     """
     _clear_all()
     signature_service.save_role_signature("editor", _make_signature_png())
 
     wb = Workbook()
     ws = wb.active
+    # 用真实母版的列宽（C=11、D=16 字符）—— 默认 8.43 太窄，塞不下「文字 + 图」
+    ws.column_dimensions["C"].width = 11
+    ws.column_dimensions["D"].width = 16
     ws.merge_cells("C17:D17")
     ws["C17"] = "编       制："
 
@@ -243,7 +249,9 @@ def test_anchor_skips_merged_cell() -> None:
     xml = zipfile.ZipFile(buf).read("xl/drawings/drawing1.xml").decode("utf-8")
     col = int(re.search(r"<col>(\d+)</col>", xml).group(1))
     row = int(re.search(r"<row>(\d+)</row>", xml).group(1))
-    assert col == 4, f"应锚到 E 列（合并区 C:D 的右边），实际 {col}（0 基）"
+    col_off = int(re.search(r"<colOff>(\d+)</colOff>", xml).group(1))
+    assert col == 2, f"应留在 C 列（合并区内部），实际 {col}（0 基）"
+    assert col_off > 0, "要有横向偏移，紧贴「编　　制：」右端，不能留一大截空白"
     assert row == 16
 
 
