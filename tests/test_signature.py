@@ -264,3 +264,29 @@ def test_wide_signature_is_width_capped() -> None:
     ws["A1"] = "编制："
     signature_service.stamp_workbook(wb)
     assert ws._images[0].width <= signature_service.MAX_SIGN_WIDTH_PX
+
+
+def test_anchor_inside_merged_when_right_is_occupied() -> None:
+    """「项目负责人：」右边紧挨着「监测单位：」—— 不能再往右放，要塞进合并区内部。
+
+    ⚠ 2026-11-13 实测：锚到 G37 后签名压在「监测单位：中铁二十四局…」上。
+    """
+    _clear_all()
+    signature_service.save_role_signature("principal", _make_signature_png())
+
+    wb = Workbook()
+    ws = wb.active
+    ws.merge_cells("A37:F37")
+    ws["A37"] = "项目负责人："
+    ws.merge_cells("G37:L37")
+    ws["G37"] = "监测单位：中铁二十四局集团上海铁建工程有限公司"
+
+    assert signature_service.stamp_workbook(wb) == 1
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    xml = zipfile.ZipFile(buf).read("xl/drawings/drawing1.xml").decode("utf-8")
+    col = int(re.search(r"<col>(\d+)</col>", xml).group(1))
+    col_off = int(re.search(r"<colOff>(\d+)</colOff>", xml).group(1))
+    assert col == 0, "应留在 A 列（合并区内部），而不是跑到 G 列压住监测单位"
+    assert col_off > 0, "要有横向偏移，否则会盖住「项目负责人：」几个字"

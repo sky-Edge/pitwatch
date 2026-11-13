@@ -202,20 +202,62 @@ def list_roles() -> list[dict]:
     return out
 
 
-def _anchor_col(ws, row: int, col: int) -> int:
-    """签名该锚在哪一列。
+def _merged_of(ws, row: int, col: int):
+    """这个格子在哪个合并区里（不在任何合并区返回 None）。"""
+    for rng in ws.merged_cells.ranges:
+        if rng.min_row <= row <= rng.max_row and rng.min_col <= col <= rng.max_col:
+            return rng
+    return None
+
+
+def _col_px(ws, col: int) -> int:
+    """列宽（字符）→ 像素。Excel 默认字体下约 7px/字符 + 5px 内边距。"""
+    dim = ws.column_dimensions.get(get_column_letter(col))
+    width = getattr(dim, "width", None) or 8.43
+    return int(width * 7 + 5)
+
+
+def _place_anchor(ws, row: int, col: int, w_px: int, h_px: int):
+    """签名该锚在哪。返回 Excel 的 "E17" 字符串，或者一个偏移锚对象。
 
     **合并单元格是这里最大的坑**：签字栏常写成 C17:D17 这种合并格
     （「编　　制：」后面留出签字的位置）。合并区里只有左上角格有效，
     图片锚在 D17 会被 Excel 画到 **C17** —— 正好盖住「编制：」那几个字。
     （2026-11-13 用户截图报的就是这个：签名糊在标签上。）
 
-    所以：标签在合并区里时，锚到合并区**右边一列**；否则右边一格。
+    分三种情况：
+    ① 不在合并区 → 右边一格；
+    ② 在合并区、且右边那一格是空的 → 合并区右边一列；
+    ③ 在合并区、但右边被别的东西占了（如「项目负责人：」右边紧挨着
+       「监测单位：中铁二十四局…」）→ **放到合并区内部靠右**，带横向偏移。
+       这种情况不能再往右找，那里全是「监测单位」那串字。
     """
-    for rng in ws.merged_cells.ranges:
-        if rng.min_row <= row <= rng.max_row and rng.min_col <= col <= rng.max_col:
-            return rng.max_col + 1
-    return col + 1
+    rng = _merged_of(ws, row, col)
+    if rng is None:
+        return f"{get_column_letter(col + 1)}{row}"
+
+    next_col = rng.max_col + 1
+    if ws.cell(row=row, column=next_col).value in (None, ""):
+        return f"{get_column_letter(next_col)}{row}"
+
+    # ③ 合并区内部靠右：整块宽度减去图宽，留 8px 边距
+    total = sum(_col_px(ws, c) for c in range(rng.min_col, rng.max_col + 1))
+    offset = max(60, total - w_px - 8)
+
+    from openpyxl.drawing.spreadsheet_drawing import AnchorMarker, TwoCellAnchor
+    from openpyxl.utils.units import pixels_to_EMU
+
+    left = pixels_to_EMU(offset)
+    top = pixels_to_EMU(4)
+    return TwoCellAnchor(
+        _from=AnchorMarker(col=rng.min_col - 1, colOff=left, row=row - 1, rowOff=top),
+        to=AnchorMarker(
+            col=rng.min_col - 1,
+            colOff=left + pixels_to_EMU(w_px),
+            row=row - 1,
+            rowOff=top + pixels_to_EMU(h_px),
+        ),
+    )
 
 
 def stamp_workbook(wb) -> int:
@@ -248,10 +290,10 @@ def stamp_workbook(wb) -> int:
             # 贴到标签右边一格。
             # ⚠ 不要用 `col_idx >= ws.max_column` 跳过 —— 签字栏常常就在最后一列
             #   （如 J8「校核人：」），跳过会把最右边那处漏掉（测试抓到 3/4）。
-            anchor = f"{get_column_letter(_anchor_col(ws, row_idx, col_idx))}{row_idx}"
             try:
                 img = XLImage(str(path))
                 w, h = img.width, img.height
+                new_w, new_h = w, h
                 if w > 0 and h > 0:
                     # 先按高度缩，再兜住宽度上限（四个字的签名常是长条）
                     new_h = SIGN_HEIGHT_PX
@@ -260,7 +302,13 @@ def stamp_workbook(wb) -> int:
                         new_w = MAX_SIGN_WIDTH_PX
                         new_h = max(10, int(new_w * h / w))
                     img.height, img.width = new_h, new_w
-                ws.add_image(img, anchor)
+
+                anchor = _place_anchor(ws, row_idx, col_idx, new_w, new_h)
+                if isinstance(anchor, str):
+                    ws.add_image(img, anchor)
+                else:
+                    img.anchor = anchor  # 偏移锚（合并区内部靠右）
+                    ws.add_image(img)
                 stamped += 1
             except Exception:  # noqa: BLE001 —— 某处贴不上不该影响整份日报
                 continue
