@@ -56,6 +56,10 @@ LEGACY_FILE = "default.png"
 #: 签名图高度（像素）。一行文字约 20px，签名稍大一点才像手写。
 SIGN_HEIGHT_PX = 34
 
+#: 最大宽度。签名照片常是 4:1 的长条，只按高度缩放会横跨三四列，
+#: 压到隔壁栏（如「计算人」）上面去。超过这个宽度就按宽度等比缩。
+MAX_SIGN_WIDTH_PX = 150
+
 
 class SignatureError(RuntimeError):
     """签名文件本身有问题（格式不对、读不出来）。"""
@@ -198,6 +202,22 @@ def list_roles() -> list[dict]:
     return out
 
 
+def _anchor_col(ws, row: int, col: int) -> int:
+    """签名该锚在哪一列。
+
+    **合并单元格是这里最大的坑**：签字栏常写成 C17:D17 这种合并格
+    （「编　　制：」后面留出签字的位置）。合并区里只有左上角格有效，
+    图片锚在 D17 会被 Excel 画到 **C17** —— 正好盖住「编制：」那几个字。
+    （2026-11-13 用户截图报的就是这个：签名糊在标签上。）
+
+    所以：标签在合并区里时，锚到合并区**右边一列**；否则右边一格。
+    """
+    for rng in ws.merged_cells.ranges:
+        if rng.min_row <= row <= rng.max_row and rng.min_col <= col <= rng.max_col:
+            return rng.max_col + 1
+    return col + 1
+
+
 def stamp_workbook(wb) -> int:
     """把各角色的签名盖到对应签字栏。返回贴了几处（一张签名都没有返回 0）。
 
@@ -228,13 +248,18 @@ def stamp_workbook(wb) -> int:
             # 贴到标签右边一格。
             # ⚠ 不要用 `col_idx >= ws.max_column` 跳过 —— 签字栏常常就在最后一列
             #   （如 J8「校核人：」），跳过会把最右边那处漏掉（测试抓到 3/4）。
-            anchor = f"{get_column_letter(col_idx + 1)}{row_idx}"
+            anchor = f"{get_column_letter(_anchor_col(ws, row_idx, col_idx))}{row_idx}"
             try:
                 img = XLImage(str(path))
                 w, h = img.width, img.height
-                if h > 0:
-                    img.height = SIGN_HEIGHT_PX
-                    img.width = max(12, int(SIGN_HEIGHT_PX * w / h))
+                if w > 0 and h > 0:
+                    # 先按高度缩，再兜住宽度上限（四个字的签名常是长条）
+                    new_h = SIGN_HEIGHT_PX
+                    new_w = max(12, int(new_h * w / h))
+                    if new_w > MAX_SIGN_WIDTH_PX:
+                        new_w = MAX_SIGN_WIDTH_PX
+                        new_h = max(10, int(new_w * h / w))
+                    img.height, img.width = new_h, new_w
                 ws.add_image(img, anchor)
                 stamped += 1
             except Exception:  # noqa: BLE001 —— 某处贴不上不该影响整份日报

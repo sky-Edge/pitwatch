@@ -12,6 +12,8 @@
 from __future__ import annotations
 
 import io
+import re
+import zipfile
 
 import pytest
 from openpyxl import Workbook
@@ -216,3 +218,49 @@ def test_unknown_role_rejected(client) -> None:
     )
     assert r.status_code == 404
     assert client.delete("/api/v1/settings/signatures/not-a-role").status_code == 404
+
+
+def test_anchor_skips_merged_cell() -> None:
+    """标签在合并格里时，图要锚到合并区右边。
+
+    ⚠ 2026-11-13 用户截图：签名糊在「编制：」「审核：」文字上。
+    原因是签字栏写成 C17:D17 合并格，锚 D17 会被 Excel 画回 C17（合并区左上角）。
+    """
+    _clear_all()
+    signature_service.save_role_signature("editor", _make_signature_png())
+
+    wb = Workbook()
+    ws = wb.active
+    ws.merge_cells("C17:D17")
+    ws["C17"] = "编       制："
+
+    assert signature_service.stamp_workbook(wb) == 1
+
+    # 坐标要**存盘后从 XML 里读**：add_image 传字符串坐标时，内存里的 anchor
+    # 还是个字符串（openpyxl 保存时才转成 twoCellAnchor），直接读会 AttributeError。
+    buf = io.BytesIO()
+    wb.save(buf)
+    xml = zipfile.ZipFile(buf).read("xl/drawings/drawing1.xml").decode("utf-8")
+    col = int(re.search(r"<col>(\d+)</col>", xml).group(1))
+    row = int(re.search(r"<row>(\d+)</row>", xml).group(1))
+    assert col == 4, f"应锚到 E 列（合并区 C:D 的右边），实际 {col}（0 基）"
+    assert row == 16
+
+
+def test_wide_signature_is_width_capped() -> None:
+    """长条签名不能横跨三四列压到隔壁栏。"""
+    from PIL import Image, ImageDraw
+
+    _clear_all()
+    img = Image.new("RGB", (1200, 200), "white")
+    d = ImageDraw.Draw(img)
+    d.line([(50, 150), (600, 40), (1150, 150)], fill="black", width=8)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    signature_service.save_role_signature("editor", buf.getvalue())
+
+    wb = Workbook()
+    ws = wb.active
+    ws["A1"] = "编制："
+    signature_service.stamp_workbook(wb)
+    assert ws._images[0].width <= signature_service.MAX_SIGN_WIDTH_PX
