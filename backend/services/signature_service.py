@@ -260,14 +260,59 @@ def _text_metrics(cell, total_px: float) -> tuple[float, float]:
     return start, width
 
 
-def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
-    """在签名图左边补透明留白，返回临时文件路径。
+def _paper_to_alpha(rgb):
+    """把"白纸 + 墨"的图转成"墨 + 透明底"。
 
-    为什么要绕这一圈：合并单元格里放图片时，LibreOffice 只认"锚在哪个格"，
-    **会忽略 colOff 水平偏移**（实测导出 PDF 后签名又压回文字上）。
-    把留白画进图片里就绕开了这个限制 —— 锚点始终是合并区左上角，
-    左边那段透明像素自然让开「编　　制：」几个字。
+    **为什么必须这么做**：签名要压在单元格的签字横线上。图片要是带不透明白底，
+    横线在图片矩形范围内会被整块白盖掉 —— 用户 2026-11-13 截图里的那句
+    「这个横线被吃了」就是它（横线从签名右端才重新露出来）。
+
+    做法：亮度当透明度（纸白 255 → alpha 0），颜色按"白底反预乘"还原成真实墨色，
+    这样透明以后压在什么背景上，看起来都和原来一样，只是不再挡住底下的东西。
     """
+    from PIL import Image as PILImage
+
+    rgb_s = rgb.tobytes()
+    lum_s = rgb.convert("L").tobytes()
+
+    out = bytearray(len(lum_s) * 4)
+    for i, lum in enumerate(lum_s):
+        a = 255 - lum
+        o = i * 4
+        if a <= 0:  # 白纸 —— 全透明
+            out[o : o + 4] = b"\xff\xff\xff\x00"
+            continue
+        if a >= 255:  # 纯墨
+            out[o] = rgb_s[i * 3]
+            out[o + 1] = rgb_s[i * 3 + 1]
+            out[o + 2] = rgb_s[i * 3 + 2]
+            out[o + 3] = 255
+            continue
+        # 反预乘：C = a*F + (1-a)*255  →  F = (C - 255 + a) * 255 / a
+        k = 255.0 / a
+        out[o] = min(255, max(0, int((rgb_s[i * 3] - 255 + a) * k)))
+        out[o + 1] = min(255, max(0, int((rgb_s[i * 3 + 1] - 255 + a) * k)))
+        out[o + 2] = min(255, max(0, int((rgb_s[i * 3 + 2] - 255 + a) * k)))
+        out[o + 3] = a
+
+    return PILImage.frombytes("RGBA", rgb.size, bytes(out))
+
+
+def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
+    """把签名图转成"墨 + 透明底"、左边补透明留白，返回临时文件路径。
+
+    两件事：
+
+    1. **左边补透明留白**。合并单元格里放图片时，LibreOffice 只认"锚在哪个格"，
+       **会忽略 colOff 水平偏移**（实测导出 PDF 后签名又压回文字上）。
+       把留白画进图片里就绕开了这个限制 —— 锚点始终是合并区左上角，
+       左边那段透明像素自然让开「编　　制：」几个字。
+
+    2. **白底转透明**（`_paper_to_alpha`）。签名往往比行高、比签字线还高，
+       再带一块不透明白底，就会把单元格下边框整段盖掉 —— 用户看到的
+       「横线被吃了」。透明以后，横线从签名笔画之间照常穿过去，和真手写一样。
+    """
+    import hashlib
     import tempfile
     from pathlib import Path as _Path
 
@@ -275,30 +320,38 @@ def _padded_image(path, pad_px: int, height_px: int, pad_top: int = 0) -> str:
 
     src = PILImage.open(path).convert("RGBA")
 
-    # 先铺一层不透明白底。
-    # ⚠ 用户上传的签名有一部分是**透明底 PNG**（笔画黑、背景透明）。直接
-    #   `convert("RGB")` 会把透明区域变成**黑色** —— 黑底黑字，整块糊死；
-    #   再过一遍对比增强，整个签名位就是一块纯黑（2026-11-13 实测 3 处变黑块）。
+    # 透明底 PNG 先铺白，统一按"白纸 + 墨"处理。
+    # ⚠ 不能直接 `convert("RGB")`：透明区会变成**黑色** —— 黑底黑字整块糊死
+    #   （2026-11-13 实测 3 处变黑块）。
     if src.getchannel("A").getextrema()[0] < 255:
         white = PILImage.new("RGBA", src.size, (255, 255, 255, 255))
         src = PILImage.alpha_composite(white, src)
+    rgb = src.convert("RGB")
+
+    if rgb.height != height_px and rgb.height > 0:
+        ratio = height_px / rgb.height
+        rgb = rgb.resize((max(1, int(rgb.width * ratio)), height_px), PILImage.LANCZOS)
 
     # 提高对比：亮于 200 的一律压成纯白、暗于 110 的压成纯黑。
     # 签名缩到二十几像素高时，抗锯齿会把笔画糊成一片浅灰（用户："看不清"）。
     _lut = [255 if v > 200 else (0 if v < 110 else int((v - 110) * 255 / 90)) for v in range(256)]
-    rgb = src.convert("RGB").point(_lut * 3)
-    src = rgb.convert("RGBA")
+    rgb = rgb.point(_lut * 3)
 
-    if src.height != height_px and src.height > 0:
-        ratio = height_px / src.height
-        src = src.resize((max(1, int(src.width * ratio)), height_px), PILImage.LANCZOS)
+    ink = _paper_to_alpha(rgb)
 
     canvas = PILImage.new(
-        "RGBA", (pad_px + src.width, pad_top + height_px), (255, 255, 255, 0)
+        "RGBA", (pad_px + ink.width, pad_top + ink.height), (0, 0, 0, 0)
     )
-    canvas.paste(src, (pad_px, pad_top), src)
+    canvas.alpha_composite(ink, (pad_px, pad_top))
 
-    out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_pad_{pad_px}_{pad_top}_{src.width}.png"
+    # 文件名带内容指纹：不同角色的签名若宽高、留白恰好一样，会写到同一个
+    # 临时文件上 —— openpyxl 是**保存时才读文件**，后写的那张会把前面那几栏
+    # 全盖成同一个人（签字人张冠李戴，比贴不上严重得多）。
+    digest = hashlib.sha1(
+        b"%s|%d|%d|%d|" % (str(path).encode(), pad_px, height_px, pad_top)
+        + _Path(path).read_bytes()
+    ).hexdigest()[:16]
+    out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_{digest}.png"
     canvas.save(out, format="PNG", dpi=(96, 96))
     return str(out)
 

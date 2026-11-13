@@ -325,7 +325,38 @@ def test_transparent_signature_does_not_turn_black() -> None:
     path = signature_service._path_for(signature_service.get_role("editor"))
     out = signature_service._padded_image(path, 20, 26, 0)
 
-    with PILImage.open(out).convert("RGB") as im:
+    with PILImage.open(out).convert("RGBA") as im:
+        # 判据看 alpha：透明区在 Excel 里就是白纸，不能拿丢掉 alpha 的 RGB 判
+        # （透明像素的 RGB 是黑的，那样永远"整块变黑"）
         pixels = list(im.getdata())
-        dark = sum(1 for r, g, b in pixels if r < 40)
-    assert dark / len(pixels) < 0.5, "整块变黑了 —— 透明区没铺白底"
+        dark = sum(1 for r, g, b, a in pixels if a > 200 and r < 40)
+    assert dark / len(pixels) < 0.5, "整块变黑了 —— 透明区没按白纸处理"
+
+
+def test_signature_does_not_cover_underline(tmp_path) -> None:
+    """签名不准把单元格的下边框（签字横线）盖掉。
+
+    ⚠ 2026-11-13 用户截图：「这个横线被吃了」——
+    签名图带不透明白底，图片矩形范围内的横线整段消失，只在签名右端才重新出现。
+    所以图片必须**墨 + 透明底**：纸白部分 alpha = 0，横线从笔画之间穿过去。
+    """
+    from PIL import Image as PILImage, ImageDraw
+
+    # 直接给一张"白纸上一条笔画"的图（四周留白不会被裁，正好验证白纸→透明）
+    img = PILImage.new("RGB", (300, 100), "white")
+    ImageDraw.Draw(img).line([(80, 70), (150, 30), (230, 60)], fill="black", width=6)
+    src = tmp_path / "sig.png"
+    img.save(src, format="PNG")
+
+    out = signature_service._padded_image(src, 30, 26, 0)
+
+    with PILImage.open(out).convert("RGBA") as im:
+        w, h = im.size
+        alpha = im.getchannel("A")
+        for xy in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)):
+            assert alpha.getpixel(xy) == 0, f"{xy} 还是不透明 —— 会盖住横线"
+        assert alpha.getpixel((5, h // 2)) == 0, "左边留白必须透明"
+        assert max(alpha.getdata()) == 255, "笔画得是实的，不然签名淡到看不见"
+        # 笔画中间那块白纸也要透（横线从字缝里穿过去，才像真手写）
+        clear = sum(1 for v in alpha.getdata() if v == 0)
+        assert clear / (w * h) > 0.3
