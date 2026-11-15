@@ -79,6 +79,7 @@ def _do_upload(
     project_ids: list[int],
     is_global: bool,
     legacy_project_id: int | None,
+    template_type: str = "excel",
 ) -> dict:
     """上传公共流程（新入口与项目内兼容入口共用，保证两条路行为完全一致）。"""
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xlsm")):
@@ -116,6 +117,7 @@ def _do_upload(
             project_ids=project_ids,
             is_global=is_global,
             legacy_project_id=legacy_project_id,
+            template_type=template_type,
         )
     finally:
         # 无论成功与否都清理上传临时文件（rename 为 .deleted，避免孤儿堆积；
@@ -162,6 +164,7 @@ def upload_to_library(
     name: str = Form("", max_length=100),
     project_ids: str = Form("", description="适用项目 id，逗号分隔；留空且非通用 → 报错"),
     is_global: bool = Form(False, description="所有项目通用"),
+    template_type: str = Form("excel", description="excel=普通单项目母版；merged=合并母版（多项目装订）"),
     db: Session = Depends(get_db),
 ):
     """把母版传进模板库，并指定它作用于哪些项目（默认建议带上当前项目）。"""
@@ -172,6 +175,7 @@ def upload_to_library(
         project_ids=_parse_ids(project_ids),
         is_global=is_global,
         legacy_project_id=None,
+        template_type=template_type,
     )
 
 

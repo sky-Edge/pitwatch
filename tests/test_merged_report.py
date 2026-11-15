@@ -74,7 +74,7 @@ def _mk_template() -> int:
     try:
         tpl = ExportTemplate(
             name="钢栈桥合并母版",
-            template_type="excel",
+            template_type="merged",
             is_builtin=False,
             is_global=True,
             file_path=str(dest),
@@ -254,3 +254,36 @@ def test_reupload_keeps_template_id_so_group_survives(client):
 
     _buf, _name, info = _build(gid)
     assert info["obs_date"] == "2026-07-28"
+
+
+def test_merged_template_is_its_own_type_and_blocked_from_single_export(client):
+    """合并母版是独立类型：不进单项目导出下拉，直接调接口也要被拦。
+
+    为什么必须拦（用户 2026-11-15 报障）：拿合并母版做单项目导出，
+    每张数据表都会被填成同一个项目的数，南侧表印出来跟北侧一模一样。
+    """
+    tpl_id, north, south = _setup(client)
+    _mk_group(client, tpl_id, north, south)
+
+    # ① 单项目「可用模板」清单里不出现它
+    lst = client.get(f"/api/v1/projects/{north}/export-templates").json()
+    assert all(t["id"] != tpl_id for t in lst), "合并母版混进了单项目导出下拉"
+
+    # ② 就算硬调接口，也拦下并指路
+    r = client.get(f"/api/v1/projects/{north}/reports/excel?template_id={tpl_id}")
+    assert r.status_code == 400
+    assert "合并母版" in r.json()["detail"] and "合并报表" in r.json()["detail"]
+
+
+def test_upload_marks_template_type_merged(client):
+    """上传时勾「合并母版」，落库类型就是 merged。"""
+    with open(MASTER, "rb") as f:
+        r = client.post(
+            "/api/v1/export-templates/upload",
+            data={"name": "合并母版-类型测试", "is_global": "true", "template_type": "merged"},
+            files={"file": ("m.xlsx", f.read(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+    assert r.status_code == 200, r.text
+    lib = client.get("/api/v1/export-templates").json()
+    me = [t for t in lib if t["id"] == r.json()["id"]][0]
+    assert me["template_type"] == "merged"

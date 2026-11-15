@@ -114,6 +114,18 @@ def _build_excel_one(
                     "「设置适用项目」，把它加进来（或设为通用）"
                 ),
             )
+        # 合并母版是**独立类型**：里面每张数据表装的是不同项目的数据。
+        # 拿它做单项目导出，`fill_data_sheets` 会把每张表都填成本项目的数 ——
+        # 南侧表印出来跟北侧一模一样（用户 2026-11-15 实测报障）。
+        # 不是"提示一下"而是直接拦：这种文件发出去就是错报表。
+        if tpl.template_type == "merged":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"「{tpl.name}」是合并母版（多个项目装订成一份），不能用来导出单个项目的日报"
+                    "—— 那样每张数据表都会被填成本项目的数。请到主界面 →「合并报表」里导出。"
+                ),
+            )
         layout = tpl.layout_json or {}
         if layout.get("sheets") and layout.get("meta"):
             return build_master_report(

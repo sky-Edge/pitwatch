@@ -251,7 +251,7 @@ export default function ProjectsPage({
       .catch(() => {})
     void reportApi
       .listLibrary()
-      .then((lib) => setBulkTplList(lib.filter((t) => !t.is_builtin)))
+      .then((lib) => setBulkTplList(lib.filter((t) => !t.is_builtin && t.template_type !== 'merged')))
       .catch(() => {})
     // 「每周自动检查」没做成常驻定时器（这系统是手动双击启动的，关了就不会跑），
     // 改成「打开系统时补扫」：这里只读一下状态，超过 7 天就在页面顶部提一句。
@@ -602,7 +602,8 @@ export default function ProjectsPage({
   const openBulkTemplate = async () => {
     try {
       const lib = await reportApi.listLibrary()
-      setBulkTplList(lib.filter((t) => !t.is_builtin))
+      // 合并母版是独立类型，批量导出（每个项目一份）用不了它
+      setBulkTplList(lib.filter((t) => !t.is_builtin && t.template_type !== 'merged'))
       setBulkTplId(undefined)
       setBulkTplOpen(true)
     } catch (e) {

@@ -50,6 +50,7 @@ def init_db() -> None:
     migrate_template_library()
     migrate_warning_rule_sets()
     migrate_rule_delta_limit()
+    migrate_merged_templates()
 
 
 def _column_exists(conn, table: str, column: str) -> bool:
@@ -326,3 +327,28 @@ def migrate_template_library() -> dict:
         names = "、".join(str(r[0]) for r in dups)
         _safe_print(f"[migrate] [注意] 存在重名模板（{names}）—— 导出页下拉里会出现同名项，建议改名区分")
     return {"added_column": added_column, "backfilled": backfilled, "duplicate_names": [str(r[0]) for r in dups]}
+
+
+def migrate_merged_templates() -> int:
+    """把「被合并报表组合引用的母版」标成 merged 类型（幂等）。
+
+    为什么要有这条迁移：合并母版最早是按普通 excel 母版传进来的，
+    于是它会出现在单项目「导出日报」的模板下拉里 —— 选它导出，
+    母版里每张数据表都被填成同一个项目的数据，南侧表印出来跟北侧一模一样
+    （用户 2026-11-15 实测报障）。改成独立类型后，单项目那条路按类型过滤，
+    根本不给它出现的机会。
+    """
+    with engine.begin() as conn:
+        try:
+            n = conn.exec_driver_sql(
+                """
+                UPDATE export_templates SET template_type = 'merged'
+                WHERE is_builtin = 0 AND template_type <> 'merged'
+                  AND id IN (SELECT DISTINCT template_id FROM report_groups)
+                """
+            ).rowcount
+        except Exception:  # noqa: BLE001 —— 迁移绝不阻断启动
+            return 0
+    if n:
+        _safe_print(f"[migrate] 已把 {n} 份被合并组合引用的母版标记为「合并母版」")
+    return int(n or 0)

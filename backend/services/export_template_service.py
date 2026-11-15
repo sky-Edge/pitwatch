@@ -267,13 +267,19 @@ def usable_clause(project_id: int):
 
 
 def list_templates(db: Session, project_id: int | None = None) -> list[ExportTemplate]:
-    """某项目可用的模板 = 内置 + 通用 + 显式绑定到该项目的。project_id 传 None 时只返回内置。"""
+    """某项目可用的模板 = 内置 + 通用 + 显式绑定到该项目的。project_id 传 None 时只返回内置。
+
+    **合并母版不进这条清单**：它装的是多个项目的数据，只在「合并报表」里用。
+    让它出现在单项目导出下拉里，就是给"南侧表被填成北侧的数是同一个项目"留后门。
+    """
     from sqlalchemy import select
 
     if project_id is None:
         stmt = select(ExportTemplate).where(ExportTemplate.is_builtin.is_(True))
     else:
-        stmt = select(ExportTemplate).where(usable_clause(project_id))
+        stmt = select(ExportTemplate).where(
+            usable_clause(project_id), ExportTemplate.template_type != "merged"
+        )
     return list(db.scalars(stmt.order_by(ExportTemplate.id)))
 
 
@@ -354,6 +360,7 @@ def create_uploaded_template(
     project_ids: list[int] | None = None,
     is_global: bool = False,
     legacy_project_id: int | None = None,
+    template_type: str = "excel",
 ) -> tuple[ExportTemplate, str]:
     """把上传的模板存进**模板库**（原件副本 + 布局），返回 (记录, 同名替换说明)。
 
@@ -367,6 +374,14 @@ def create_uploaded_template(
     """
     name = (name or "").strip() or Path(original_filename or "").stem or "未命名母版"
     name = name[:100]
+
+    # 模板类型只两种来源：普通单项目母版（excel）/ 合并母版（merged）。
+    # **合并母版是独立类型**，不掺在普通母版里：单项目导出页的模板下拉按 excel 过滤，
+    # 合并母版因此根本不会出现在那里（2026-11-15 用户实测：选了合并母版做单项目导出，
+    # 南侧表被填成北侧的数是同一个项目 —— 从类型上就不给它这个机会）。
+    template_type = (template_type or "excel").strip().lower()
+    if template_type not in ("excel", "merged"):
+        raise HTTPException(status_code=400, detail="模板类型只能是 excel 或 merged")
 
     # 同名替换（全局唯一；内置除外）
     #
@@ -400,7 +415,7 @@ def create_uploaded_template(
 
     if old is not None:
         _remove_template_file(old)
-        old.template_type = "excel"
+        old.template_type = template_type
         old.is_builtin = False
         old.is_global = is_global
         old.layout_json = layout_json
@@ -416,7 +431,7 @@ def create_uploaded_template(
             project_id=targets[0] if targets else None,  # DEPRECATED：仅为回退兼容保留
             is_global=is_global,
             name=name,
-            template_type="excel",
+            template_type=template_type,
             is_builtin=False,
             file_path=None,
             layout_json=layout_json,

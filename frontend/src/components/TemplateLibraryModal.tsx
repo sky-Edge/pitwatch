@@ -6,6 +6,7 @@ import {
   Modal,
   Popconfirm,
   Space,
+  Switch,
   Table,
   Tag,
   Tooltip,
@@ -52,6 +53,8 @@ export default function TemplateLibraryModal({
   const [uploadOpen, setUploadOpen] = useState(false)
   const [uploadName, setUploadName] = useState('')
   const [uploadGlobal, setUploadGlobal] = useState(false)
+  /** 合并母版：里面多张数据表各装一个项目，只能用于「合并报表」 */
+  const [uploadMerged, setUploadMerged] = useState(false)
   const [uploadProjectIds, setUploadProjectIds] = useState<number[]>([])
   const [uploading, setUploading] = useState(false)
 
@@ -83,6 +86,7 @@ export default function TemplateLibraryModal({
   const openUpload = () => {
     setUploadName('')
     setUploadGlobal(false)
+    setUploadMerged(false)
     setUploadProjectIds([])
     setUploadOpen(true)
   }
@@ -101,6 +105,7 @@ export default function TemplateLibraryModal({
       const r = await reportApi.uploadToLibrary(uploadName, file, {
         projectIds: uploadProjectIds,
         isGlobal: uploadGlobal,
+        templateType: uploadMerged ? 'merged' : 'excel',
       })
       message.success(r.message || `母版「${r.name}」已入库`)
       setUploadOpen(false)
@@ -194,6 +199,7 @@ export default function TemplateLibraryModal({
         <Space size={6}>
           <Typography.Text strong>{v}</Typography.Text>
           {r.is_builtin && <Tag>系统内置</Tag>}
+          {r.template_type === 'merged' && <Tag color="purple">合并母版</Tag>}
         </Space>
       ),
     },
@@ -327,6 +333,18 @@ export default function TemplateLibraryModal({
               onChange={(e) => setUploadName(e.target.value)}
               placeholder="如：基坑监测日报（标准版）"
             />
+          </div>
+          <div>
+            <Space size={8}>
+              <Switch size="small" checked={uploadMerged} onChange={setUploadMerged} />
+              <Typography.Text>合并母版（多个项目装订成一份）</Typography.Text>
+            </Space>
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                合并母版：里面有多张数据表，每张装一个项目（南北两侧 / 几个基坑），
+                只能在主界面「合并报表」里用，不会出现在单项目导出下拉里。
+              </Typography.Text>
+            </div>
           </div>
           <div>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>

@@ -21,6 +21,11 @@ def _template_sheets(db: Session, template_id: int) -> dict[str, dict]:
     tpl = db.get(ExportTemplate, template_id)
     if tpl is None:
         raise GroupError("母版不存在")
+    if tpl.template_type != "merged":
+        raise GroupError(
+            "这份母版不是「合并母版」—— 合并报表要求母版里每张数据表各装一个项目。"
+            "请到「母版库」上传时勾选「合并母版」，再把那份选进来"
+        )
     sheets = (tpl.layout_json or {}).get("sheets") or []
     if not sheets:
         raise GroupError(f"母版「{tpl.name}」没有识别出数据表，不能用于合并报表")

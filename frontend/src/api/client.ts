@@ -1135,7 +1135,8 @@ export interface ExportTemplateInfo {
   id: number
   project_id: number | null
   name: string
-  template_type: 'excel' | 'word'
+  /** merged = 合并母版：多张数据表各装一个项目，只能在「合并报表」里用 */
+  template_type: 'excel' | 'word' | 'merged'
   is_builtin: boolean
   /** 通用母版：所有项目都能用（模板独立化之后，适用范围由它 + projectIds 决定） */
   is_global?: boolean
@@ -1405,11 +1406,16 @@ export const reportApi = {
   /** 全部母版（含通用、含暂时没绑项目的）—— 管理视角 */
   listLibrary: () => http.get<ExportTemplateInfo[]>('/export-templates').then((r) => r.data),
   /** 传进母版库并指定适用范围（不挂在某个项目下 —— 母版本来就不属于项目） */
-  uploadToLibrary: (name: string, file: File, scope: { projectIds?: number[]; isGlobal?: boolean }) => {
+  uploadToLibrary: (
+    name: string,
+    file: File,
+    scope: { projectIds?: number[]; isGlobal?: boolean; templateType?: 'excel' | 'merged' },
+  ) => {
     const form = new FormData()
     form.append('name', name)
     if (scope.projectIds?.length) form.append('project_ids', scope.projectIds.join(','))
     if (scope.isGlobal) form.append('is_global', 'true')
+    if (scope.templateType) form.append('template_type', scope.templateType)
     form.append('file', file)
     return http
       .post<{ id: number; name: string; master_mode: boolean; message: string }>(

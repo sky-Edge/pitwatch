@@ -21,6 +21,9 @@ class ExportTemplateRead(BaseModel):
     file_path: str | None
     layout_json: dict | None
     file_ok: bool | None = None  # 项目模板：原件文件是否存在（前端显示"文件缺失"）
+    #: 合并母版：这份模板被某个「合并报表组合」引用，每张数据表装的是不同项目。
+    #: 单项目导出**不能用它**（否则每张表都会被填成本项目的数，看着像南北一样）。
+    is_merged: bool = False
     created_at: datetime
 
 

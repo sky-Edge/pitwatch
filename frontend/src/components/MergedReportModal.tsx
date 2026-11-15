@@ -74,7 +74,8 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
     try {
       const [g, t] = await Promise.all([mergedReportApi.list(), reportApi.listLibrary()])
       setGroups(g)
-      setTemplates(t.filter((x) => !x.is_builtin && x.file_ok !== false))
+      // 只列「合并母版」——普通 Excel 母版每张表都是同一个项目的，拿来合并会印出两份一样的数
+      setTemplates(t.filter((x) => x.template_type === 'merged' && x.file_ok !== false))
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -400,7 +401,7 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
                   value: t.id,
                   label: `${t.name}${t.is_global ? '（通用）' : ''}`,
                 }))}
-                notFoundContent="母版库里还没有可用的母版"
+                notFoundContent="母版库里还没有「合并母版」—— 去母版库上传，上传时勾选「合并母版」"
               />
             </Space>
             <Space direction="vertical" size={4}>
