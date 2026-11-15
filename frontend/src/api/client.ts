@@ -342,6 +342,8 @@ export interface RuleInput {
   threshold_cumulative_mm?: number | null
   threshold_delta_mm?: number | null
   threshold_rate_mm_per_day?: number | null
+  /** 禁止回弹（沉降只沉不升）：勾上后累计变化不再变小，曲线不掉头 */
+  no_rebound?: boolean
   is_active?: boolean
   source_note?: string | null
 }

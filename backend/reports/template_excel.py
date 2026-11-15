@@ -27,6 +27,16 @@ from backend.services.project_service import get_project
 from backend.warnings.engine import LEVEL_ALARM, LEVEL_CONTROL
 
 
+def _effective(row: dict) -> float:
+    """成果读数：禁止回弹生效时优先用它，否则就是实测值。
+
+    `effective_value_mm` 可能是 None（老结果/异常态）—— 一律退回实测值，
+    绝不拿 None 去算，否则整行数字会凭空消失。
+    """
+    eff = row.get("effective_value_mm")
+    return eff if eff is not None else row["value_mm"]
+
+
 def _series_rows(db: Session, project_id: int, obs_date: date) -> list[dict]:
     """该日所有测点分量：读值(原始 mm→显示 m) + 引擎结果（累计/变化/速率/预警）。
 
@@ -68,10 +78,13 @@ def _series_rows(db: Session, project_id: int, obs_date: date) -> list[dict]:
                         "series_type": st,
                         "component": comp,
                         "obs_date": obs_date,
+                        # 读数一律用**成果读数**：开了"禁止回弹"时它可能不等于实测值
+                        # （本期被判为回弹 → 沿用上期成果读数）。这样纸上
+                        # (本次测值 − 上次测值)×1000 仍恒等于「本次变化量」。
                         **paper_values(
                             v0_any,
-                            prev["value_mm"] if prev else None,
-                            target["value_mm"],
+                            _effective(prev) if prev else None,
+                            _effective(target),
                             target.get("skipped_days"),
                         ),
                         "warning_level": target.get("warning_level"),

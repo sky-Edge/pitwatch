@@ -15,7 +15,7 @@
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.models.base import Base
@@ -40,6 +40,16 @@ class WarningRule(Base):
     #: 老库没有这一列 → 迁移补 NULL（NULL = 这一维不参与判定，与另外两维同一口径）。
     threshold_delta_mm: Mapped[float | None] = mapped_column(Float)
     threshold_rate_mm_per_day: Mapped[float | None] = mapped_column(Float)  # 速率限值
+    #: **禁止回弹**（沉降只沉不升）。2026-11-15 用户要的：盖梁支架这类沉降观测，
+    #: 理论上只沉不升，测出来的"回升"是测量误差（±0.1~0.5mm），不该让曲线掉头。
+    #: 开了这一项 → 累计变化的绝对值不再变小（见 `calculation.engine.compute_series`）；
+    #: **原始读数照旧存库、照旧能在记录页查到**，改的只是成果口径（平差后的成果值）。
+    #: 不是限值，所以不分控制/报警：任意一级开了就生效。
+    #: `server_default` 不是可选的：老脚本/迁移用裸 SQL 插入规则时不带这一列，
+    #: 没有默认值会直接 NOT NULL 约束失败（`test_warning_rule_library` 就踩过）。
+    no_rebound: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default=text("0")
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     source_note: Mapped[str | None] = mapped_column(String(200))  # 规范来源，如 GB 50497-2019
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)

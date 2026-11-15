@@ -26,9 +26,14 @@ def compute_point_series(db: Session, point: MeasurementPoint, series_type: str,
     records = observation_repo.list_by_point(db, point.id, series_type=series_type, active_only=True)
     records = [r for r in records if r.component == component]
     periods = [_record_to_period(r) for r in records]
-    results = compute_series(periods, initial_value_mm=point.initial_value_mm)
-
     limits = rule_limits(db, point.project_id, series_type)
+    # 禁止回弹写在规则里（项目 → 规则套 → 该指标 control/alarm 任一级勾了即生效）。
+    # 只在沉降上勾有意义：水平位移有来有回是真实情况，抹平就等于抹掉变形。
+    results = compute_series(
+        periods,
+        initial_value_mm=point.initial_value_mm,
+        no_rebound=limits.no_rebound and series_type == "settlement",
+    )
 
     out = []
     value_by_date = {r.obs_date: r.value_mm for r in records}

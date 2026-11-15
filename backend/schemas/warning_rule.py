@@ -26,6 +26,7 @@ class WarningRuleRead(BaseModel):
     threshold_cumulative_mm: float | None
     threshold_delta_mm: float | None
     threshold_rate_mm_per_day: float | None
+    no_rebound: bool = False
     is_active: bool
     source_note: str | None
     created_at: datetime
@@ -42,6 +43,9 @@ class WarningRuleWrite(BaseModel):
     #: 只参与判定，不印到报表的「控制值」列上（那两列仍是累计/速率）。
     threshold_delta_mm: float | None = Field(default=None, ge=0, description="本次变化量限值(mm)")
     threshold_rate_mm_per_day: float | None = Field(default=None, ge=0, description="变化速率限值(mm/d)")
+    #: 禁止回弹（只沉不升）：勾上后累计变化的绝对值不再变小，曲线不掉头。
+    #: 给盖梁支架这类"理论只增不减"的沉降观测用；基坑等可能有真实回弹的场景保持关闭。
+    no_rebound: bool = Field(default=False, description="禁止回弹（沉降只沉不升）")
     is_active: bool = True
     source_note: str | None = Field(default=None, max_length=200, description="规范来源")
 

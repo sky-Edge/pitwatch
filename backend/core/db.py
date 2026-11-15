@@ -50,6 +50,7 @@ def init_db() -> None:
     migrate_template_library()
     migrate_warning_rule_sets()
     migrate_rule_delta_limit()
+    migrate_rule_no_rebound()
     migrate_merged_templates()
 
 
@@ -352,3 +353,34 @@ def migrate_merged_templates() -> int:
     if n:
         _safe_print(f"[migrate] 已把 {n} 份被合并组合引用的母版标记为「合并母版」")
     return int(n or 0)
+
+
+def migrate_rule_no_rebound() -> dict:
+    """预警规则加「禁止回弹」列（幂等）。
+
+    2026-11-15 用户提出：盖梁支架这类沉降观测不能有回弹（只沉不升），
+    需要在规则里声明。**默认 0 = 保持原行为**，一个项目都不动。
+    """
+    if not settings.database_url.startswith("sqlite"):
+        return {"skipped": "非 SQLite 数据库，跳过"}
+
+    added = False
+    with engine.begin() as conn:
+        tables = {
+            r[0]
+            for r in conn.exec_driver_sql(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if "warning_rules" not in tables:
+            return {"skipped": "尚无 warning_rules 表"}
+        if not _column_exists(conn, "warning_rules", "no_rebound"):
+            # 给老行一个默认 0：老规则的行为必须与加列前逐字一致
+            conn.exec_driver_sql(
+                "ALTER TABLE warning_rules ADD COLUMN no_rebound BOOLEAN NOT NULL DEFAULT 0"
+            )
+            added = True
+
+    if added:
+        _safe_print("[migrate] 预警规则加了「禁止回弹」开关（老规则一律关闭，行为不变）")
+    return {"added_column": added}

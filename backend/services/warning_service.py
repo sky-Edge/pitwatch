@@ -121,6 +121,7 @@ def _write_rows(
                 threshold_cumulative_mm=rule.threshold_cumulative_mm,
                 threshold_delta_mm=rule.threshold_delta_mm,
                 threshold_rate_mm_per_day=rule.threshold_rate_mm_per_day,
+                no_rebound=rule.no_rebound,
                 is_active=rule.is_active,
                 source_note=rule.source_note or note or data.source_note,
             )
@@ -382,6 +383,8 @@ def rule_limits(db: Session, project_id: int, indicator: str) -> RuleLimits:
         alarm_cumulative_mm=alarm.threshold_cumulative_mm if alarm else None,
         alarm_delta_mm=alarm.threshold_delta_mm if alarm else None,
         alarm_rate_mm_per_day=alarm.threshold_rate_mm_per_day if alarm else None,
+        # 控制/报警任一级勾了就生效：这是"这类观测怎么处理"的口径，不是阈值
+        no_rebound=bool((ctrl and ctrl.no_rebound) or (alarm and alarm.no_rebound)),
     )
 
 

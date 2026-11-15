@@ -189,6 +189,24 @@ export default function WarningRulesModal({
     setRules((prev) => ({ ...prev, [key]: { ...prev[key], [field]: v } }))
   }
 
+  /**
+   * 禁止回弹：**沉降**的处理口径，不分控制/报警 —— 两行写同一个值，
+   * 读取时任一级勾了就算开（`rule_limits` 里 or 一下）。
+   */
+  const noRebound = Boolean(rules.settlement_control?.no_rebound || rules.settlement_alarm?.no_rebound)
+  const setNoRebound = (v: boolean) => {
+    setRules((prev) => {
+      const next = { ...prev }
+      for (const level of ['control', 'alarm'] as RuleLevel[]) {
+        const key = `settlement_${level}`
+        next[key] = next[key]
+          ? { ...next[key], no_rebound: v }
+          : { indicator: 'settlement', level, no_rebound: v }
+      }
+      return next
+    })
+  }
+
   const collect = (): RuleInput[] => {
     const list: RuleInput[] = []
     for (const { indicator, level } of ROWS) {
@@ -200,6 +218,7 @@ export default function WarningRulesModal({
         threshold_cumulative_mm: r.threshold_cumulative_mm ?? null,
         threshold_delta_mm: r.threshold_delta_mm ?? null,
         threshold_rate_mm_per_day: r.threshold_rate_mm_per_day ?? null,
+        no_rebound: r.no_rebound ?? false,
         is_active: true,
         source_note: sourceNote || undefined,
       })
@@ -524,6 +543,21 @@ export default function WarningRulesModal({
             规范的双控做法一般是报警值比控制值宽一档。
           </Typography.Text>
         )}
+        <Divider style={{ margin: '4px 0' }} />
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+          <Switch checked={noRebound} onChange={setNoRebound} />
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <Typography.Text strong>沉降不允许回弹（只沉不升）</Typography.Text>
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                给盖梁支架这类<b>理论上只沉不升</b>的观测用。勾上之后：测出来的"回升"按测量误差处理，
+                累计变化的绝对值不再变小、曲线不掉头（本期记为该点变化 0）。
+                <b>原始读数照旧存库</b>，记录页查到的还是实测值 —— 改的只是成果口径。
+                水平位移不受影响（有来有回是真实变形）；基坑这类可能有真实回弹的场景保持关闭。
+              </Typography.Text>
+            </div>
+          </div>
+        </div>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           规则含义：|累计变化量|、|本次变化量|、变化速率<b>三样各判一次、取最严的那一级</b> ——
           ≥ 报警值 → 报警；≥ 控制值 → 预警；哪一档留空就不判那一维。

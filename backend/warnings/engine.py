@@ -31,6 +31,9 @@ class RuleLimits:
     alarm_cumulative_mm: float | None = None
     alarm_delta_mm: float | None = None
     alarm_rate_mm_per_day: float | None = None
+    #: 禁止回弹（沉降只沉不升）：**处理口径**，不是限值，所以不分控制/报警。
+    #: 由 `calculation.engine.compute_series` 消费，判定这边不看它。
+    no_rebound: bool = False
 
 
 def check_level(value: float | None, control: float | None, alarm: float | None) -> int:
