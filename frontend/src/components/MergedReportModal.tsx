@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Card,
-  DatePicker,
   Divider,
   Empty,
   Input,
@@ -16,8 +15,7 @@ import {
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { DeleteOutlined, EditOutlined, FileExcelOutlined, PrinterOutlined, PlusOutlined } from '@ant-design/icons'
-import type { Dayjs } from 'dayjs'
+import { DeleteOutlined, EditOutlined, FileExcelOutlined, HistoryOutlined, PlusOutlined, PrinterOutlined } from '@ant-design/icons'
 
 import {
   downloadBlob,
@@ -67,7 +65,11 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
   const [sheetOptions, setSheetOptions] = useState<TemplateSheetOption[]>([])
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
-  const [obsDate, setObsDate] = useState<Dayjs | null>(null)
+  /** 「补打」：选哪几期（默认勾最新一期） */
+  const [periodTarget, setPeriodTarget] = useState<ReportGroup | null>(null)
+  const [periodOptions, setPeriodOptions] = useState<{ date: string; period: string }[]>([])
+  const [picked, setPicked] = useState<string[]>([])
+  const [periodBusy, setPeriodBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -188,14 +190,16 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
     })
   }
 
-  const exportExcel = async (g: ReportGroup) => {
+  const exportExcel = async (g: ReportGroup, days?: string[]) => {
+    const n = days?.length || 1
     setBusyId(g.id)
-    const tip = message.loading(`正在生成「${g.name}」…`, 0)
+    const tip = message.loading(`正在生成「${g.name}」${n > 1 ? ` ${n} 期` : ''}…`, 0)
     try {
-      const blob = await mergedReportApi.exportExcel(g.id, obsDate?.format('YYYY-MM-DD'))
-      const day = obsDate?.format('YYYY.MM.DD') || '最新一期'
-      downloadBlob(blob, `${g.name}_${day}.xlsx`)
-      message.success('已导出')
+      const blob = await mergedReportApi.exportExcel(g.id, undefined, days)
+      const day =
+        n === 1 ? days![0].replace(/-/g, '.') : days?.length ? `${days[0]}~${days[days.length - 1]}` : '最新一期'
+      downloadBlob(blob, `${g.name}_${day}.${n > 1 ? 'zip' : 'xlsx'}`)
+      message.success(n > 1 ? `已导出 ${n} 期（打包成 ZIP）` : '已导出')
     } catch (e) {
       message.error((e as Error).message, 8)
     } finally {
@@ -204,11 +208,15 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
     }
   }
 
-  const printPdf = async (g: ReportGroup) => {
+  const printPdf = async (g: ReportGroup, days?: string[]) => {
+    const n = days?.length || 1
     setBusyId(g.id)
-    const tip = message.loading(`正在生成「${g.name}」PDF，约需 3 秒…`, 0)
+    const tip = message.loading(
+      `正在生成「${g.name}」${n > 1 ? ` ${n} 期` : ''}PDF，约需 ${Math.max(3, n * 2)} 秒…`,
+      0,
+    )
     try {
-      const blob = await mergedReportApi.pdf(g.id, obsDate?.format('YYYY-MM-DD'))
+      const blob = await mergedReportApi.pdf(g.id, undefined, days)
       const url = URL.createObjectURL(blob)
       // 与单项目导出同一套做法：塞进隐藏 iframe 调 print()，页面不跳走
       const iframe = document.createElement('iframe')
@@ -235,6 +243,19 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
     } finally {
       tip()
       setBusyId(null)
+    }
+  }
+
+  const openPeriod = async (g: ReportGroup) => {
+    setPeriodTarget(g)
+    setPeriodOptions([])
+    setPicked([])
+    try {
+      const ds = await mergedReportApi.dates(g.id)
+      setPeriodOptions(ds)
+      setPicked(ds.length ? [ds[0].date] : [])
+    } catch (e) {
+      message.error((e as Error).message, 8)
     }
   }
 
@@ -303,6 +324,9 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
           <Button size="small" icon={<PrinterOutlined />} disabled={busyId === r.id} onClick={() => void printPdf(r)}>
             打印
           </Button>
+          <Button size="small" icon={<HistoryOutlined />} onClick={() => void openPeriod(r)}>
+            补打…
+          </Button>
           <Button size="small" icon={<EditOutlined />} onClick={() => void openEdit(r)} />
           <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(r)} />
         </Space>
@@ -334,17 +358,9 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
               新建合并报表
             </Button>
-            <Divider type="vertical" />
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              按哪天出：
+              「导出/打印」出最新一期；要往前补打几期，点「补打…」，可多选
             </Typography.Text>
-            <DatePicker
-              size="small"
-              value={obsDate}
-              onChange={(d) => setObsDate(d)}
-              placeholder="留空 = 各项目都有数据的最近一天"
-              style={{ width: 260 }}
-            />
           </Space>
 
           <Card size="small" bodyStyle={{ padding: 0 }}>
@@ -455,6 +471,82 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
           </Space>
         </Space>
       )}
+
+      <Modal
+        title={periodTarget ? `补打期次 · ${periodTarget.name}` : '补打期次'}
+        open={periodTarget !== null}
+        onCancel={() => setPeriodTarget(null)}
+        width={560}
+        footer={[
+          <Button key="cancel" onClick={() => setPeriodTarget(null)}>
+            取消
+          </Button>,
+          <Button
+            key="excel"
+            icon={<FileExcelOutlined />}
+            loading={periodBusy}
+            disabled={picked.length === 0}
+            onClick={async () => {
+              if (!periodTarget) return
+              setPeriodBusy(true)
+              await exportExcel(periodTarget, picked)
+              setPeriodBusy(false)
+              setPeriodTarget(null)
+            }}
+          >
+            {picked.length > 1 ? `导出 ${picked.length} 期 Excel` : '导出 Excel'}
+          </Button>,
+          <Button
+            key="pdf"
+            type="primary"
+            icon={<PrinterOutlined />}
+            loading={periodBusy}
+            disabled={picked.length === 0}
+            onClick={async () => {
+              if (!periodTarget) return
+              setPeriodBusy(true)
+              await printPdf(periodTarget, picked)
+              setPeriodBusy(false)
+              setPeriodTarget(null)
+            }}
+          >
+            {picked.length > 1 ? `打印 ${picked.length} 期` : '打印'}
+          </Button>,
+        ]}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Space wrap size={8}>
+            <Button size="small" onClick={() => setPicked(periodOptions.map((d) => d.date))}>
+              全选
+            </Button>
+            <Button
+              size="small"
+              onClick={() => setPicked(periodOptions.slice(0, 10).map((d) => d.date))}
+            >
+              最近 10 期
+            </Button>
+            <Button size="small" onClick={() => setPicked([])}>
+              清空
+            </Button>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              共 {periodOptions.length} 期可打（两侧都有数据的那些天）
+            </Typography.Text>
+          </Space>
+          <Select
+            mode="multiple"
+            style={{ width: '100%' }}
+            value={picked}
+            onChange={setPicked}
+            placeholder="选要补打的期次"
+            maxTagCount={6}
+            options={periodOptions.map((d) => ({ value: d.date, label: `${d.date}（${d.period}）` }))}
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            多期导出会打成一个 ZIP；多期打印会合成一份 PDF，一次打完 —— 和单项目导出页的批量打印一样。
+            同一天必须两侧都有数据，缺一侧的那天不会出现在这里。
+          </Typography.Text>
+        </Space>
+      </Modal>
     </Modal>
   )
 }

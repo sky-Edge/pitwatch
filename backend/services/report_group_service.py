@@ -170,3 +170,32 @@ def template_sheet_options(db: Session, template_id: int) -> list[dict]:
         {"sheet_name": name, "kind": cfg.get("kind") or "settlement"}
         for name, cfg in sheets.items()
     ]
+
+
+def available_dates(db: Session, group) -> list[dict]:
+    """这份组合能出哪几期：**所有项目都有数据的那些天**，按日期倒序。
+
+    期次跟着主项目算（与导出时的口径一致），前端拿它做多选补打。
+    缺一侧数据的那天不会出现在列表里 —— 与其让用户选完再报错，不如一开始就不给。
+    """
+    from backend.reports.merged_report import plan_group
+
+    _tpl, _layout, _cfgs, plans = plan_group(db, group)
+    main = next((p for p in plans if p["project"].id == group.main_project_id), plans[0])
+    main_dates = main["dates"]
+
+    common = set(plans[0]["dates"])
+    for p in plans[1:]:
+        common &= set(p["dates"])
+
+    out: list[dict] = []
+    for d in sorted(common, reverse=True):
+        idx = main_dates.index(d)
+        out.append(
+            {
+                "date": d.isoformat(),
+                "period_no": idx,
+                "period": "初始值" if idx == 0 else f"第{idx}期",
+            }
+        )
+    return out

@@ -403,25 +403,58 @@ def export_daily_docx(project_id: int, obs_date: date | None = None, db: Session
 merged_router = APIRouter(prefix="/reports", tags=["reports"])
 
 
-def _merged_excel(db, group_id: int, obs_date, weather, instrument_id: int | None):
-    from backend.reports.merged_report import build_merged_report, resolve_merged_date
+def _merged_group(db, group_id: int):
     from backend.services import report_group_service
 
     try:
-        group = report_group_service.get_group(db, group_id)
+        return report_group_service.get_group(db, group_id)
     except report_group_service.GroupError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
-    target = obs_date
+
+def _merged_targets(db, group, dates: str, obs_date: date | None) -> list[date]:
+    """本期要打哪几期：`dates`（逗号分隔，可多选）> `obs_date` > 各项目都有的最近一天。
+
+    多期补打是**单项目导出页早就有的用法**（勾几期、一次打印），合并报表不该少这一块。
+    """
+    from backend.services import report_group_service
+
+    if not dates:
+        if obs_date:
+            return [obs_date]
+        from backend.reports.merged_report import resolve_merged_date
+
+        try:
+            return [resolve_merged_date(db, group)]
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+
     try:
-        if target is None:
-            target = resolve_merged_date(db, group)
+        wanted = sorted({date.fromisoformat(x.strip()) for x in dates.split(",") if x.strip()})
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"日期格式不对：{e}") from e
+    if not wanted:
+        raise HTTPException(status_code=422, detail="没有选中任何日期")
+    if len(wanted) > 60:
+        raise HTTPException(status_code=422, detail="一次最多打 60 期，请缩小日期范围")
+
+    have = {d["date"] for d in report_group_service.available_dates(db, group)}
+    missing = [d.isoformat() for d in wanted if d.isoformat() not in have]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"这些日期不是两侧都有数据：{'、'.join(missing)} —— 合并报表只能打两边同一天都测了的期次",
+        )
+    return wanted
+
+
+def _merged_build(db, group, target: date, weather, instrument_id: int | None):
+    from backend.reports.merged_report import build_merged_report
+
+    try:
         w = _resolve_weather(db, weather, target)
         return build_merged_report(
-            db,
-            group,
-            target,
-            weather=w,
+            db, group, target, weather=w,
             instrument=instrument_service.get_instrument(db, instrument_id),
         )
     except ValueError as e:
@@ -432,34 +465,68 @@ def _merged_excel(db, group_id: int, obs_date, weather, instrument_id: int | Non
 def export_merged_excel(
     group_id: int,
     obs_date: date | None = None,
+    dates: str = Query("", description="逗号分隔的多期，如 2026-11-10,2026-11-11；不传=最新一期"),
     weather: str | None = None,
     instrument_id: int | None = Query(None, description="用哪台仪器"),
     db: Session = Depends(get_db),
 ):
-    """按「报表组合」导出一份合并整卷 Excel（封面/签字/布点图共用）。"""
-    buf, filename, info = _merged_excel(db, group_id, obs_date, weather, instrument_id)
-    return _stream_response(buf, filename, info)
+    """按「报表组合」导出合并整卷：单期给 xlsx，多期打成一个 ZIP。"""
+    group = _merged_group(db, group_id)
+    wanted = _merged_targets(db, group, dates, obs_date)
+
+    if len(wanted) == 1:
+        buf, filename, info = _merged_build(db, group, wanted[0], weather, instrument_id)
+        return _stream_response(buf, filename, info)
+
+    zip_buf = io.BytesIO()
+    errors: list[tuple[str, str]] = []
+    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_STORED) as zf:
+        for d in wanted:
+            try:
+                buf, filename, _info = _merged_build(db, group, d, weather, instrument_id)
+                zf.writestr(filename, buf.getvalue())
+            except (ValueError, HTTPException) as e:
+                errors.append((d.isoformat(), str(e.detail) if isinstance(e, HTTPException) else str(e)))
+        if errors:
+            zf.writestr("生成失败清单.txt", "\n".join(f"{d}：{m}" for d, m in errors) + "\n")
+    first, last = wanted[0], wanted[-1]
+    name = f"{group.name}_{first.isoformat()}~{last.isoformat()}_共{len(wanted)}期.zip"
+    return _stream_response(zip_buf, name)
 
 
 @merged_router.get("/merged/pdf")
 def export_merged_pdf(
     group_id: int,
     obs_date: date | None = None,
+    dates: str = Query("", description="逗号分隔的多期；不传=最新一期"),
     weather: str | None = None,
     instrument_id: int | None = Query(None, description="用哪台仪器"),
     db: Session = Depends(get_db),
 ):
-    """合并整卷 PDF —— 给浏览器直接打印（一份册子，不是一份项目一份）。"""
-    from backend.services.report_pdf_service import PdfConvertError, convert_many
+    """合并整卷 PDF：多期会**合成一份**（一次打印全部），不是打包一堆文件。"""
+    from backend.services.report_pdf_service import PdfConvertError, convert_many, merge_pdfs
 
-    buf, filename, _info = _merged_excel(db, group_id, obs_date, weather, instrument_id)
+    group = _merged_group(db, group_id)
+    wanted = _merged_targets(db, group, dates, obs_date)
+
+    books: list[bytes] = []
+    first_name = ""
+    for d in wanted:
+        buf, filename, _info = _merged_build(db, group, d, weather, instrument_id)
+        if not first_name:
+            first_name = filename
+        books.append(buf.getvalue())
+
     try:
-        pdf = convert_many([buf.getvalue()])[0]
+        pdfs = convert_many(books)
+        pdf = merge_pdfs(pdfs)
     except PdfConvertError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
-    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+
+    stem = first_name.rsplit(".", 1)[0] if "." in first_name else first_name
+    name = f"{stem}.pdf" if len(wanted) == 1 else f"{stem}_等{len(wanted)}期.pdf"
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(stem + '.pdf')}"},
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(name)}"},
     )

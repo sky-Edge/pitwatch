@@ -1802,10 +1802,16 @@ export const mergedReportApi = {
   update: (id: number, payload: ReportGroupPayload) =>
     http.put<ReportGroup>(`/report-groups/${id}`, payload).then((r) => r.data),
   remove: (id: number) => http.delete(`/report-groups/${id}`),
-  /** 出一份合并整卷（封面/签字/布点图共用），obsDate 不传 = 各项目都有数据的最近一天 */
-  exportExcel: (id: number, obsDate?: string) => {
+  /** 这份组合能打哪几期（各项目同一天都有数据的那些天） */
+  dates: (id: number) =>
+    http
+      .get<{ date: string; period_no: number; period: string }[]>(`/report-groups/${id}/dates`)
+      .then((r) => r.data),
+  /** 出一份合并整卷（封面/签字/布点图共用）；dates 多选=多期打包，留空=最新一期 */
+  exportExcel: (id: number, obsDate?: string, dates?: string[]) => {
     const params: Record<string, string | number> = { group_id: id }
-    if (obsDate) params.obs_date = obsDate
+    if (dates?.length) params.dates = dates.join(',')
+    else if (obsDate) params.obs_date = obsDate
     return http
       .get<Blob>('/reports/merged/excel', {
         params,
@@ -1815,10 +1821,11 @@ export const mergedReportApi = {
       })
       .then((r) => r.data)
   },
-  /** 合并整卷 PDF（浏览器里直接打印用） */
-  pdf: async (id: number, obsDate?: string): Promise<Blob> => {
+  /** 合并整卷 PDF（多期会合成一份，一次打印全部） */
+  pdf: async (id: number, obsDate?: string, dates?: string[]): Promise<Blob> => {
     const params = new URLSearchParams({ group_id: String(id) })
-    if (obsDate) params.set('obs_date', obsDate)
+    if (dates?.length) params.set('dates', dates.join(','))
+    else if (obsDate) params.set('obs_date', obsDate)
     const res = await fetch(`/api/v1/reports/merged/pdf?${params.toString()}`)
     if (!res.ok) {
       let detail = `生成失败（HTTP ${res.status}）`

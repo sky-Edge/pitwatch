@@ -287,3 +287,43 @@ def test_upload_marks_template_type_merged(client):
     lib = client.get("/api/v1/export-templates").json()
     me = [t for t in lib if t["id"] == r.json()["id"]][0]
     assert me["template_type"] == "merged"
+
+
+def test_group_dates_lists_only_common_days(client):
+    """补打列表只给「两侧都有数据」的天，期次跟着主项目算。"""
+    tpl_id, north, south = _setup(client)
+    gid = _mk_group(client, tpl_id, north, south)
+
+    r = client.get(f"/api/v1/report-groups/{gid}/dates")
+    assert r.status_code == 200, r.text
+    rows = r.json()
+    assert [x["date"] for x in rows] == ["2026-07-28", "2026-07-27"]
+    assert rows[0]["period"] == "第1期"
+    assert rows[1]["period"] == "初始值"
+
+
+def test_merged_multi_period_excel_returns_zip(client):
+    """多期导出 = 一个 ZIP（每期一份 xlsx），和单项目批量导出一致。"""
+    import io
+    import zipfile
+
+    tpl_id, north, south = _setup(client)
+    gid = _mk_group(client, tpl_id, north, south)
+
+    r = client.get(f"/api/v1/reports/merged/excel?group_id={gid}&dates=2026-07-27,2026-07-28")
+    assert r.status_code == 200, r.text
+    assert r.content[:2] == b"PK"
+    zf = zipfile.ZipFile(io.BytesIO(r.content))
+    names = [n for n in zf.namelist() if n.endswith(".xlsx")]
+    assert len(names) == 2, names
+    assert all("钢栈桥" in n for n in names)
+
+
+def test_merged_multi_period_rejects_day_missing_on_one_side(client):
+    """指定的一天若某侧没数据 → 直接拒绝，不拿旧数据凑。"""
+    tpl_id, north, south = _setup(client)
+    gid = _mk_group(client, tpl_id, north, south)
+
+    r = client.get(f"/api/v1/reports/merged/excel?group_id={gid}&dates=2026-07-28,2026-07-30")
+    assert r.status_code == 422
+    assert "2026-07-30" in r.json()["detail"]

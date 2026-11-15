@@ -37,6 +37,16 @@ def template_sheets(template_id: int = Query(..., description="母版 id"), db: 
         raise _boom(e) from e
 
 
+@router.get("/{group_id}/dates")
+def group_dates(group_id: int, db: Session = Depends(get_db)):
+    """这份组合能出哪几期（各项目同一天都有数据的那些天，倒序）。"""
+    try:
+        group = svc.get_group(db, group_id)
+        return svc.available_dates(db, group)
+    except svc.GroupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
 @router.get("/{group_id}", response_model=ReportGroupRead)
 def get_group(group_id: int, db: Session = Depends(get_db)):
     try:
