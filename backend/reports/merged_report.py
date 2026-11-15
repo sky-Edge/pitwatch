@@ -29,13 +29,10 @@ from backend.models.export_template import ExportTemplate
 from backend.reports.export_cleanup import clear_stale_stat_tables
 from backend.reports.master_report import (
     _cn_period,
-    _collect_period_cells,
     _ensure_text_blocks,
     _kinds_for_report,
-    _period_text,
-    _resolve_cell,
     _write_date_cell,
-    _write_text_cell,
+    write_period_cells,
     fill_data_sheets,
     fill_raw_data_blocks,
     write_sheet_monitor_dates,
@@ -183,15 +180,7 @@ def build_merged_report(
         _set_cover_project_name(wb, display_name)
 
     meta = layout.get("meta") or {}
-    period_cells = _collect_period_cells(wb, layout)
-    sample = None
-    if period_cells:
-        ws0, r0, c0 = _resolve_cell(wb, period_cells[0])
-        if ws0 is not None:
-            sample = ws0.cell(row=r0, column=c0).value
-    period_text = _period_text(period_no, sample)
-    for ref in period_cells:
-        _write_text_cell(wb, ref, period_text)
+    period_text = write_period_cells(wb, layout, period_no)
     _write_date_cell(wb, meta.get("cover_date_cell"), target)
     _write_date_cell(wb, meta.get("sign_date_cell"), target)
 

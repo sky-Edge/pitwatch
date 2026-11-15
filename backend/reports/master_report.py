@@ -170,23 +170,7 @@ def build_master_report(
 
     # 期次文本形态跟随样本格（母版带括号 → 输出带括号），多槽全写，保证签字/封面同步变化
 
-    period_cells = _collect_period_cells(wb, layout)
-
-    sample = None
-
-    if period_cells:
-
-        ws0, r0, c0 = _resolve_cell(wb, period_cells[0])
-
-        if ws0 is not None:
-
-            sample = ws0.cell(row=r0, column=c0).value
-
-    period_text = _period_text(period_no, sample)
-
-    for ref in period_cells:
-
-        _write_text_cell(wb, ref, period_text)
+    period_text = write_period_cells(wb, layout, period_no)
 
     _write_date_cell(wb, meta.get("cover_date_cell"), target)
 
@@ -797,6 +781,9 @@ def _period_text(no: int, sample=None) -> str:
 
     s = str(sample).strip().replace(" ", "").replace("\u3000", "")
 
+    # 带不带括号**看这一格原来怎么写**（不是看别的格）：
+    # 签字页是「（第七十九期）」，概况工作量表的备注列只写「第七十九期」——
+    # 统一按第一格的样式写，会把括号带进备注栏。
     if s.startswith("（") or s.startswith("("):
 
         return f"（{core}）"
@@ -845,6 +832,25 @@ def _prev_obs_date(db, project_id: int, target: date):
 
 
 
+
+
+def write_period_cells(wb, layout: dict, period_no: int) -> str:
+    """写期次文本，**每个格子按它自己原来的写法**决定带不带括号。
+
+    母版里期次可能出现在多处：签字页「（第七十九期）」、概况工作量表备注「第七十九期」。
+    早先统一用第一格当样式样板，结果备注栏也被套上括号。现在逐格取样本。
+    返回写进签字页那句（调用方拿去拼文件名）。
+    """
+    period_cells = _collect_period_cells(wb, layout)
+    main_text = ""
+    for ref in period_cells:
+        ws0, r0, c0 = _resolve_cell(wb, ref)
+        sample = ws0.cell(row=r0, column=c0).value if ws0 is not None else None
+        text = _period_text(period_no, sample)
+        _write_text_cell(wb, ref, text)
+        if not main_text:
+            main_text = text
+    return main_text
 
 
 def write_sheet_monitor_dates(db, project_id: int, wb, sheet_name: str, target: date, is_initial: bool) -> None:

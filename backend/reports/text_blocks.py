@@ -184,19 +184,37 @@ def _gen_progress(ctx: GenContext) -> list[str]:
     ]
 
 
-def _gen_worktable(ctx: GenContext) -> list[str]:
-    """概况页工作量表：**一行汇总**（母版本来就只有一行数据行，不去补行改版式）。
+def _gen_worktable(ctx: GenContext) -> list[list[str]]:
+    """概况页工作量表：**一行一个项目**（单项目就一行）。
+
+    合并报表里行带 `label`（项目名），就按项目拆行 —— 南北两侧各一行、各写各的点次；
+    单项目没有 label，仍是一行汇总（母版只有一行时行为不变）。
 
     "点次"按**本期实际读数条数**算（沉降每点 1 条、水平位移每点 X/Y 各 1 条）——
     这是有依据的数；"累积完成工作量"母版本来就是空的，不编。
     """
-    return [
-        "1",
-        "、".join(ctx.kind_labels) or "—",
-        f"{len(ctx.rows)}点次",
-        "",                     # 累积完成工作量：无依据，留空
-        "初始值" if ctx.is_initial else ctx.period_text,
-    ]
+    order: list[str] = []
+    count: dict[str, int] = {}
+    for r in ctx.rows:
+        lab = str(r.get("label") or "").strip()
+        if lab not in count:
+            order.append(lab)
+            count[lab] = 0
+        count[lab] += 1
+    if not order:
+        order = [""]
+
+    rows: list[list[str]] = []
+    for i, lab in enumerate(order, start=1):
+        item = f"{lab}{'、'.join(ctx.kind_labels)}" if lab else ("、".join(ctx.kind_labels) or "—")
+        rows.append([
+            str(i),
+            item,
+            f"{count.get(lab, 0)}点次",
+            "",                 # 累积完成工作量：无依据，留空
+            "初始值" if ctx.is_initial else ctx.period_text,
+        ])
+    return rows
 
 
 _GENERATORS = {
@@ -312,20 +330,36 @@ def _write_overview(ws, blk: dict, texts: list[str]) -> tuple[int, int, list[str
     return 1, 0, []
 
 
-def _write_worktable(ws, blk: dict, texts: list[str]) -> tuple[int, int, list[str]]:
-    """工作量表：表头不动，只写数据行（母版几行就写几行，多出来的清空）。"""
+def _write_worktable(ws, blk: dict, texts) -> tuple[int, int, list[str]]:
+    """工作量表：表头不动，按行写（一行一个项目；母版多出来的行清空）。
+
+    - "监测项目"列**模板已有文字就保留**（用户自己写的「北侧竖向位移」比程序拼的准）；
+    - 生成的行比母版多 → 报进 overflow，不静默丢；
+    - 母版行比生成的多 → 清空多余行（原来就是这么处理 12 类簇的母版的）。
+    """
     cols = blk.get("cols") or {}
     first = blk.get("first_row")
     last = blk.get("last_row") or first
     if not (cols and first):
-        return 0, 0, texts
-    order = [cols.get(k) for k in ("index", "item", "week", "total", "note")]
+        return 0, 0, list(texts or [])
+    keys = ("index", "item", "week", "total", "note")
+    order = [cols.get(k) for k in keys]
+    rows = texts if texts and isinstance(texts[0], list) else [texts]
+    # 模板里的项目名什么时候能留：它确实在说同一类监测（「北侧竖向位移」）。
+    # 「水中拉伸钢板桩」这种别的工程留下的字，一定要被覆盖，否则就是发别人的内容。
+    known_kinds = tuple(KIND_LABEL.values())
     written = cleared = 0
     for offset, row in enumerate(range(int(first), int(last) + 1)):
-        if offset == 0:
-            for col, val in zip(order, texts):
-                if col:
-                    ws.cell(row=row, column=int(col)).value = val or None
+        if offset < len(rows):
+            for key, col, val in zip(keys, order, rows[offset]):
+                if not col:
+                    continue
+                cell = ws.cell(row=row, column=int(col))
+                if key == "item" and cell.value not in (None, ""):
+                    if any(k in str(cell.value) for k in known_kinds):
+                        continue      # 保留用户自己写的「北侧竖向位移」
+
+                cell.value = val or None
             written += 1
         else:
             touched = False
@@ -335,4 +369,5 @@ def _write_worktable(ws, blk: dict, texts: list[str]) -> tuple[int, int, list[st
                     touched = True
             if touched:
                 cleared += 1
-    return written, cleared, []
+    overflow = [r for r in rows[len(range(int(first), int(last) + 1)):]]
+    return written, cleared, overflow

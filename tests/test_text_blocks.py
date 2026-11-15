@@ -165,10 +165,13 @@ def test_worktable_counts_real_readings():
         _row("JJC1", -2.0, kind="displacement", component="Y"),
     ]
     texts = generate(PURPOSE_WORKTABLE, _ctx(rows, kinds=["settlement", "displacement"]))
-    assert texts[0] == "1"
-    assert texts[1] == "竖向位移、立柱结构水平位移"
-    assert texts[2] == "4点次"
-    assert texts[4] == "第3期"
+    # 一行一个项目（单项目就一行）：序号 / 监测项目 / 点次 / 累积 / 期次
+    assert len(texts) == 1, "单项目应该只有一行"
+    row = texts[0]
+    assert row[0] == "1"
+    assert row[1] == "竖向位移、立柱结构水平位移"
+    assert row[2] == "4点次"
+    assert row[4] == "第3期"
 
 
 # ─────────────────────────── 写入行为 ───────────────────────────
