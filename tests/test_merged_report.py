@@ -298,7 +298,7 @@ def test_group_dates_lists_only_common_days(client):
     assert r.status_code == 200, r.text
     rows = r.json()
     assert [x["date"] for x in rows] == ["2026-07-28", "2026-07-27"]
-    assert rows[0]["period"] == "第1期"
+    assert rows[0]["period"] == "第一期"
     assert rows[1]["period"] == "初始值"
 
 
