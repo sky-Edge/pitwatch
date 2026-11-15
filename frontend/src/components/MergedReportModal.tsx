@@ -3,6 +3,7 @@ import {
   Alert,
   Button,
   Card,
+  DatePicker,
   Divider,
   Empty,
   Input,
@@ -15,6 +16,7 @@ import {
   message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import dayjs, { type Dayjs } from 'dayjs'
 import { DeleteOutlined, EditOutlined, FileExcelOutlined, HistoryOutlined, PlusOutlined, PrinterOutlined } from '@ant-design/icons'
 
 import {
@@ -26,6 +28,7 @@ import {
   type ReportGroup,
   type TemplateSheetOption,
 } from '../api/client'
+import { observationCalendarPanel } from './CalendarCell'
 
 /**
  * 合并报表 —— 多个项目合出**一份**整卷日报。
@@ -65,10 +68,10 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
   const [sheetOptions, setSheetOptions] = useState<TemplateSheetOption[]>([])
   const [saving, setSaving] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
-  /** 「补打」：选哪几期（默认勾最新一期） */
+  /** 「补打」：按**日期**选期次（与单项目导出页同一套交互） */
   const [periodTarget, setPeriodTarget] = useState<ReportGroup | null>(null)
   const [periodOptions, setPeriodOptions] = useState<{ date: string; period: string }[]>([])
-  const [picked, setPicked] = useState<string[]>([])
+  const [periodRange, setPeriodRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
   const [periodBusy, setPeriodBusy] = useState(false)
 
   const load = useCallback(async () => {
@@ -249,15 +252,36 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
   const openPeriod = async (g: ReportGroup) => {
     setPeriodTarget(g)
     setPeriodOptions([])
-    setPicked([])
+    setPeriodRange(null)
     try {
       const ds = await mergedReportApi.dates(g.id)
       setPeriodOptions(ds)
-      setPicked(ds.length ? [ds[0].date] : [])
+      // 默认选中最新一期（起止同一天 = 单期），和单项目导出页的开箱行为一致
+      if (ds.length) {
+        const d = dayjs(ds[0].date)
+        setPeriodRange([d, d])
+      }
     } catch (e) {
       message.error((e as Error).message, 8)
     }
   }
+
+  /** 区间内所有「两侧都有数据」的日期，倒序 —— 期次就是这么定下来的，不靠勾选列表 */
+  const picked = useMemo(() => {
+    const [start, end] = periodRange ?? []
+    if (!start || !end) return []
+    return periodOptions
+      .filter((d) => d.date >= start.format('YYYY-MM-DD') && d.date <= end.format('YYYY-MM-DD'))
+      .map((d) => d.date)
+  }, [periodRange, periodOptions])
+
+  const periodDateSet = useMemo(() => new Set(periodOptions.map((d) => d.date)), [periodOptions])
+
+  /** 日历上标出可打的日子（两侧都有数据的那些天） */
+  const periodCalendar = useMemo(
+    () => observationCalendarPanel(periodOptions.map((d) => d.date), '底部横条 = 两侧都有数据', '灰色 = 这天打不了'),
+    [periodOptions],
+  )
 
   const projectOptions = useMemo(
     () =>
@@ -359,7 +383,7 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
               新建合并报表
             </Button>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              「导出/打印」出最新一期；要往前补打几期，点「补打…」，可多选
+              「导出/打印」出最新一期；要往前补打，点「补打…」，按日期框选（同一天 = 单期）
             </Typography.Text>
           </Space>
 
@@ -476,7 +500,7 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
         title={periodTarget ? `补打期次 · ${periodTarget.name}` : '补打期次'}
         open={periodTarget !== null}
         onCancel={() => setPeriodTarget(null)}
-        width={560}
+        width={640}
         footer={[
           <Button key="cancel" onClick={() => setPeriodTarget(null)}>
             取消
@@ -515,35 +539,49 @@ export default function MergedReportModal({ open, onClose, projects }: Props) {
         ]}
       >
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Typography.Text style={{ fontSize: 13 }}>
+            选择期次（观测日期，起止选同一天 = 单期，框选一段 = 多期）：
+          </Typography.Text>
           <Space wrap size={8}>
-            <Button size="small" onClick={() => setPicked(periodOptions.map((d) => d.date))}>
-              全选
-            </Button>
+            <DatePicker.RangePicker
+              value={periodRange}
+              onChange={(v) => setPeriodRange(v as [Dayjs | null, Dayjs | null] | null)}
+              disabledDate={(d) => !d || !periodDateSet.has(d.format('YYYY-MM-DD'))}
+              placeholder={['起始日期（或单期日期）', '截止日期']}
+              allowClear
+              {...periodCalendar}
+            />
             <Button
               size="small"
-              onClick={() => setPicked(periodOptions.slice(0, 10).map((d) => d.date))}
+              disabled={periodOptions.length === 0}
+              onClick={() => {
+                const latest = dayjs(periodOptions[0].date)
+                const earliest = dayjs(periodOptions[periodOptions.length - 1].date)
+                setPeriodRange([earliest, latest])
+              }}
             >
-              最近 10 期
+              全部期次
             </Button>
-            <Button size="small" onClick={() => setPicked([])}>
+            <Button size="small" onClick={() => setPeriodRange(null)}>
               清空
             </Button>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              共 {periodOptions.length} 期可打（两侧都有数据的那些天）
+              共 {periodOptions.length} 期可打
             </Typography.Text>
           </Space>
-          <Select
-            mode="multiple"
-            style={{ width: '100%' }}
-            value={picked}
-            onChange={setPicked}
-            placeholder="选要补打的期次"
-            maxTagCount={6}
-            options={periodOptions.map((d) => ({ value: d.date, label: `${d.date}（${d.period}）` }))}
-          />
+          <Typography.Text
+            type={picked.length ? 'success' : 'warning'}
+            style={{ fontSize: 13 }}
+          >
+            {picked.length
+              ? `已选 ${picked.length} 期：${picked[picked.length - 1]}（${
+                  periodOptions.find((d) => d.date === picked[picked.length - 1])?.period ?? ''
+                }）至 ${picked[0]}（${periodOptions.find((d) => d.date === picked[0])?.period ?? ''}）`
+              : '还没选日期 —— 灰色日子表示两侧不是同一天都有数据，打不了'}
+          </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             多期导出会打成一个 ZIP；多期打印会合成一份 PDF，一次打完 —— 和单项目导出页的批量打印一样。
-            同一天必须两侧都有数据，缺一侧的那天不会出现在这里。
+            只有两侧同一天都测了的期次才能打，缺一侧的那天在日历上选不了。
           </Typography.Text>
         </Space>
       </Modal>
