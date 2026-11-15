@@ -79,10 +79,14 @@ def _mm(v: float | None) -> str:
 
 
 def _point_label(row: dict) -> str:
-    """测点标签：水平位移带 X/Y 后缀（母版里也是"点号-序号"这种写法，不带后缀分不清）。"""
-    if row.get("series_type") == "displacement":
-        return f"{row['point_no']}-{row.get('component', '')}"
-    return str(row["point_no"])
+    """测点标签：水平位移带 X/Y 后缀（母版里也是"点号-序号"这种写法，不带后缀分不清）。
+
+    合并报表里同一份册子装了几个项目、点号会重名（北侧 QC01 / 南侧 QC01），
+    所以调用方可以给行带一个 `label`（如"北侧钢栈桥"），这里优先用它区分。
+    """
+    prefix = str(row.get("label") or "").strip()
+    base = f"{row['point_no']}-{row.get('component', '')}" if row.get("series_type") == "displacement" else str(row["point_no"])
+    return f"{prefix} {base}" if prefix else base
 
 
 def _with_warning(rows: list[dict]) -> list[dict]:

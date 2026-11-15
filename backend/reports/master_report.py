@@ -207,38 +207,8 @@ def build_master_report(
             continue
 
         # 找该 Sheet 行 3 的"本次监测时间：…"与"上次监测时间：…"并整体替换日期
-
-        ws_t = wb[sn]
-
-        prev_date = _prev_obs_date(db, project_id, target)
-
-        # 初始值期（无上一观测日）：K3 也填初始值日（与用户真实初始值模板一致）
-
-        k3_date = prev_date if prev_date else (target if is_initial else None)
-
-        for r in (1, 2, 3, 4):
-
-            for c in range(1, 20):
-
-                cell = ws_t.cell(row=r, column=c)
-
-                v = str(cell.value or "")
-
-                if "本次监测时间" in v:
-
-                    cell.value = _replace_date_label(v, target)
-
-                elif "上次监测时间" in v:
-
-                    if k3_date:
-
-                        cell.value = _replace_date_label(v, k3_date)
-
-                    else:
-
-                        # 非初始值期且确无上一期（异常态）→ 保留前缀、清空日期避免串入母版旧值
-
-                        cell.value = v.split("：")[0].split(":")[0].strip() + "："
+        # （合并报表也要按单表换日期，逻辑抽成 write_sheet_monitor_dates 共用一份）
+        write_sheet_monitor_dates(db, project_id, wb, sn, target, is_initial)
 
     # ---- 2) 数据 Sheet 数据区填充（全数值）----
 
@@ -875,6 +845,32 @@ def _prev_obs_date(db, project_id: int, target: date):
 
 
 
+
+
+def write_sheet_monitor_dates(db, project_id: int, wb, sheet_name: str, target: date, is_initial: bool) -> None:
+    """把某张数据表表头里的「本次/上次监测时间」换成目标日期。
+
+    **单表**可调用是合并报表的前提：一份册子里两张表属于两个项目，
+    各自的"上次监测时间"不同，不能按整簿统一写。
+    """
+    if sheet_name not in wb.sheetnames:
+        return
+    ws_t = wb[sheet_name]
+    prev_date = _prev_obs_date(db, project_id, target)
+    # 初始值期（无上一观测日）：上次监测时间也填初始值日（与用户真实初始值模板一致）
+    k3_date = prev_date if prev_date else (target if is_initial else None)
+    for r in (1, 2, 3, 4):
+        for c in range(1, 20):
+            cell = ws_t.cell(row=r, column=c)
+            v = str(cell.value or "")
+            if "本次监测时间" in v:
+                cell.value = _replace_date_label(v, target)
+            elif "上次监测时间" in v:
+                if k3_date:
+                    cell.value = _replace_date_label(v, k3_date)
+                else:
+                    # 非初始值期且确无上一期（异常态）→ 保留前缀、清空日期避免串入母版旧值
+                    cell.value = v.split("：")[0].split(":")[0].strip() + "："
 
 
 def _write_text_cell(wb, cell_ref: str | None, value: str) -> None:

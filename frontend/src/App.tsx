@@ -146,6 +146,10 @@ const REQUIRED_BACKEND_FEATURES = [
 
   'multi_project_import',
 
+  // 合并报表：多个项目装订成一份整卷（旧后端没有 /report-groups 与 /reports/merged/*）
+
+  'merged_report',
+
 ]
 
 

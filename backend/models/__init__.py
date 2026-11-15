@@ -9,8 +9,9 @@ from backend.models.import_batch import ImportBatch
 from backend.models.observation_record import ObservationRecord
 from backend.models.point import MeasurementPoint
 from backend.models.project import Project
+from backend.models.report_group import ReportGroup, ReportGroupItem
 from backend.models.warning_event import WarningEvent
 from backend.models.warning_rule import WarningRule
 from backend.models.warning_rule_set import WarningRuleSet, WarningRuleSetProject
 
-__all__ = ["Base", "Project", "MeasurementPoint", "ObservationRecord", "ImportBatch", "WarningRule", "WarningEvent", "BackupRecord", "ExportTemplate", "ExportTemplateProject", "WarningRuleSet", "WarningRuleSetProject", "AppSetting"]
+__all__ = ["Base", "Project", "MeasurementPoint", "ObservationRecord", "ImportBatch", "WarningRule", "WarningEvent", "BackupRecord", "ExportTemplate", "ExportTemplateProject", "WarningRuleSet", "WarningRuleSetProject", "AppSetting", "ReportGroup", "ReportGroupItem"]

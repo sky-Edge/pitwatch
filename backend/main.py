@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 
-from backend.api.v1 import audit, backup, baselines, batch_import, bulk, calculation, chart, comparison, diagnostics, export_templates, generate, holidays, imports, points, projects, records, reports, settings as app_settings_api, warning_events, warning_rules, weather
+from backend.api.v1 import audit, backup, baselines, batch_import, bulk, calculation, chart, comparison, diagnostics, export_templates, generate, holidays, imports, points, projects, records, report_groups, reports, settings as app_settings_api, warning_events, warning_rules, weather
 from backend.core import reqlog
 from backend.core.config import frontend_dist_dir, settings
 from backend.core.db import harden_console, init_db
@@ -176,6 +176,9 @@ app.include_router(diagnostics.diag_router, prefix=settings.api_prefix)
 app.include_router(warning_events.events_router, prefix=settings.api_prefix)
 app.include_router(warning_events.quality_router, prefix=settings.api_prefix)
 app.include_router(reports.reports_router, prefix=settings.api_prefix)
+# 合并报表：南北两侧 / 多个基坑合成一份整卷（用户 2026-11-14）
+app.include_router(reports.merged_router, prefix=settings.api_prefix)
+app.include_router(report_groups.router, prefix=settings.api_prefix)
 app.include_router(backup.backup_router, prefix=settings.api_prefix)
 app.include_router(generate.gen_router, prefix=settings.api_prefix)
 app.include_router(export_templates.tpl_router, prefix=settings.api_prefix)
@@ -236,6 +239,8 @@ BACKEND_FEATURES = [
     "export_preview",
     # 跨项目导入：一次上传多份台账、按表内工程名称自动分到各项目（旧后端没有 /import/multi/*）
     "multi_project_import",
+    # 合并报表：南北两侧/多个基坑装订成一份整卷（旧后端没有 /report-groups 与 /reports/merged/*）
+    "merged_report",
 ]
 
 

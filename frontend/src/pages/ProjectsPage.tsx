@@ -20,6 +20,7 @@ import {
 } from 'antd'
 import {
   AppstoreOutlined,
+  BlockOutlined,
   DownOutlined,
   ExperimentOutlined,
   FileExcelOutlined,
@@ -51,6 +52,7 @@ import {
 import WarningRulesModal from '../components/WarningRulesModal'
 import TemplateLibraryModal from '../components/TemplateLibraryModal'
 import ProjectDefaultsModal from '../components/ProjectDefaultsModal'
+import MergedReportModal from '../components/MergedReportModal'
 import { levelColor, WARNING_LEVEL } from '../theme/tokens'
 import type { RecordsFocus } from '../navigation'
 
@@ -127,6 +129,8 @@ export default function ProjectsPage({
   /** 主界面「母版库」「项目默认值」入口（用户 2026-10-11：别每个项目各配一遍） */
   const [tplLibraryOpen, setTplLibraryOpen] = useState(false)
   const [defaultsOpen, setDefaultsOpen] = useState(false)
+  /** 合并报表：南北两侧 / 多个基坑装订成一份（用户 2026-11-14） */
+  const [mergedOpen, setMergedOpen] = useState(false)
   /** 表格勾选的项目 —— 批量操作的入口 */
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
@@ -918,6 +922,11 @@ export default function ProjectsPage({
                 项目默认值
               </Button>
             </Tooltip>
+            <Tooltip title="南北两侧、几个相邻基坑：合成一份册子，封面/签字页/布点图只留一份，数据表各占一张">
+              <Button icon={<BlockOutlined />} onClick={() => setMergedOpen(true)}>
+                合并报表
+              </Button>
+            </Tooltip>
             <Divider type="vertical" />
             <Divider type="vertical" />
             <Tooltip title="开着：生成的数据会像真实台账一样偶尔触发预警。关掉：生成的数据只在预警线以内波动，不会出现预警/报警点。">
@@ -1174,6 +1183,9 @@ export default function ProjectsPage({
 
       {/* 主界面「项目默认值」：新建项目自动带上规则套 / 母版 / 天气 */}
       <ProjectDefaultsModal open={defaultsOpen} onClose={() => setDefaultsOpen(false)} />
+
+      {/* 主界面「合并报表」：多个项目合出一份整卷，封面/签字页/布点图共用 */}
+      <MergedReportModal open={mergedOpen} onClose={() => setMergedOpen(false)} projects={projects} />
 
       {/* 批量套用母版：把勾选的项目加进这份母版的适用范围 */}
       <Modal

@@ -1744,3 +1744,86 @@ export const systemApi = {
     return r.json()
   },
 }
+
+// ---------- 合并报表（南北两侧 / 多个基坑合成一份整卷） ----------
+
+/** 组合里的一项：某张数据表 ← 某个项目 */
+export interface ReportGroupItem {
+  project_id: number
+  sheet_name: string
+  sort_order: number
+  project_name?: string | null
+}
+
+/** 合并报表组合 */
+export interface ReportGroup {
+  id: number
+  name: string
+  display_name: string | null
+  template_id: number
+  main_project_id: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  items: ReportGroupItem[]
+  template_name?: string | null
+  main_project_name?: string | null
+}
+
+/** 母版里的一张数据表 */
+export interface TemplateSheetOption {
+  sheet_name: string
+  kind: string
+}
+
+export interface ReportGroupPayload {
+  name: string
+  display_name?: string | null
+  template_id: number
+  main_project_id: number
+  items: { project_id: number; sheet_name: string; sort_order: number }[]
+}
+
+export const mergedReportApi = {
+  list: () => http.get<ReportGroup[]>('/report-groups').then((r) => r.data),
+  /** 这份母版里有哪些数据表（配"表 ↔ 项目"用） */
+  templateSheets: (templateId: number) =>
+    http
+      .get<TemplateSheetOption[]>('/report-groups/template-sheets', { params: { template_id: templateId } })
+      .then((r) => r.data),
+  create: (payload: ReportGroupPayload) =>
+    http.post<ReportGroup>('/report-groups', payload).then((r) => r.data),
+  update: (id: number, payload: ReportGroupPayload) =>
+    http.put<ReportGroup>(`/report-groups/${id}`, payload).then((r) => r.data),
+  remove: (id: number) => http.delete(`/report-groups/${id}`),
+  /** 出一份合并整卷（封面/签字/布点图共用），obsDate 不传 = 各项目都有数据的最近一天 */
+  exportExcel: (id: number, obsDate?: string) => {
+    const params: Record<string, string | number> = { group_id: id }
+    if (obsDate) params.obs_date = obsDate
+    return http
+      .get<Blob>('/reports/merged/excel', {
+        params,
+        responseType: 'blob',
+        timeout: LONG_TIMEOUT,
+        timeoutHint: '合并报表生成超时。母版较大时会慢一些',
+      })
+      .then((r) => r.data)
+  },
+  /** 合并整卷 PDF（浏览器里直接打印用） */
+  pdf: async (id: number, obsDate?: string): Promise<Blob> => {
+    const params = new URLSearchParams({ group_id: String(id) })
+    if (obsDate) params.set('obs_date', obsDate)
+    const res = await fetch(`/api/v1/reports/merged/pdf?${params.toString()}`)
+    if (!res.ok) {
+      let detail = `生成失败（HTTP ${res.status}）`
+      try {
+        const j = await res.json()
+        if (j?.detail) detail = j.detail
+      } catch {
+        /* 不是 JSON，用默认文案 */
+      }
+      throw new Error(detail)
+    }
+    return res.blob()
+  },
+}

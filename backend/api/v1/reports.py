@@ -382,3 +382,72 @@ def export_daily_docx(project_id: int, obs_date: date | None = None, db: Session
         raise HTTPException(status_code=422, detail=str(e)) from e
     return _stream_response(buf, filename)
 
+
+
+# ─────────────── 合并报表：多个项目合出同一份整卷 ───────────────
+#
+# 与单项目导出共用同一套填充函数（`fill_data_sheets` / `stamp_workbook` 等），
+# 区别只在"一份册子里有几张数据表、每张装哪个项目"。
+merged_router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _merged_excel(db, group_id: int, obs_date, weather, instrument_id: int | None):
+    from backend.reports.merged_report import build_merged_report, resolve_merged_date
+    from backend.services import report_group_service
+
+    try:
+        group = report_group_service.get_group(db, group_id)
+    except report_group_service.GroupError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+    target = obs_date
+    try:
+        if target is None:
+            target = resolve_merged_date(db, group)
+        w = _resolve_weather(db, weather, target)
+        return build_merged_report(
+            db,
+            group,
+            target,
+            weather=w,
+            instrument=instrument_service.get_instrument(db, instrument_id),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+
+
+@merged_router.get("/merged/excel")
+def export_merged_excel(
+    group_id: int,
+    obs_date: date | None = None,
+    weather: str | None = None,
+    instrument_id: int | None = Query(None, description="用哪台仪器"),
+    db: Session = Depends(get_db),
+):
+    """按「报表组合」导出一份合并整卷 Excel（封面/签字/布点图共用）。"""
+    buf, filename, info = _merged_excel(db, group_id, obs_date, weather, instrument_id)
+    return _stream_response(buf, filename, info)
+
+
+@merged_router.get("/merged/pdf")
+def export_merged_pdf(
+    group_id: int,
+    obs_date: date | None = None,
+    weather: str | None = None,
+    instrument_id: int | None = Query(None, description="用哪台仪器"),
+    db: Session = Depends(get_db),
+):
+    """合并整卷 PDF —— 给浏览器直接打印（一份册子，不是一份项目一份）。"""
+    from backend.services.report_pdf_service import PdfConvertError, convert_many
+
+    buf, filename, _info = _merged_excel(db, group_id, obs_date, weather, instrument_id)
+    try:
+        pdf = convert_many([buf.getvalue()])[0]
+    except PdfConvertError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    stem = filename.rsplit(".", 1)[0] if "." in filename else filename
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{quote(stem + '.pdf')}"},
+    )
