@@ -214,3 +214,14 @@ def test_rule_roundtrip_keeps_flag(client):
     rows = rules["rules"] if isinstance(rules, dict) else rules
     settle = [r for r in rows if r["indicator"] == "settlement"]
     assert settle and all(r["no_rebound"] for r in settle)
+
+
+def test_period_number_in_chinese_past_one_hundred():
+    """期次过了 100 也要中文 —— 实测北侧钢栈桥到 113 期时，报表上一处阿拉伯数字、一处中文。"""
+    from backend.reports.master_report import _cn_period
+
+    assert _cn_period(113) == "一百一十三"
+    assert _cn_period(100) == "一百"
+    assert _cn_period(105) == "一百零五"
+    assert _cn_period(10) == "十"
+    assert _cn_period(21) == "二十一"

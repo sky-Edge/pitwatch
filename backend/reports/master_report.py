@@ -655,25 +655,54 @@ def _sync_project_name(wb, project_name: str) -> int:
 
 def _cn_period(no: int) -> str:
 
-    """数字转中文期次：1→一 … 21→二十一；100 期以上用阿拉伯数字。"""
+    """数字转中文期次：1→一、21→二十一、113→一百一十三。
+
+    以前 100 期以上直接印阿拉伯数字（2026-11-15 实测北侧钢栈桥已到 113 期，
+    报表上一处写「第113期」、别处还是中文，一眼就是两套写法）。现在支持到 9999 期。
+    """
+
+    if no <= 0:
+
+        return str(no)
 
     digits = "零一二三四五六七八九"
 
-    if no < 10:
+    units = ("", "十", "百", "千")
 
-        return digits[no]
+    s = str(no)
 
-    if no < 100:
+    out: list[str] = []
 
-        # 10~19 的"十"前面不写"一"（十、十一 …），20 以上才带个位数字
+    pending_zero = False
 
-        tens = "" if no < 20 else digits[no // 10]
+    for i, ch in enumerate(s):
 
-        ones = "" if no % 10 == 0 else digits[no % 10]
+        d = int(ch)
 
-        return f"{tens}十{ones}"
+        pos = len(s) - i - 1
 
-    return str(no)
+        if d == 0:
+
+            pending_zero = True
+
+        else:
+
+            if pending_zero and out:
+
+                out.append("零")
+
+            pending_zero = False
+
+            out.append(digits[d] + units[pos])
+
+    text = "".join(out)
+
+    # 中文不念「一十三」，统一成「十三」
+    if text.startswith("一十"):
+
+        text = text[1:]
+
+    return text
 
 
 
