@@ -236,3 +236,21 @@ def test_group_requires_every_sheet_bound(client):
     )
     assert r.status_code == 400
     assert "南侧沉降表" in r.json()["detail"]
+
+
+def test_reupload_keeps_template_id_so_group_survives(client):
+    """同名重传母版 = 原地替换：id 不能变，否则合并组合直接断链。"""
+    tpl_id, north, south = _setup(client)
+    gid = _mk_group(client, tpl_id, north, south)
+
+    with open(MASTER, "rb") as f:
+        r = client.post(
+            "/api/v1/export-templates/upload",
+            data={"name": "钢栈桥合并母版", "is_global": "true"},
+            files={"file": ("master.xlsx", f.read(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        )
+    assert r.status_code == 200, r.text
+    assert r.json()["id"] == tpl_id, "同名替换换了 id，引用它的合并报表就成断链"
+
+    _buf, _name, info = _build(gid)
+    assert info["obs_date"] == "2026-07-28"

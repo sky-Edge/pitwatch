@@ -368,20 +368,25 @@ def create_uploaded_template(
     name = (name or "").strip() or Path(original_filename or "").stem or "未命名母版"
     name = name[:100]
 
-    # 同名替换（全局唯一；内置除外）—— 并把被替换者的绑定继承下来
+    # 同名替换（全局唯一；内置除外）
+    #
+    # 【2026-11-15 改为**原地替换**】以前是"删掉旧行 + 建一条新行"，模板 id 会变。
+    # 但引用母版的地方全都按 id 记：项目绑定（template_projects）、合并报表组合
+    # （report_groups.template_id）。id 一变，那些引用就全断链 —— 重新上传一份
+    # 改进版母版，合并报表直接报"组合指向的母版不存在"。
+    # 现在保留原记录与 id，只换原件、布局和适用范围；多出来的重名脏数据才删。
     same = (
         db.query(ExportTemplate)
         .filter(ExportTemplate.name == name, ExportTemplate.is_builtin.is_(False))
+        .order_by(ExportTemplate.id)
         .all()
     )
-    inherit_ids: set[int] = set()
-    inherit_global = False
-    for old in same:
-        inherit_ids |= set(bound_project_ids(db, old.id))
-        inherit_global = inherit_global or bool(old.is_global)
-        _remove_template_file(old)
-        db.delete(old)
-    db.flush()
+    old = same[0] if same else None
+    for dup in same[1:]:
+        _remove_template_file(dup)
+        db.delete(dup)
+    inherit_ids: set[int] = set(bound_project_ids(db, old.id)) if old else set()
+    inherit_global = bool(old.is_global) if old else False
 
     targets = sorted(set(project_ids or []) | inherit_ids)
     if legacy_project_id and not targets:
@@ -393,26 +398,41 @@ def create_uploaded_template(
             detail="请至少选择一个适用项目，或勾选「所有项目通用」—— 否则这份母版建好也没地方能用",
         )
 
-    rec = ExportTemplate(
-        project_id=targets[0] if targets else None,  # DEPRECATED：仅为回退兼容保留
-        is_global=is_global,
-        name=name,
-        template_type="excel",
-        is_builtin=False,
-        file_path=None,
-        layout_json=layout_json,
-    )
-    db.add(rec)
-    db.flush()  # 先拿到 id 才能定目录（目录名就是模板 id）
+    if old is not None:
+        _remove_template_file(old)
+        old.template_type = "excel"
+        old.is_builtin = False
+        old.is_global = is_global
+        old.layout_json = layout_json
+        old.project_id = targets[0] if targets else None  # DEPRECATED 兼容字段
+        rec = old
+        have = {r.project_id for r in db.query(ExportTemplateProject).filter_by(template_id=rec.id).all()}
+        for pid in targets:
+            if pid not in have:
+                db.add(ExportTemplateProject(template_id=rec.id, project_id=pid))
+        db.flush()
+    else:
+        rec = ExportTemplate(
+            project_id=targets[0] if targets else None,  # DEPRECATED：仅为回退兼容保留
+            is_global=is_global,
+            name=name,
+            template_type="excel",
+            is_builtin=False,
+            file_path=None,
+            layout_json=layout_json,
+        )
+        db.add(rec)
+        db.flush()  # 先拿到 id 才能定目录（目录名就是模板 id）
+        for pid in targets:
+            db.add(ExportTemplateProject(template_id=rec.id, project_id=pid))
 
+    # 原件另存一份到模板库目录（原地替换也走这里：旧文件已在上面 rename 成 .deleted）
+    rec.name = name
     tpl_dir = library_dir(rec.id)
     suffix = Path(original_filename).suffix or ".xlsx"
     dest = tpl_dir / f"{datetime.now():%Y%m%d%H%M%S}_{uuid.uuid4().hex[:6]}{suffix}"
     dest.write_bytes(src_path.read_bytes())
     rec.file_path = str(dest)
-
-    for pid in targets:
-        db.add(ExportTemplateProject(template_id=rec.id, project_id=pid))
 
     db.commit()
     db.refresh(rec)
