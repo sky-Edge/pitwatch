@@ -87,3 +87,23 @@ def test_ellipsis_class_exists_for_long_names(page_text: str) -> None:
     for prop in ("overflow: hidden", "text-overflow: ellipsis", "white-space: nowrap"):
         assert prop in body, f".cell-ellipsis 缺 {prop}"
     assert "cell-ellipsis" in _columns_block(page_text), "表里没用上 .cell-ellipsis"
+
+
+def test_columns_are_not_memoized(page_text: str) -> None:
+    """列数组不许用 useMemo 缓存。
+
+    2026-11-16 的事故：`shownColumns` 用 `useMemo(..., [projects])` 包着列数组，
+    而每个 `render` 都闭包捕获 progress / summaries / briefs。依赖只有 projects，
+    于是列里渲染的永远是"数据加载前"那份空 state —— 表头正常、每行全是
+    「— / 无数据 / 还没建测点」，而后台接口其实都返回了数据，排查了很久。
+
+    列定义里全是 render 闭包，缓存它等于冻结闭包。要过滤列就每帧重建，成本可忽略。
+    """
+    assert "useMemo(" in page_text, "解析规则可能过时：页面里应当还有别的 useMemo"
+    # 找 shownColumns / columns 是否被 useMemo 包住
+    for bad in ("useMemo(() => {\n    const hasLocation", "shownColumns = useMemo("):
+        assert bad not in page_text, (
+            "列数组被 useMemo 缓存了 —— render 闭包会冻在数据加载前的那一帧，"
+            "表格会显示成一堆「—」。请改成每帧直接计算"
+        )
+    assert "const shownColumns = hasLocation" in page_text, "没找到 shownColumns 的直接计算写法"

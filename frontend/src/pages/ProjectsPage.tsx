@@ -880,13 +880,17 @@ export default function ProjectsPage({
    *
    * 现场这批项目的 `location` 全是空，整列十个「-」既占 110px 又没有任何信息量。
    * 一旦某个项目填了地点，这一列自动回来 —— 不做成"永久隐藏"，因为它是真有内容时会用的列。
+   *
+   * ⚠ 这里**不能**用 useMemo 缓存：columns 里每个 render 都闭包捕获 progress /
+   * summaries / briefs / todayProgress，一旦把列数组记忆下来，依赖只有 projects 时
+   * 单元格渲染的永远是"数据加载前"的那份空 state —— 表现是表头正常、每行全是
+   * 「—」「无数据」「还没建测点」，而后台接口其实都返回了数据（2026-11-16 踩过）。
+   * 每帧重建一个十几项的数组，成本可以忽略。
    */
-  const shownColumns = useMemo(() => {
-    const hasLocation = projects.some((p) => (p.location || '').trim().length > 0)
-    return hasLocation ? columns : columns.filter((c) => !('dataIndex' in c) || c.dataIndex !== 'location')
-    // columns 每次渲染都是新数组，不放进依赖；只看项目数据变没变
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects])
+  const hasLocation = projects.some((p) => (p.location || '').trim().length > 0)
+  const shownColumns = hasLocation
+    ? columns
+    : columns.filter((c) => !('dataIndex' in c) || c.dataIndex !== 'location')
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
