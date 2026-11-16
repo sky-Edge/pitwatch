@@ -178,3 +178,14 @@
   background: var(--wm-neutral-white);
   border: 0.5px solid var(--wm-grid-line);
 }
+
+
+/* 参数区标签（期次/仪器/天气）：定宽右对齐，让三个控件左边缘落在同一条线上。
+   原来写成「期次：」「仪器：」「天气：」内联文本，两个字和三个字的宽度不同，
+   下面的下拉框就参差不齐 —— 专业工具的参数区应该是网格感的。 */
+.field-label {
+  display: inline-block;
+  min-width: 3.2em;
+  margin-right: 8px;
+  text-align: right;
+}

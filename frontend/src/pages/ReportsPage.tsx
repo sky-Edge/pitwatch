@@ -670,13 +670,15 @@ export default function ReportsPage({ projectId, onBack }: Props) {
 
           <Space wrap>
             <span>
-              期次：
+              <Typography.Text type="secondary" className="field-label">
+                期次
+              </Typography.Text>
               {range?.[0] && range?.[1] ? (
-                <Typography.Text strong style={{ marginLeft: 6 }}>
+                <Typography.Text strong>
                   {range[0].format('YYYY-MM-DD')} ~ {range[1].format('YYYY-MM-DD')}
                 </Typography.Text>
               ) : (
-                <Typography.Text type="secondary" style={{ marginLeft: 6 }}>
+                <Typography.Text type="secondary">
                   未选择
                 </Typography.Text>
               )}
@@ -691,7 +693,9 @@ export default function ReportsPage({ projectId, onBack }: Props) {
             </span>
             {instruments.length > 0 && (
               <span>
-                仪器：
+                <Typography.Text type="secondary" className="field-label">
+                  仪器
+                </Typography.Text>
                 <Select
                   style={{ width: 190, marginLeft: 8 }}
                   value={instrumentId}
@@ -704,7 +708,9 @@ export default function ReportsPage({ projectId, onBack }: Props) {
               </span>
             )}
             <span>
-              天气：
+              <Typography.Text type="secondary" className="field-label">
+                天气
+              </Typography.Text>
               <Select
                 style={{ width: 90, marginLeft: 8 }}
                 value={weather}
