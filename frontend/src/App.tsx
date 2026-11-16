@@ -185,11 +185,11 @@ export type View =
 
 export default function App() {
 
-  // 支持 #nav 直达总导航：现场同事可以把地址存成书签/设成浏览器主页，
-  // 不用每次先打开项目列表再点一下（也只认这一个锚点，不引入整套路由）。
-  const [view, setView] = useState<View>(() =>
-    typeof window !== 'undefined' && window.location.hash === '#nav' ? { kind: 'nav' } : { kind: 'projects' },
-  )
+  // 默认主页 = 总导航（用户 2026-11-16 定）。
+  // 打开系统先看入口地图；要去项目列表，点顶栏第一个按钮或导航页里的「项目列表」。
+  // 原先那个 "#nav 直达" 的分支一并去掉 —— 默认就是它了，还留一个"只有带锚点才生效"
+  // 的判断，只会让"为什么我的地址和别人的不一样"变成新的解释成本。
+  const [view, setView] = useState<View>({ kind: 'nav' })
 
   /** 后端报上来的版本号 —— 顶栏右上角显示，用户随时能确认"我跑的是哪一版"（2026-10-17） */
 
