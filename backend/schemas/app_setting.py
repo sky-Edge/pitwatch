@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """全站设置的请求/响应模型。"""
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AppSettingsRead(BaseModel):
@@ -30,6 +30,18 @@ class AppSettingsRead(BaseModel):
     #: 签名位置微调（像素，正数=往右/往下）
     signature_offset_x: int = 0
     signature_offset_y: int = 0
+
+    @field_validator("default_weather", mode="before")
+    @classmethod
+    def _weather_none_as_auto(cls, v):
+        """库里存成 NULL 时按「自动」处理，绝不让整个设置接口 500。
+
+        2026-11-16 的事故：`update_settings` 把所有空串都落成 None，
+        天气（空串 = 自动）被写成 NULL 后，这个字段要求 str，读接口直接 500 ——
+        连带「设置」页、项目默认值弹窗全部打不开。写入侧已经收紧到只处理路径字段，
+        这里再兜一道：老数据里已经存在的 NULL 也得能读出来。
+        """
+        return "" if v is None else v
 
 
 class AppSettingsUpdate(BaseModel):

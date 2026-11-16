@@ -72,8 +72,21 @@ def _store(db: Session, key: str, value: object) -> None:
 
 
 def get_settings(db: Session) -> dict:
-    """全站设置（缺的键用默认值补齐）。"""
-    return {key: _load(db, key) for key in DEFAULTS}
+    """全站设置（缺的键用默认值补齐）。
+
+    字符串型默认值的键（例如天气，空串 = 自动），库里存成 NULL 时按默认值返回：
+    NULL 和「没配」在业务上是同一件事，但读到代码里一个是 None 一个是 ""，
+    很容易变成"天气显示空白且导不出报表"。老数据里已经存在的 NULL 也要能读。
+    """
+    out = {key: _load(db, key) for key in DEFAULTS}
+    for key, default in DEFAULTS.items():
+        if isinstance(default, str) and out.get(key) is None:
+            out[key] = default
+    return out
+
+
+#: 这些键存的是**文件夹路径**，空串要落成 None（"没配"和"配了个空"必须能分开）
+_PATH_KEYS = ("audit_folder",)
 
 
 def update_settings(db: Session, payload: dict) -> dict:
@@ -81,8 +94,12 @@ def update_settings(db: Session, payload: dict) -> dict:
     data = {k: v for k, v in (payload or {}).items() if k in DEFAULTS}
     # 路径类的空串一律存成 None：前端清空输入框会送 ""，存进去以后
     # "配了文件夹但其实是空的"会让补扫判断一直为真。
-    for key, value in list(data.items()):
-        if isinstance(value, str) and not value.strip():
+    #
+    # ⚠ 只对**路径类**这么做。一开始是无差别地把所有空串改成 None，结果
+    #   天气（空串 = 自动）也被写成了 NULL —— 读接口的 schema 要求 str，
+    #   立刻 500，整个「设置」页连带打不开（2026-11-16 踩过）。
+    for key in _PATH_KEYS:
+        if key in data and isinstance(data[key], str) and not data[key].strip():
             data[key] = None
     _validate_references(db, data)
     for key, value in data.items():

@@ -387,3 +387,25 @@ def test_bulk_features_are_advertised(client) -> None:
     feats = client.get("/api/health").json()["features"]
     assert "app_settings" in feats
     assert "bulk_project_ops" in feats
+
+
+def test_empty_weather_saves_as_auto_not_null(client):
+    """默认天气传空串 = 自动，不能落成 NULL。
+
+    2026-11-16 的事故：`update_settings` 把**所有**空串都存成 None（本意是路径字段），
+    天气的空串被一起写成 NULL，读接口的 schema 要求 str，直接 500 ——
+    「设置」页和「项目默认值」弹窗整片打不开。写入侧已收紧到只处理路径字段，
+    读侧也加了兜底（老数据里的 NULL 按空串返回）。
+    """
+    r = client.put("/api/v1/settings", json={"default_weather": ""})
+    assert r.status_code == 200, r.text
+
+    # 读回来必须是空串，而不是 null
+    got = client.get("/api/v1/settings")
+    assert got.status_code == 200, got.text
+    assert got.json()["default_weather"] == ""
+
+    # 路径字段的空串仍然要落成 null（"没配"和"配了个空"必须能分开）
+    r = client.put("/api/v1/settings", json={"audit_folder": "   "})
+    assert r.status_code == 200, r.text
+    assert client.get("/api/v1/settings").json()["audit_folder"] is None
