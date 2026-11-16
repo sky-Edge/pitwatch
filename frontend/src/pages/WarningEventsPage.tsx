@@ -8,6 +8,7 @@ import {
   type QualityReport,
   type WarningEventRow,
 } from '../api/client'
+import { fmtMm } from '../utils/format'
 
 interface Props {
   projectId: number
@@ -142,9 +143,9 @@ export default function WarningEventsPage({ projectId, onBack }: Props) {
       width: 190,
       render: (_, r) => (
         <span>
-          <Typography.Text type="secondary">{r.old_value_mm}</Typography.Text>
+          <Typography.Text type="secondary">{fmtMm(r.old_value_mm)}</Typography.Text>
           {' → '}
-          <Typography.Text strong>{r.new_value_mm ?? r.old_value_mm}</Typography.Text>
+          <Typography.Text strong>{fmtMm(r.new_value_mm ?? r.old_value_mm)}</Typography.Text>
           <Typography.Text type="secondary"> mm</Typography.Text>
         </span>
       ),

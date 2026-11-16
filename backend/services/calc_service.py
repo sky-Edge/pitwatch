@@ -21,6 +21,17 @@ def _record_to_period(r: ObservationRecord) -> PeriodInput:
     return PeriodInput(obs_date=r.obs_date, value_mm=r.value_mm, status=r.status)
 
 
+def _round2(v: float | None) -> float | None:
+    """mm 数值收到 2 位（0.01mm），顺手抹掉浮点尾巴。
+
+    `-7.200000286102295` 这种数直接印在首页，用户第一反应是"这系统算错了"，
+    实际只是二进制浮点表示误差。工程的读数精度到 0.01mm 已经足够。
+    """
+    if v is None:
+        return None
+    return round(float(v), 2)
+
+
 def compute_point_series(db: Session, point: MeasurementPoint, series_type: str, component: str) -> list[dict]:
     """某测点某分量的计算序列（含每期预警等级）。"""
     records = observation_repo.list_by_point(db, point.id, series_type=series_type, active_only=True)
@@ -80,10 +91,15 @@ def compute_project_warning_status(db: Session, project_id: int, obs_date: str |
                         "series_type": st,
                         "component": comp,
                         "obs_date": picked["obs_date"] if picked else None,
-                        "value_mm": picked["value_mm"] if picked else None,
-                        "delta_mm": picked["delta_mm"] if picked else None,
-                        "cumulative_mm": picked["cumulative_mm"] if picked else None,
-                        "rate_mm_per_day": picked["rate_mm_per_day"] if picked else None,
+                        # 数值一律取到 2 位小数（0.01mm）。
+                        # 为什么在这里收口：计算引擎里的浮点误差会原样带到界面 ——
+                        # 实测出现过「累计 -7.200000286102295mm」这种数字直接印在首页，
+                        # 一眼就不像工程资料。汇总接口的消费方（首页横幅、详情表、项目行）
+                        # 都从这一个 dict 取数，在这里 round 一次，全部干净。
+                        "value_mm": _round2(picked["value_mm"]) if picked else None,
+                        "delta_mm": _round2(picked["delta_mm"]) if picked else None,
+                        "cumulative_mm": _round2(picked["cumulative_mm"]) if picked else None,
+                        "rate_mm_per_day": _round2(picked["rate_mm_per_day"]) if picked else None,
                         "warning_level": picked["warning_level"] if picked else "normal",
                         "triggers": picked["triggers"] if picked else [],
                     }

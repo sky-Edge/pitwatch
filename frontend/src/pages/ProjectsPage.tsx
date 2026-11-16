@@ -50,6 +50,7 @@ import {
   type WarningRuleSetInfo,
   type WarningStatusRow,
 } from '../api/client'
+import { fmtMm } from '../utils/format'
 import WarningRulesModal from '../components/WarningRulesModal'
 import TemplateLibraryModal from '../components/TemplateLibraryModal'
 import ProjectDefaultsModal from '../components/ProjectDefaultsModal'
@@ -71,6 +72,9 @@ interface Progress {
   records: number
   has_data: boolean
 }
+
+/** 上手引导关掉过一次就记住（记在本机，不占服务器设置） */
+const TIPS_KEY = 'monitor.projects.tipsHidden'
 
 export default function ProjectsPage({
   onManagePoints,
@@ -111,6 +115,14 @@ export default function ProjectsPage({
   /** 今日进度：填数据 + 出报都完成才算完成（用户 2026-11-16 要求能一眼区分今天做了哪些项目） */
   const [todayProgress, setTodayProgress] = useState<DailyProgress | null>(null)
   const [progressFilter, setProgressFilter] = useState<'all' | 'undone' | 'done'>('all')
+  /** 上手引导是否已被关掉（本机记忆，默认显示） */
+  const [tipsHidden, setTipsHidden] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(TIPS_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
 
   useEffect(() => {
     void (async () => {
@@ -434,7 +446,7 @@ export default function ProjectsPage({
             ? {
                 date: first.obs_date,
                 pointNo: first.point_no,
-                note: `${first.point_no} 累计变化 ${first.cumulative_mm}mm，已达报警值`,
+                note: `${first.point_no} 累计变化 ${fmtMm(first.cumulative_mm)}mm，已达报警值`,
               }
             : undefined
         items.push({
@@ -442,7 +454,7 @@ export default function ProjectsPage({
           type: 'alarm',
           project: p,
           text: first
-            ? `${s.alarm_points.length} 项达到报警值，如 ${first.point_no} 累计 ${first.cumulative_mm}mm`
+            ? `${s.alarm_points.length} 项达到报警值，如 ${first.point_no} 累计 ${fmtMm(first.cumulative_mm)}mm`
             : `${s.alarm_points.length} 项达到报警值`,
           // 带 focus → 直接落到报警日的那个测点上（原先只跳到预警事件页，那里可能是空的）
           go: () => (focus ? onRecords(p, focus) : onWarningEvents(p)),
@@ -687,26 +699,28 @@ export default function ProjectsPage({
 
   const columns: ColumnsType<Project> = [
     {
-      // 编号宽 110 装不下「6号左边墩」这类长编号，会被折成两行；给到 130 并允许省略。
-      title: '项目编号',
-      dataIndex: 'code',
-      width: 130,
-      render: (v: string) => (
-        <Tooltip title={v} placement="topLeft">
-          <span className="cell-ellipsis">{v}</span>
-        </Tooltip>
-      ),
-    },
-    {
+      // 「项目编号」和「项目名称」合并成一列。
+      // 现场习惯直接拿编号当项目名（十一号 / 十号基坑），两列并排时内容一模一样，
+      // 白占 130px，还把右边几列挤出可视区。名称作主行，编号只在**不同**时作副行。
       // ⚠ 这一列必须给固定宽度：其余列全是固定宽，`scroll.x` 又刚好等于"固定宽之和"，
       // 于是这唯一的弹性列被压到几像素宽 —— 表现是「六号左边墩基坑」一个字一行地竖排。
       // 名字太长时用省略号 + 悬停看全名，别让它撑破版面。
-      title: '项目名称',
+      title: '项目',
       dataIndex: 'name',
-      width: 200,
-      render: (v: string) => (
-        <Tooltip title={v} placement="topLeft">
-          <span className="cell-ellipsis">{v}</span>
+      width: 230,
+      render: (v: string, record: Project) => (
+        <Tooltip
+          title={record.code && record.code !== v ? `${v}（编号 ${record.code}）` : v}
+          placement="topLeft"
+        >
+          <div style={{ lineHeight: 1.35 }}>
+            <div className="cell-ellipsis">{v}</div>
+            {record.code && record.code !== v && (
+              <div className="cell-ellipsis kv" style={{ fontSize: 12 }}>
+                {record.code}
+              </div>
+            )}
+          </div>
         </Tooltip>
       ),
     },
@@ -861,6 +875,19 @@ export default function ProjectsPage({
     },
   ]
 
+  /**
+   * 「地点」列：一个项目都还没填地点时整列不显示。
+   *
+   * 现场这批项目的 `location` 全是空，整列十个「-」既占 110px 又没有任何信息量。
+   * 一旦某个项目填了地点，这一列自动回来 —— 不做成"永久隐藏"，因为它是真有内容时会用的列。
+   */
+  const shownColumns = useMemo(() => {
+    const hasLocation = projects.some((p) => (p.location || '').trim().length > 0)
+    return hasLocation ? columns : columns.filter((c) => !('dataIndex' in c) || c.dataIndex !== 'location')
+    // columns 每次渲染都是新数组，不放进依赖；只看项目数据变没变
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects])
+
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="middle">
       {readonly && (
@@ -934,24 +961,50 @@ export default function ProjectsPage({
             <ul style={{ margin: 0, paddingLeft: 18 }}>
               {summaries
                 .filter((s) => s.has_alarm && s.is_active)
-                .map((s) => (
-                  <li key={s.project_id}>
-                    <a onClick={() => setDetailRows([...s.alarm_points, ...s.control_points])}>
-                      {s.project_code} {s.project_name}：{s.alarm_points.map((p) => `${p.point_no}(${p.series_type === 'settlement' ? '沉降' : '位移'}${p.component === 'X' ? 'X' : p.component === 'Y' ? 'Y' : ''}) 累计${p.cumulative_mm}mm`).join('、')}
-                    </a>
-                  </li>
-                ))}
+                .map((s) => {
+                  // 一行一个项目，只说"多少项、最大多少"。
+                  // 原来是把每个报警点拼成一长串（「JJC1(位移Y) 累计-7.1999…、JJC2(位移X) 累计1.3…」），
+                  // 三个项目就撑成一堵字墙，真正的数量反而看不见。明细留给点击后的弹窗。
+                  const worst = s.alarm_points.reduce(
+                    (m, p) => Math.max(m, Math.abs(p.cumulative_mm ?? 0)),
+                    0,
+                  )
+                  return (
+                    <li key={s.project_id}>
+                      <a onClick={() => setDetailRows([...s.alarm_points, ...s.control_points])}>
+                        {s.project_name}
+                      </a>
+                      <span className="kv" style={{ marginLeft: 8 }}>
+                        {s.alarm_points.length} 项报警，最大累计 {fmtMm(worst)}mm · 点这里看明细
+                      </span>
+                    </li>
+                  )
+                })}
             </ul>
           }
         />
       )}
-      <Alert
-        className="no-print"
-        type="info"
-        showIcon
-        message="怎么用？跟着每行的「下一步」按钮走就行"
-        description="建项目 → 建测点并录初始值 → 录入或导入观测数据 → 导出日报。归档不删数据；「彻底删除」需输入编号确认，且删除前会自动备份。"
-      />
+      {/* 上手引导：只在没关过的时候显示。
+          老用户每天看一眼这块"建项目→建测点→…"是纯噪声（用户 2026-11-16 要求"更像专业工具"），
+          给个"知道了"关掉，记在本机；换人换浏览器会重新出现一次，不影响使用。 */}
+      {!tipsHidden && (
+        <Alert
+          className="no-print"
+          type="info"
+          showIcon
+          closable
+          onClose={() => {
+            setTipsHidden(true)
+            try {
+              window.localStorage.setItem(TIPS_KEY, '1')
+            } catch {
+              // 隐私模式写不了 localStorage —— 本次先关掉，下次再出现也不影响使用
+            }
+          }}
+          message="怎么用？跟着每行的「下一步」按钮走就行"
+          description="建项目 → 建测点并录初始值 → 录入或导入观测数据 → 导出日报。归档不删数据；「彻底删除」需输入编号确认，且删除前会自动备份。"
+        />
+      )}
       {/* 主界面把所有"和单个项目无关"的入口都收在这里 —— 不必点进某个项目再找 */}
       <Card size="small" className="no-print">
         <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -1113,7 +1166,7 @@ export default function ProjectsPage({
       <Table
         rowKey="id"
         loading={loading}
-        columns={columns}
+        columns={shownColumns}
         dataSource={shownProjects}
         // 勾选是批量操作的入口。跨页保留（selectedIds 记在状态里），
         // 否则"翻到第 2 页勾一个"会把第 1 页勾的全丢掉。
