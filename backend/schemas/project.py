@@ -37,3 +37,7 @@ class ProjectRead(ProjectBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    #: 仅在 `GET /projects?with_counts=true` 时填充（列表页一次拿全，省掉逐个项目
+    #: 再发一次 `/data-count` —— 那条路在 200ms 延迟的链路上要白白多花半秒）
+    points: int | None = None
+    records: int | None = None

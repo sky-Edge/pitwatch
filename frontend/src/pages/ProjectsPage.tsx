@@ -105,7 +105,6 @@ export default function ProjectsPage({
    *  为什么需要它 —— 预警汇总（/warning-summary）**包含已归档项目**，
    *  而列表默认只显示在用项目；早先只用列表去 find，归档项目找不到就被静默丢弃，
    *  结果是"数据里有报警、界面上一条都看不到"。 */
-  const [allProjects, setAllProjects] = useState<Project[]>([])
   const [summaries, setSummaries] = useState<ProjectWarningSummary[]>([])
   const [progress, setProgress] = useState<Record<number, Progress>>({})
   /** 每个项目的一句话结论（"现在怎么样"） */
@@ -226,21 +225,23 @@ export default function ProjectsPage({
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await projectApi.list(includeInactive)
+      // ⚡ 一次拿全：项目列表 + 每个项目的测点数/记录数（后端两条 SQL 算完）。
+      // 原来这里是「列表 1 次 + 每项目 data-count 各 1 次 + 含归档的列表再 1 次」，
+      // 7 个项目就是 9 次请求；在 200ms RTT 的链路上光是往返就占了半秒多。
+      const data = await projectApi.list(includeInactive, true)
       setProjects(data)
-      // 另取一份含归档的项目表，供关注项解析（见 allProjects 的说明）
-      void projectApi.list(true).then(setAllProjects).catch(() => {})
-      // 并发取各项目进度（测点数/记录数）——失败不影响列表展示
-      const entries = await Promise.all(
-        data.map(async (p) => {
-          try {
-            return [p.id, await projectApi.dataCount(p.id)] as const
-          } catch {
-            return [p.id, { points: 0, records: 0, has_data: false }] as const
-          }
-        }),
+      setProgress(
+        Object.fromEntries(
+          data.map((p) => [
+            p.id,
+            {
+              points: p.points ?? 0,
+              records: p.records ?? 0,
+              has_data: (p.records ?? 0) > 0,
+            } as Progress,
+          ]),
+        ),
       )
-      setProgress(Object.fromEntries(entries))
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -437,7 +438,8 @@ export default function ProjectsPage({
     summaries
       .filter((s) => s.has_alarm && s.is_active)
       .forEach((s) => {
-        const p = allProjects.find((x) => x.id === s.project_id) ?? projects.find((x) => x.id === s.project_id)
+        // 归档项目已不参与报警提示，所以这里只需在当前列表里找
+        const p = projects.find((x) => x.id === s.project_id)
         if (!p) return
         const first = s.alarm_points[0]
         // 只有当确实知道"哪一天"时才带定位；否则退回预警事件页（那里能重算）

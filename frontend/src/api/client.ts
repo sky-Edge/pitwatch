@@ -90,6 +90,9 @@ export interface Project {
   is_active: boolean
   created_at: string
   updated_at: string
+  /** 仅 `list(..., withCounts=true)` 时返回：测点数 / 记录数（省掉逐项目再查一次） */
+  points?: number | null
+  records?: number | null
 }
 
 export interface ProjectInput {
@@ -159,8 +162,17 @@ export const projectApi = {
   /** 今天哪些项目填了数据、哪些出过报（填数据 + 出报都完成才算「今日完成」） */
   dailyProgress: (day?: string) =>
     http.get<DailyProgress>('/daily-progress', { params: day ? { date: day } : {} }).then((r) => r.data),
-  list: (includeInactive = true) =>
-    http.get<Project[]>('/projects', { params: { include_inactive: includeInactive } }).then((r) => r.data),
+  /**
+   * 项目列表。
+   * `withCounts=true` 时每个项目自带 points/records —— 列表页一次拿全，
+   * 不用再对每个项目各发一个 `/data-count`（7 个项目 = 7 次 RTT）。
+   */
+  list: (includeInactive = true, withCounts = false) =>
+    http
+      .get<Project[]>('/projects', {
+        params: { include_inactive: includeInactive, with_counts: withCounts },
+      })
+      .then((r) => r.data),
   create: (data: ProjectInput) => http.post<Project>('/projects', data).then((r) => r.data),
   /** 一键创建示例项目（项目 + 规则 + 测点 + 演示数据 + 预警事件） */
   createSample: (params?: { periods?: number; point_count?: number; start_date?: string }) =>

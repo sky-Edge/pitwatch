@@ -123,3 +123,29 @@ def test_cache_module_reports_version():
     """版本戳必须能拿到（拿不到就不是 SQLite，缓存会自动降级为不缓存）。"""
     v = cache.data_version()
     assert v is None or isinstance(v, tuple)
+
+
+def test_projects_with_counts_matches_data_count(client):
+    """`/projects?with_counts=true` 的计数必须和单项目 `/data-count` 一致。
+
+    列表页改成"一次拿全"之后，项目行上的「N 个测点 · M 条数据」就来自这个接口。
+    口径一旦和删除确认弹窗（走 `/data-count`）不一致，用户会看到两个不同的数字。
+    """
+    pid, pt = _mk_project(client, "计数一致性")
+    for d, v in (("2026-05-01", 95.0), ("2026-05-02", 94.0)):
+        client.post(
+            f"/api/v1/points/{pt}/records",
+            json={"series_type": "settlement", "component": "value", "obs_date": d, "value_mm": v},
+        )
+
+    rows = client.get("/api/v1/projects", params={"with_counts": "true"}).json()
+    me = [r for r in rows if r["id"] == pid][0]
+    single = client.get(f"/api/v1/projects/{pid}/data-count").json()
+
+    assert me["points"] == single["points"] == 1
+    assert me["records"] == single["records"] == 2
+
+    # 不传 with_counts 时不该多这两个字段（老客户端行为不变）
+    plain = client.get("/api/v1/projects").json()
+    one = [r for r in plain if r["id"] == pid][0]
+    assert one.get("points") is None

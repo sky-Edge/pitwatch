@@ -28,10 +28,28 @@ progress_router = APIRouter(prefix="/daily-progress", tags=["projects"])
 @router.get("", response_model=list[ProjectRead])
 def list_projects(
     include_inactive: bool = True,
+    with_counts: bool = Query(False, description="顺带返回每个项目的测点数/记录数（列表页用）"),
     db: Session = Depends(get_db),
 ):
-    """项目列表。include_inactive=false 时仅返回进行中项目。"""
-    return project_service.list_projects(db, include_inactive=include_inactive)
+    """项目列表。include_inactive=false 时仅返回进行中项目。
+
+    `with_counts=true` 会把数据量一起带回来（两条 SQL 算全部项目），
+    前端因此不用再对每个项目各发一次 `/data-count`。
+    """
+    items = project_service.list_projects(db, include_inactive=include_inactive)
+    if not with_counts:
+        return items
+
+    from backend.schemas.project import ProjectRead as _Read
+    from backend.services.hard_delete_service import count_projects_data
+
+    counts = count_projects_data(db, [p.id for p in items])
+    out = []
+    for p in items:
+        row = _Read.model_validate(p)
+        c = counts.get(p.id) or {}
+        out.append(row.model_copy(update={"points": c.get("points", 0), "records": c.get("records", 0)}))
+    return out
 
 
 @router.post("/sample", status_code=201)

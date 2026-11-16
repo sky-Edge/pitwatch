@@ -209,3 +209,39 @@ def count_project_data(db: Session, project_id: int) -> dict:
         "records": records,
         "has_data": records > 0,
     }
+
+
+def count_projects_data(db: Session, project_ids: list[int]) -> dict[int, dict]:
+    """批量统计多个项目的 {points, records, has_data} ——**两条 SQL**。
+
+    项目列表页原来对每个项目各发一个 `/data-count`（7 个项目 = 7 次 HTTP + 7 条
+    统计查询）。在"服务器在悉尼、现场 RTT 200ms"的链路上，光是这些往返就能占掉
+    半秒。统计口径与 `count_project_data` 完全一致（含已更正/作废的历史记录），
+    数字不会因为换了接口而对不上。
+    """
+    ids = [int(i) for i in project_ids]
+    if not ids:
+        return {}
+
+    from sqlalchemy import func
+
+    points: dict[int, int] = dict(
+        db.execute(
+            select(MeasurementPoint.project_id, func.count())
+            .where(MeasurementPoint.project_id.in_(ids))
+            .group_by(MeasurementPoint.project_id)
+        ).all()
+    )
+    records: dict[int, int] = dict(
+        db.execute(
+            select(MeasurementPoint.project_id, func.count())
+            .join(ObservationRecord, ObservationRecord.point_id == MeasurementPoint.id)
+            .where(MeasurementPoint.project_id.in_(ids))
+            .group_by(MeasurementPoint.project_id)
+        ).all()
+    )
+    out: dict[int, dict] = {}
+    for pid in ids:
+        nrec = int(records.get(pid, 0))
+        out[pid] = {"points": int(points.get(pid, 0)), "records": nrec, "has_data": nrec > 0}
+    return out
