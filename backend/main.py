@@ -312,7 +312,9 @@ if _static_dir is not None:
                 if "text/html" in ctype:
                     response.headers["Cache-Control"] = "no-cache, must-revalidate"
 
-            gz = self._gzip_for(path, scope)
+            # ⚠ 只在 200 时压缩：StaticFiles 命中 If-None-Match 会返回 304（无正文），
+            # 把它替换成一个带正文的 gzip 响应，浏览器的协商缓存就彻底失效了。
+            gz = self._gzip_for(path, scope) if response.status_code == 200 else None
             if gz is not None:
                 headers = {
                     k: v for k, v in response.headers.items() if k.lower() != "content-length"
