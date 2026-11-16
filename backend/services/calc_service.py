@@ -74,7 +74,27 @@ def compute_point_series(
 
 
 def compute_project_warning_status(db: Session, project_id: int, obs_date: str | None = None) -> list[dict]:
-    """项目所有测点的预警状态总览。
+    """项目所有测点的预警状态总览（带缓存，见下方说明）。
+
+    ⚡ 为什么要缓存这一层：首页一次刷新会并发打 `/warning-summary`、`/project-briefs`、
+    `/project-attention`，**三个接口都要把同样的项目过一遍同样的计算引擎**，
+    等于同一份结果算三遍。缓存到这里之后，冷启动只算一次，另外两个直接复用。
+
+    返回的是**副本**：缓存里那份是多个请求共享的，谁就地改一个字段都会污染别人。
+    每行几十个键的浅拷贝，比重算一遍便宜两个数量级。
+    """
+    from backend.core import cache
+
+    rows = cache.cached(
+        "warning-status",
+        (project_id, obs_date),
+        lambda: _compute_project_warning_status(db, project_id, obs_date),
+    )
+    return [dict(r) for r in rows]
+
+
+def _compute_project_warning_status(db: Session, project_id: int, obs_date: str | None = None) -> list[dict]:
+    """项目所有测点的预警状态总览（未缓存的实际计算）。
 
     `obs_date=None`（默认）：取每项**最新一期**——用于项目列表的"当前状态"。
     `obs_date="YYYY-MM-DD"`：取**该观测日**的状态——用于观测记录页：
