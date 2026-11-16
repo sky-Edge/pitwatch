@@ -143,18 +143,15 @@ def build_from_template(db: Session, project_id: int, tpl: ExportTemplate, obs_d
 
     # 目标日期：默认取"数据最完整的最近观测日"（避免取到只录了部分点的零散日期）
     points = list_points(db, project_id, include_inactive=False)
-    all_dates = sorted({r.obs_date for p in points for r in observation_repo.list_by_point(db, p.id, active_only=True)})
+    all_dates = observation_repo.distinct_dates(db, project_id)
     if not all_dates:
         raise ValueError("该项目暂无观测数据")
     if obs_date is None:
         # 逐日统计有效读数数，选最近且行数 >= 峰值 80% 的日期（完整观测期）
         from collections import Counter
 
-        counts = Counter()
-        for p in points:
-            for r in observation_repo.list_by_point(db, p.id, active_only=True):
-                if r.value_mm is not None:
-                    counts[r.obs_date] += 1
+        # ⚡ 按日期计数交给数据库 GROUP BY（原来逐点遍历全部记录）
+        counts = Counter(observation_repo.date_value_counts(db, project_id))
         if counts:
             peak = max(counts.values())
             target = max((d for d, c in counts.items() if c >= peak * 0.8))

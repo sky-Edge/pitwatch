@@ -371,12 +371,26 @@ def _padded_image(
        （用户 2026-11-13：「打印出来很小啊 都马赛克了」）。
     """
     import hashlib
+    import os
     import tempfile
     from pathlib import Path as _Path
 
     from PIL import Image as PILImage
 
     ss = max(1, int(supersample))
+
+    # ── 先算指纹，能复用就直接返回（2026-11-16 提速）──────────────────────
+    # 同一张签名、同样的尺寸/留白，处理结果**永远是同一张图**；而
+    # `_paper_to_alpha` 在 4 倍超采样下是个逐像素的 Python 循环。
+    # 实测一次导出要处理 11 次（3 处签字 + 数据表 8 处），占掉 823ms / 总计 1732ms。
+    # 指纹已经包含「路径 + 内容 + 全部参数」，所以命中即等价，不存在"改了签名还用旧图"。
+    digest = hashlib.sha1(
+        b"%s|%d|%d|%d|%d|" % (str(path).encode(), pad_px, height_px, pad_top, ss)
+        + _Path(path).read_bytes()
+    ).hexdigest()[:16]
+    out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_{digest}.png"
+    if out.is_file() and out.stat().st_size > 0:
+        return str(out)
     src = PILImage.open(path).convert("RGBA")
 
     # 透明底 PNG 先铺白，统一按"白纸 + 墨"处理。
@@ -407,16 +421,16 @@ def _padded_image(
     )
     canvas.alpha_composite(ink, (pad_px * ss, pad_top * ss))
 
-    # 文件名带内容指纹：不同角色的签名若宽高、留白恰好一样，会写到同一个
-    # 临时文件上 —— openpyxl 是**保存时才读文件**，后写的那张会把前面那几栏
-    # 全盖成同一个人（签字人张冠李戴，比贴不上严重得多）。
-    digest = hashlib.sha1(
-        b"%s|%d|%d|%d|%d|" % (str(path).encode(), pad_px, height_px, pad_top, ss)
-        + _Path(path).read_bytes()
-    ).hexdigest()[:16]
-    out = _Path(tempfile.gettempdir()) / f"pitwatch_sig_{digest}.png"
+    # 文件名带内容指纹（在上面已算好）：不同角色的签名若宽高、留白恰好一样，
+    # 会写到同一个临时文件上 —— openpyxl 是**保存时才读文件**，后写的那张会把
+    # 前面那几栏全盖成同一个人（签字人张冠李戴，比贴不上严重得多）。
+    #
+    # 原子写：先写 .tmp 再 rename。多个人同时点导出时，另一个请求可能刚好看到
+    # 这个文件名存在但内容还没写完 —— 读到半张图比慢几百毫秒糟得多。
+    tmp = out.with_suffix(f".{os.getpid()}.tmp")
     # DPI 跟着倍数走：位图是显示尺寸的 ss 倍，标 96*ss 才能让阅读器按原大小显示
-    canvas.save(out, format="PNG", dpi=(96 * ss, 96 * ss))
+    canvas.save(tmp, format="PNG", dpi=(96 * ss, 96 * ss))
+    os.replace(tmp, out)
     return str(out)
 
 

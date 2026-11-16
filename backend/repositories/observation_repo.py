@@ -89,6 +89,51 @@ def group_by_point(records: list[ObservationRecord]) -> dict[int, list[Observati
     return out
 
 
+
+def distinct_dates(
+    db: Session, project_id: int, with_values_only: bool = False
+) -> list[date]:
+    """项目有观测记录的日期（去重、升序）——**一条 SQL 解决**。
+
+    报表/导出常要"这个项目都有哪几期"，以前是逐点取全部记录再在 Python 里做 set，
+    50 个点就是 50 条查询 + 几千个对象。日期去重交给数据库做，几十微秒。
+    """
+    from backend.models.point import MeasurementPoint
+
+    stmt = (
+        select(ObservationRecord.obs_date)
+        .join(MeasurementPoint, ObservationRecord.point_id == MeasurementPoint.id)
+        .where(MeasurementPoint.project_id == project_id)
+        .where(
+            ObservationRecord.superseded_by_id.is_(None),
+            ObservationRecord.status.notin_(INACTIVE_STATUS),
+        )
+    )
+    if with_values_only:
+        stmt = stmt.where(ObservationRecord.value_mm.is_not(None))
+    return sorted({d for d in db.scalars(stmt).all() if d is not None})
+
+
+def date_value_counts(db: Session, project_id: int) -> dict:
+    """{日期: 该日有读数的条数} —— 用于判断"哪一期数据最完整"。"""
+    from sqlalchemy import func
+
+    from backend.models.point import MeasurementPoint
+
+    stmt = (
+        select(ObservationRecord.obs_date, func.count())
+        .join(MeasurementPoint, ObservationRecord.point_id == MeasurementPoint.id)
+        .where(MeasurementPoint.project_id == project_id)
+        .where(
+            ObservationRecord.superseded_by_id.is_(None),
+            ObservationRecord.status.notin_(INACTIVE_STATUS),
+            ObservationRecord.value_mm.is_not(None),
+        )
+        .group_by(ObservationRecord.obs_date)
+    )
+    return {d: int(c) for d, c in db.execute(stmt).all() if d is not None}
+
+
 def list_by_point(
     db: Session,
     point_id: int,

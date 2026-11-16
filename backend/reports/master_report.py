@@ -120,7 +120,8 @@ def build_master_report(
 
     points = list_points(db, project_id, include_inactive=False)
 
-    all_dates = sorted({r.obs_date for p in points for r in observation_repo.list_by_point(db, p.id, active_only=True)})
+    # ⚡ 一条 DISTINCT 查询拿到全部观测日（原来逐点取记录再在 Python 里聚合）
+    all_dates = observation_repo.distinct_dates(db, project_id)
 
     if not all_dates:
 
@@ -132,15 +133,8 @@ def build_master_report(
 
 
 
-    counts = Counter()
-
-    for p in points:
-
-        for r in observation_repo.list_by_point(db, p.id, active_only=True):
-
-            if r.value_mm is not None:
-
-                counts[r.obs_date] += 1
+    # ⚡ 按日期计数交给数据库 GROUP BY（原来逐点遍历全部记录）
+    counts = Counter(observation_repo.date_value_counts(db, project_id))
 
     target = obs_date or (max((d for d, c in counts.items() if c >= max(counts.values()) * 0.8)) if counts else all_dates[-1])
 
@@ -845,15 +839,7 @@ def _prev_obs_date(db, project_id: int, target: date):
 
 
 
-    dates = sorted({
-
-        r.obs_date
-
-        for p in list_points(db, project_id, include_inactive=False)
-
-        for r in observation_repo.list_by_point(db, p.id, active_only=True)
-
-    })
+    dates = observation_repo.distinct_dates(db, project_id)
 
     before = [d for d in dates if d < target]
 
@@ -1194,19 +1180,12 @@ def fill_raw_data_blocks(db: Session, project_id: int, wb, layout: dict, target:
 
     v0_date = None
 
-    all_ds: list[date] = []
-
-    for p in list_points(db, project_id, include_inactive=False):
-
-        for rec in observation_repo.list_by_point(db, p.id, active_only=True):
-
-            if rec.value_mm is not None:
-
-                all_ds.append(rec.obs_date)
+    # ⚡ 只要"最早一期是哪天"，一次查询就够
+    all_ds = observation_repo.distinct_dates(db, project_id, with_values_only=True)
 
     if all_ds:
 
-        v0_date = min(all_ds)
+        v0_date = all_ds[0]
 
 
 
