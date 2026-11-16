@@ -438,6 +438,8 @@ export interface ProjectWarningSummary {
   project_id: number
   project_code: string
   project_name: string
+  /** 归档项目仍返回状态，但不参与"报警提示"（列表行也改显示「已归档」） */
+  is_active: boolean
   has_alarm: boolean
   has_control: boolean
   alarm_points: WarningStatusRow[]

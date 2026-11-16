@@ -398,11 +398,12 @@ export default function ProjectsPage({
     }> = []
 
     // ① 报警（最紧急）
+    // **归档项目不参与提醒**（用户 2026-11-16「归档的项目不要再报警提示了」）：
+    // 工点结束、监理不再看它，每天开机还被它的旧报警追着提示，只会把真正要管的那条挤下去。
+    // 历史报警没丢 —— 列表切到「全部」能看到该项目的预警状态，预警事件页也查得到。
     summaries
-      .filter((s) => s.has_alarm)
+      .filter((s) => s.has_alarm && s.is_active)
       .forEach((s) => {
-        // ⚠ 必须用 allProjects 解析：预警汇总包含已归档项目，
-        //   而列表默认不显示归档项目 —— 只用 projects 找会让归档项目的报警被静默丢弃。
         const p = allProjects.find((x) => x.id === s.project_id) ?? projects.find((x) => x.id === s.project_id)
         if (!p) return
         const first = s.alarm_points[0]
@@ -733,6 +734,15 @@ export default function ProjectsPage({
       title: '预警状态',
       width: 120,
       render: (_, record) => {
+        // 归档项目不显示报警/预警标记 —— 它在"全部"视图里只是让你能找回去看历史，
+        // 不是让你现在去处理它。状态仍可点进「预警事件」查。
+        if (!record.is_active) {
+          return (
+            <Tooltip title="归档项目不参与报警提示；历史报警可在「预警事件」里查看">
+              <Tag>已归档</Tag>
+            </Tooltip>
+          )
+        }
         const s = summaries.find((x) => x.project_id === record.id)
         if (!s || s.total_points === 0) return <Tag>无数据</Tag>
         if (s.has_alarm)
@@ -856,7 +866,7 @@ export default function ProjectsPage({
         </Card>
       )}
 
-      {summaries.filter((s) => s.has_alarm).length > 0 && (
+      {summaries.filter((s) => s.has_alarm && s.is_active).length > 0 && (
         <Alert
           type="error"
           showIcon
@@ -865,7 +875,7 @@ export default function ProjectsPage({
           description={
             <ul style={{ margin: 0, paddingLeft: 18 }}>
               {summaries
-                .filter((s) => s.has_alarm)
+                .filter((s) => s.has_alarm && s.is_active)
                 .map((s) => (
                   <li key={s.project_id}>
                     <a onClick={() => setDetailRows([...s.alarm_points, ...s.control_points])}>

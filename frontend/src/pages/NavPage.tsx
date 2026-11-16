@@ -164,6 +164,9 @@ export default function NavPage({ onNavigate }: Props) {
 
   /** 选中项目的状态徽标：报警 > 预警 > 该测了 > 数据可疑 > 正常 */
   const badgesOf = (p: Project): { color?: string; text: string }[] => {
+    // 归档项目不挂状态徽标（用户 2026-11-16）：它还能被选中去查历史，
+    // 但不该在下拉里继续飘一个"10 项报警"，把在用的项目挤到后面。
+    if (!p.is_active) return []
     const s = summaries[p.id]
     const a = attentions[p.id]
     const out: { color?: string; text: string }[] = []

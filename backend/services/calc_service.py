@@ -123,5 +123,9 @@ def all_projects_warning_summary(db: Session) -> list[dict]:
         summary = project_warning_summary(db, p.id)
         summary["project_code"] = p.code
         summary["project_name"] = p.name
+        # 归档项目**仍要算出状态**（列表切到「全部」时该显示的还是要有），
+        # 但前端据此把"报警提示"过滤掉 —— 归档 = 工点结束，不该每天弹它
+        # （用户 2026-11-16：归档的项目不要再报警提示了）。
+        summary["is_active"] = bool(p.is_active)
         out.append(summary)
     return out
