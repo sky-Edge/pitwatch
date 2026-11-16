@@ -147,11 +147,14 @@ def all_project_headlines(db: Session) -> list[dict]:
 
 
 def last_obs_info(db: Session, project_id: int) -> dict:
-    """最近观测日期与观测期数（供"多久没测了"提示）。"""
-    points = point_repo.list_by_project(db, project_id, include_inactive=False)
-    dates: set = set()
-    for p in points:
-        dates.update(r.obs_date for r in observation_repo.list_by_point(db, p.id, active_only=True))
+    """最近观测日期与观测期数（供"多久没测了"提示）。
+
+    ⚡ 一次查询取整个项目的记录再汇总。原来按测点逐个查（62 个点 = 62 条 SQL），
+    而 `/project-attention` 会对每个项目都调一次 —— 清单页打开就有几百条查询，
+    实测该接口 202ms，其中大半花在这。
+    """
+    records = observation_repo.list_by_project(db, project_id, active_only=True)
+    dates = {r.obs_date for r in records if r.obs_date is not None}
     if not dates:
         return {"last_obs_date": None, "obs_days": 0}
     return {"last_obs_date": max(dates).isoformat(), "obs_days": len(dates)}

@@ -58,8 +58,14 @@ def create_sample_project(
 
 @brief_router.get("")
 def project_briefs(db: Session = Depends(get_db)):
-    """全部项目的「一句结论」速览（列表页卡片用）。"""
-    return project_brief_service.all_project_headlines(db)
+    """全部项目的「一句结论」速览（列表页卡片用）。
+
+    ⚡ 走进程内缓存：结论只随观测数据/规则变化，那两类改动都会更新数据库文件，
+    缓存据此失效（见 `backend/core/cache.py`）。
+    """
+    from backend.core import cache
+
+    return cache.cached("project-briefs", (), lambda: project_brief_service.all_project_headlines(db))
 
 
 @progress_router.get("")
@@ -81,9 +87,11 @@ def daily_progress(
 def project_attention(db: Session = Depends(get_db)):
     """全部项目的「需要关注」汇总：数据质量 + 是否该观测。
 
-    只读接口，不做任何写库操作（不触发预警重算）。
+    只读接口，不做任何写库操作（不触发预警重算）。⚡ 同样走进程内缓存。
     """
-    return attention_service.all_project_attention(db)
+    from backend.core import cache
+
+    return cache.cached("project-attention", (), lambda: attention_service.all_project_attention(db))
 
 
 @router.post("", response_model=ProjectRead, status_code=201)

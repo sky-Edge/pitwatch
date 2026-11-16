@@ -23,6 +23,20 @@ def _make_engine(url: str):
             cur = dbapi_conn.cursor()
             cur.execute("PRAGMA journal_mode=WAL")
             cur.execute("PRAGMA foreign_keys=ON")
+            # ── 读性能（2026-11-16 提速）────────────────────────────────
+            # 这套库是"读多写少"：一个页面要打几十次查询，写入只有录数/导入那几下。
+            # SQLite 默认只给 2MB 页缓存、内存映射关闭，等于每次都从磁盘翻页。
+            # 下面四项都是**只影响速度、不影响数据**的参数：
+            #   cache_size 负数 = KB → 32MB 页缓存（库一共才 ~1.4MB，整库能常驻内存）
+            #   mmap_size  = 256MB 内存映射读，绕开 read() 系统调用
+            #   temp_store = MEMORY，排序/临时表不落盘
+            #   busy_timeout = 5s，多 worker 并发写时排队等锁，而不是直接报 "database is locked"
+            # 注意：**没有**把 synchronous 调成 NORMAL/OFF —— 那是用"断电可能丢事务"
+            # 换写速度，这套系统的底线是原始数据不能丢，写慢一点无所谓。
+            cur.execute("PRAGMA cache_size=-32000")
+            cur.execute("PRAGMA mmap_size=268435456")
+            cur.execute("PRAGMA temp_store=MEMORY")
+            cur.execute("PRAGMA busy_timeout=5000")
             cur.close()
 
     return engine

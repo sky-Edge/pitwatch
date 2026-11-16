@@ -32,12 +32,27 @@ def _round2(v: float | None) -> float | None:
     return round(float(v), 2)
 
 
-def compute_point_series(db: Session, point: MeasurementPoint, series_type: str, component: str) -> list[dict]:
-    """某测点某分量的计算序列（含每期预警等级）。"""
-    records = observation_repo.list_by_point(db, point.id, series_type=series_type, active_only=True)
-    records = [r for r in records if r.component == component]
+def compute_point_series(
+    db: Session,
+    point: MeasurementPoint,
+    series_type: str,
+    component: str,
+    *,
+    records: list[ObservationRecord] | None = None,
+    limits=None,
+) -> list[dict]:
+    """某测点某分量的计算序列（含每期预警等级）。
+
+    `records` / `limits` 是**可选**的预取参数：批量场景（预警汇总、项目结论、
+    关注项）里，调用方一次性把整个项目的记录和该项目的规则查好再传进来，
+    避免"每个测点各查一次"。不传时保持原来的单点查询行为，其它调用方无需改动。
+    """
+    if records is None:
+        records = observation_repo.list_by_point(db, point.id, series_type=series_type, active_only=True)
+    records = [r for r in records if r.series_type == series_type and r.component == component]
     periods = [_record_to_period(r) for r in records]
-    limits = rule_limits(db, point.project_id, series_type)
+    if limits is None:
+        limits = rule_limits(db, point.project_id, series_type)
     # 禁止回弹写在规则里（项目 → 规则套 → 该指标 control/alarm 任一级勾了即生效）。
     # 只在沉降上勾有意义：水平位移有来有回是真实情况，抹平就等于抹掉变形。
     results = compute_series(
@@ -70,13 +85,32 @@ def compute_project_warning_status(db: Session, project_id: int, obs_date: str |
     from backend.repositories import point_repo
 
     points = point_repo.list_by_project(db, project_id, include_inactive=False)
+    if not points:
+        return []
+
+    # ⚡ 一次取回整个项目的生效记录，再按测点分组。
+    # 原来是对每个测点的每个分量各查一次（62 点 → 154 次查询），
+    # 实测这是 `/warning-summary` 第二大开销（276ms）。
+    by_point = observation_repo.group_by_point(
+        observation_repo.list_by_project(db, project_id, active_only=True)
+    )
+    # ⚡ 规则也按"项目 × 指标"缓存：`rule_limits` 内部要翻规则套/通用套/老式行，
+    # 一次调用约 6 条 SQL。原来每个分量调一次（154 次 ≈ 900 条 SQL），占了一半耗时。
+    limits_cache: dict[str, object] = {}
+
     status: list[dict] = []
     for p in points:
+        point_records = by_point.get(p.id, [])
         series_types = ["settlement", "displacement"] if p.point_type == "both" else [p.point_type]
         for st in series_types:
+            if st not in limits_cache:
+                limits_cache[st] = rule_limits(db, project_id, st)
+            limits = limits_cache[st]
             comps = ["value"] if st == "settlement" else ["X", "Y"]
             for comp in comps:
-                series = compute_point_series(db, p, st, comp)
+                series = compute_point_series(
+                    db, p, st, comp, records=point_records, limits=limits
+                )
                 if obs_date is None:
                     picked = latest_valid_result_for(series)
                 else:

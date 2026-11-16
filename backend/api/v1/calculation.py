@@ -47,4 +47,12 @@ def warning_status(
 
 @summary_router.get("")
 def warning_summary(db: Session = Depends(get_db)):
-    return calc_service.all_projects_warning_summary(db)
+    """全部项目的预警汇总。
+
+    ⚡ 走进程内缓存：数据没变就不重算（见 `backend/core/cache.py`）。
+    这个接口要把所有项目、所有测点、全部历史过一遍计算引擎，只为取"最新一期"，
+    实测 500ms+；而它只在录入/导入/改规则之后才会变。
+    """
+    from backend.core import cache
+
+    return cache.cached("warning-summary", (), lambda: calc_service.all_projects_warning_summary(db))

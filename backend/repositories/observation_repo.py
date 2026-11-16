@@ -45,6 +45,50 @@ def get_active_by_key(
     )
 
 
+def list_by_project(
+    db: Session,
+    project_id: int,
+    series_type: str | None = None,
+    active_only: bool = True,
+) -> list[ObservationRecord]:
+    """整个项目的生效记录，按（测点、日期、分量）排好——**一次查询**。
+
+    为什么要有它：预警汇总 / 项目结论 / 关注项 这类"整项目过一遍"的接口，
+    原来是对每个测点各查一次（62 个点 × 若干分量 = 上百条 SQL），
+    实测单次 `/warning-summary` 打了 1017 条查询、耗时 525ms。
+    换成一次取回再按 point_id 分组，查询数从"测点数"降到 1。
+    """
+    from backend.models.point import MeasurementPoint
+
+    stmt = (
+        select(ObservationRecord)
+        .join(MeasurementPoint, ObservationRecord.point_id == MeasurementPoint.id)
+        .where(MeasurementPoint.project_id == project_id)
+    )
+    if active_only:
+        stmt = stmt.where(
+            ObservationRecord.superseded_by_id.is_(None),
+            ObservationRecord.status.notin_(INACTIVE_STATUS),
+        )
+    if series_type:
+        stmt = stmt.where(ObservationRecord.series_type == series_type)
+    stmt = stmt.order_by(
+        ObservationRecord.point_id,
+        ObservationRecord.obs_date,
+        ObservationRecord.series_type,
+        ObservationRecord.component,
+    )
+    return list(db.scalars(stmt))
+
+
+def group_by_point(records: list[ObservationRecord]) -> dict[int, list[ObservationRecord]]:
+    """把 `list_by_project` 的结果按测点 id 分组（保持原有排序）。"""
+    out: dict[int, list[ObservationRecord]] = {}
+    for r in records:
+        out.setdefault(r.point_id, []).append(r)
+    return out
+
+
 def list_by_point(
     db: Session,
     point_id: int,
