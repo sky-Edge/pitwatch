@@ -274,9 +274,11 @@ export default function NavPage({ onNavigate }: Props) {
               options={projects.map((p) => {
                 const bs = badgesOf(p)
                 const tail = p.is_active ? '' : ' · 已归档'
+                // 名称和编号常常一模一样（用户习惯直接拿编号当名字），重复写两遍只会把下拉撑长
+                const title = p.name === p.code ? p.name : `${p.name}（${p.code}）`
                 return {
                   value: p.id,
-                  label: `${p.name}（${p.code}）${bs.length ? ' · ' + bs.map((b) => b.text).join(' / ') : ''}${tail}`,
+                  label: `${title}${bs.length ? ' · ' + bs.map((b) => b.text).join(' / ') : ''}${tail}`,
                 }
               })}
             />
