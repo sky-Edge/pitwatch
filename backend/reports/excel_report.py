@@ -124,9 +124,24 @@ def _control_values(db, project_id: int, indicator: str) -> tuple[float | None, 
     return report_control_values(db, project_id, indicator)
 
 
-def _build_data_rows(db, point, series_type: str, component: str, obs_date: date) -> dict | None:
-    """构建单测点单分量报表行数据；无数据返回 None。"""
-    rows = calc_service.compute_point_series(db, point, series_type, component)
+def _build_data_rows(
+    db,
+    point,
+    series_type: str,
+    component: str,
+    obs_date: date,
+    *,
+    records=None,
+    limits=None,
+) -> dict | None:
+    """构建单测点单分量报表行数据；无数据返回 None。
+
+    `records` / `limits` 是预取参数：整册导出时调用方一次性把项目的记录与规则查好，
+    避免每个测点各查一次（30 个分量 = 30 次查询 + 30 次规则解析）。
+    """
+    rows = calc_service.compute_point_series(
+        db, point, series_type, component, records=records, limits=limits
+    )
     if not rows:
         return None
     view = _SeriesView(rows)
@@ -315,12 +330,22 @@ def build_period_excel(
     points = [p for p in list_points(db, project_id, include_inactive=False)]
     ensure_control_rules(db, project_id, series_types_of(points))
 
+    # ⚡ 整项目的记录一次取回：后面算目标日期、逐点取数都用它。
+    # 原来这里是"每个测点查一次"再分别查一次，62 个点就是上百条 SQL。
+    project_records = observation_repo.list_by_project(db, project_id, active_only=True)
+    by_point = observation_repo.group_by_point(project_records)
+    limits_cache: dict[str, object] = {}
+
+    def _limits(st: str):
+        """按指标取一次规则（rule_limits 内部要翻规则套/通用套/老式行，约 6 条 SQL）。"""
+        if st not in limits_cache:
+            from backend.services.warning_service import rule_limits
+
+            limits_cache[st] = rule_limits(db, project_id, st)
+        return limits_cache[st]
+
     # 确定目标日期（缺省取最近观测日）
-    all_dates = sorted({
-        r.obs_date
-        for p in points
-        for r in observation_repo.list_by_point(db, p.id, active_only=True)
-    })
+    all_dates = sorted({r.obs_date for r in project_records if r.obs_date is not None})
     if not all_dates:
         raise ValueError("该项目暂无观测数据，无法生成日报")
     target = obs_date or all_dates[-1]
@@ -336,7 +361,10 @@ def build_period_excel(
     for p in points:
         if p.point_type not in ("settlement", "both"):
             continue
-        row = _build_data_rows(db, p, "settlement", "value", eff_date)
+        row = _build_data_rows(
+            db, p, "settlement", "value", eff_date,
+            records=by_point.get(p.id, []), limits=_limits("settlement"),
+        )
         if row:
             s_rows.append(row)
     control_cum_s, control_rate_s = _control_values(db, project_id, "settlement")
@@ -349,7 +377,10 @@ def build_period_excel(
         if p.point_type not in ("displacement", "both"):
             continue
         for comp in ("X", "Y"):
-            row = _build_data_rows(db, p, "displacement", comp, eff_date)
+            row = _build_data_rows(
+                db, p, "displacement", comp, eff_date,
+                records=by_point.get(p.id, []), limits=_limits("displacement"),
+            )
             if row:
                 d_rows.append(row)
     control_cum_d, control_rate_d = _control_values(db, project_id, "displacement")
