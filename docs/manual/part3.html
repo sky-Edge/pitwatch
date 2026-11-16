@@ -1,0 +1,367 @@
+<h1>第 4 章　批量导入</h1>
+
+<h2>4.1　两个导入入口怎么选</h2>
+
+<table>
+  <tr><th style="width:22%">入口</th><th style="width:30%">什么时候用</th><th>关键区别</th></tr>
+  <tr>
+    <td>顶部导航 <code>每日导入</code></td>
+    <td>每天把所有基坑的台账<strong>一次拖进来</strong>，系统按表里的工程名称自动分到各项目。</td>
+    <td>不绑定项目；<strong>不能建点、不能映射点号</strong>；分不清的表要你手工指派。</td>
+  </tr>
+  <tr>
+    <td>项目内 <code>Excel 导入</code></td>
+    <td>只导某一个项目的台账；需要处理"表里的点号系统里没有"这种情况。</td>
+    <td>能建点、能映射点号、能同步台账里的控制值。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>最容易走错的一步：</strong>新基坑、批量建测点，<u>不在这两个页面</u>。请回项目列表用「新建项目」或「批量建项目」。<br>
+  两个导入页都会识别出"点位清单"并提醒你走错门了——看到那条黄色提示，说明你传的文件类型不对。</p>
+</div>
+
+<h2>4.2　Excel 导入（在项目里，一期一个文件）</h2>
+
+<p>入口：项目内流程第 ② 步 → <code>Excel 导入</code>。三步：选择文件 → 核对并导入 → 完成。</p>
+
+<h3>第 ① 步：选择文件</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>拖拽区<br><code>点击或拖拽 Excel 文件到此处（可一次选多个）</code></td>
+    <td>上传台账，支持 .xlsx / .xlsm / .xls，<strong>可多选</strong>。</td>
+    <td>一期一个文件也可以；一个文件里有多个 Sheet 也认。<br>上传后系统逐个解析，<strong>解析是独立的</strong>：某个文件失败不影响其它文件。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步：核对（这是最需要看懂的一屏）</h3>
+
+<p>先看页面顶部可能出现的提示条：</p>
+
+<table>
+  <tr><th style="width:30%">提示条</th><th>说明什么</th></tr>
+  <tr><td><code>这 N 个文件是「点号 + 坐标/高程」点位清单</code></td><td>你传的是建项目的清单，不是观测台账。要建项目请回列表用「批量建项目」；如果只是想把它当初始值导入，可以忽略这条继续。</td></tr>
+  <tr><td><code>台账里的「控制值」和本项目预警规则对不上</code></td><td>表里写的控制值和系统规则里的数不一样。下面会出现一个<strong>默认不勾</strong>的选项：<code>导入时把台账里的控制值同步到本项目预警规则</code>。要不要勾见 4.2 末尾。</td></tr>
+  <tr><td><code>有 N 条数据还没确定观测日期</code></td><td>这些行<strong>不会导入</strong>。去「观测日期（可改）」列给对应数据表选个日期即可。</td></tr>
+</table>
+
+<h3>文件清单表</h3>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>文件</code></td><td>文件名。</td><td>正在查看的那份加粗。</td></tr>
+  <tr><td><code>观测日期（可改）</code></td><td>每个 Sheet 一个日期选择器。<br>标签会显示这个 Sheet 是沉降 / 位移 / 沉降+位移。</td><td>改过之后会出现蓝色 <code>已改</code> 标签。<br>表里没写日期、或写错了，都在这里改。</td></tr>
+  <tr><td><code>可导入</code></td><td>这个文件有多少条能导。</td><td>—</td></tr>
+  <tr><td><code>冲突/错误</code></td><td>两个数字：冲突行数 / 错误行数。</td><td>冲突=当天已有真实记录（会跳过）；错误=数据本身有问题（不入库）。</td></tr>
+  <tr><td><code>状态</code></td><td><code>解析中…</code> / <code>解析失败</code> / <code>已导入 N 条</code> / <code>按新日期核对中…</code> / <code>待导入 N 条</code> / <code>待指定日期</code> / <code>无可导入数据</code>。</td><td>看到 <code>待指定日期</code>，说明这个文件里有行缺日期，去上面那列选。</td></tr>
+  <tr><td><code>查看</code> / <code>移除</code></td><td>切换下方明细 / 把这个文件从本次导入里去掉。</td><td>移除只是不导这一份，不动已解析的其它文件。</td></tr>
+</table>
+
+<h3>明细区（点「查看」展开）</h3>
+
+<p>会按顺序出现最多 8 个区块，对应不同的行：</p>
+
+<table>
+  <tr><th style="width:30%">区块</th><th style="width:32%">说明</th><th>系统怎么处理</th></tr>
+  <tr><td><code>识别 N 个数据 Sheet</code></td><td>告诉每个 Sheet 认出了哪些列（点号=A列、初始值=B列…）。</td><td>认不出会列出常见原因（表头不在前 15 行、缺少"点号/测值"字样等）。</td></tr>
+  <tr><td><code>观测日期</code></td><td>每个 Sheet 的生效日期，可在这里改。</td><td>改完系统会<strong>立刻按新日期重新核对</strong>：冲突可能变成可导入，反之亦然。</td></tr>
+  <tr><td><code>测点匹配（N 个点号在项目中不存在）</code></td><td>表里的点号系统里没有。</td><td>默认已替你选好：能对上已有测点的<strong>自动映射</strong>，对不上的<strong>自动新建</strong>。可以逐点改成"跳过"。<br><strong>这是「Excel 导入」独有的能力</strong>，每日导入没有。</td></tr>
+  <tr><td><code>✓ 可导入</code></td><td>真正会入库的行。</td><td>右上角有 <code>全部排除</code>（整份文件都不导）。<br><strong>没有逐行勾选框</strong>，只有整份排除。</td></tr>
+  <tr><td><code>⚠ 将覆盖系统自动生成的数据</code></td><td>这些日期系统生成过演示数据。</td><td>标记 <code>以你的数据为准（覆盖生成数据）</code>，原值留痕。</td></tr>
+  <tr><td><code>⚠ 冲突</code></td><td>当天已经有<strong>真实记录</strong>。</td><td>标记 <code>跳过（不覆盖原始数据）</code>，不会有任何覆盖。</td></tr>
+  <tr><td><code>⚠ 待指定观测日期</code></td><td>缺日期的行。</td><td><strong>不会导入</strong>，补了日期再来。</td></tr>
+  <tr><td><code>✗ 校验失败</code></td><td>读不通、类型不对等硬错误。</td><td>不导入，原因那列会写明。</td></tr>
+</table>
+
+<h3>底部按钮</h3>
+
+<table>
+  <tr><th style="width:26%">按钮</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>全部导入（N 个文件 / M 条）</code><br><span class="kv">蓝色主按钮</span></td>
+    <td>把当前所有可导入的行一次性入库。</td>
+    <td>有缺日期行时文案会变成 <code>全部导入（还有 N 条待选日期）</code>。<br>没有任何可导入文件时按钮是灰的。</td>
+  </tr>
+  <tr>
+    <td><code>重新选择</code></td>
+    <td>清空全部文件，回到第 ① 步。</td>
+    <td>已解析的结果一起清掉。</td>
+  </tr>
+</table>
+
+<div class="tip box">
+  <p><strong>关于"台账里的控制值和规则对不上"那个勾：</strong></p>
+  <ul>
+    <li>默认<strong>不勾</strong>——系统不会擅自改你的判定口径。</li>
+    <li>勾了 = 把台账上写的控制值写进本项目预警规则（<strong>只改控制值，报警值不动</strong>，因为台账里没有报警值的依据）。</li>
+    <li>不管勾不勾，<strong>数据都会正常入库</strong>；同步失败（比如台账控制值比系统报警值还大）也不影响数据。</li>
+  </ul>
+</div>
+
+<h2>4.3　每日导入（一次传当天所有台账）</h2>
+
+<p>入口：顶部导航 <code>每日导入</code>。同样三步。</p>
+
+<h3>第 ① 步：选择文件</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>拖拽区<br><code>点击或拖拽当天的台账到此处（可一次选多个）</code></td>
+    <td>一次上传当天所有基坑的台账。</td>
+    <td>一份文件里有好几个基坑的表也可以——<strong>按表分开认</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>补传台账</code></td>
+    <td>在已有结果上继续追加文件。</td>
+    <td>页面已有内容时是<strong>追加</strong>，不会顶掉刚才传的。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步：核对</h3>
+
+<p>系统按<strong>每张表里写的「监测工程名称」</strong>自动找项目。认不出来的会单独摆出来：</p>
+
+<table>
+  <tr><th style="width:28%">区域</th><th style="width:34%">说明</th><th>你该做什么</th></tr>
+  <tr>
+    <td><code>这些表认不出是哪个基坑（N）</code></td>
+    <td>列出认不出 / 分不清的表，并给出"为什么没认出来"和"最像的 3 个项目"。</td>
+    <td>在 <code>分到哪个项目</code> 里选一个，点 <code>指派</code>。指派后这张表会并入下方分组，一起导入。</td>
+  </tr>
+  <tr>
+    <td><code>自动分好的（N 个项目分组 / M 条待导入）</code></td>
+    <td>系统已经认准的分组，一个项目一行。</td>
+    <td>点行左边的箭头展开，可以改观测日期、看冲突与错误明细。</td>
+  </tr>
+</table>
+
+<h3>分组表的列</h3>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>项目</code></td><td>项目名 + 编号。</td><td>归档项目会标 <code>· 已归档</code>。</td></tr>
+  <tr><td><code>文件 / 数据表</code></td><td>来自哪个文件、哪几个 Sheet。</td><td>—</td></tr>
+  <tr><td><code>观测日期</code></td><td>这一组各 Sheet 的生效日期。</td><td>展开后可以逐个改；改完自动重新核对。</td></tr>
+  <tr><td><code>可导入</code></td><td>有日期、能入库的行数。</td><td>—</td></tr>
+  <tr><td><code>要拿主意</code></td><td><code>冲突 N</code> / <code>错误 N</code> / <code>缺日期 N</code>；都没有时显示 <code>没有</code>。</td><td>这三个都不是"阻止导入"，只是提醒你有行不会进。</td></tr>
+  <tr><td><code>凭什么认成它</code></td><td>匹配依据 + 表里写的工程名称；可能带 <code>请核一眼</code> / <code>分不清</code> 标签。</td><td><strong>带「请核一眼」的一定要看一眼</strong>，认错了会导到别的项目。</td></tr>
+</table>
+
+<h3>底部按钮</h3>
+
+<table>
+  <tr><th style="width:26%">按钮</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>全部导入（N 个项目 / M 条）</code></td>
+    <td>逐组导入。</td>
+    <td>有缺日期或某组一条都导不进去时，会先提示（不阻断）再继续。<br>这一页<strong>不同步控制值</strong>——要同步请去项目内的「Excel 导入」。</td>
+  </tr>
+  <tr><td><code>重新选择</code></td><td>清空全部，回到第 ① 步。</td><td>分组和手工指派都会清掉。</td></tr>
+</table>
+
+<h2>4.4　导入结果怎么看：五种行的处理方式</h2>
+
+<p>无论哪个入口，导入的行最终只会有五种下场。这张表建议记住：</p>
+
+<table>
+  <tr><th style="width:18%">行的类型</th><th style="width:26%">判定条件</th><th style="width:24%">系统处理</th><th>你能做什么</th></tr>
+  <tr>
+    <td><strong>可导入</strong></td>
+    <td>日期有、点号能对上（或已选建点）、当天没有真实记录。</td>
+    <td>入库。</td>
+    <td>不想导就整份「全部排除」。</td>
+  </tr>
+  <tr>
+    <td><strong>覆盖生成数据</strong></td>
+    <td>当天已有的是<strong>系统自动生成</strong>的数据。</td>
+    <td>用你的数据替换，原值留痕。</td>
+    <td>正常情况，直接导。</td>
+  </tr>
+  <tr>
+    <td><strong>冲突</strong></td>
+    <td>当天已有<strong>真实记录</strong>（手工录入或以前导入的）。</td>
+    <td><strong>跳过，绝不覆盖</strong>。</td>
+    <td>要改这一天的数，去记录页做"更正"。</td>
+  </tr>
+  <tr>
+    <td><strong>缺日期</strong></td>
+    <td>表里没写日期、系统也认不出。</td>
+    <td><strong>不入库</strong>（系统不猜日期）。</td>
+    <td>在「观测日期」列给它选一天，会自动重新核对。</td>
+  </tr>
+  <tr>
+    <td><strong>校验失败</strong></td>
+    <td>数据本身有问题（类型不对、点号空、数值读不通）。</td>
+    <td>不入库，原因写在表格里。</td>
+    <td>回原始台账改了再传。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>改日期会重置你的选择：</strong>在「观测日期」里改过之后，系统会按新日期重新核对一遍，<strong>之前做过的「排除」选择会被清空</strong>（界面会提示一句）。这不是 bug——日期变了，冲突关系也全变了。</p>
+</div>
+
+<h1>第 5 章　看结果：曲线、对比、预警</h1>
+
+<h2>5.1　项目列表上的「需要关注」</h2>
+
+<p>首页顶部如果出现 <code>⚠ 需要关注（N）</code> 卡片，说明有事情要处理。三类：</p>
+
+<table>
+  <tr><th style="width:18%">标签</th><th style="width:42%">含义</th><th>点「去处理」会去哪</th></tr>
+  <tr>
+    <td><span class="tagx" style="background:#FEF3F2;color:#B42318;border-color:#F7C1C1;">报警</span></td>
+    <td><code>N 项达到报警值，如 QC01 累计 32.5mm</code></td>
+    <td>定位到那一天、那个测点的记录页，并提示原因</td>
+  </tr>
+  <tr>
+    <td><span class="tagx" style="background:#FFF7E6;color:#B45309;border-color:#FADFA8;">数据可疑</span></td>
+    <td><code>N 条数据变化异常，如 QC02 单期 8.0mm 请复核</code></td>
+    <td>同样定位到那一天，让你核对读数</td>
+  </tr>
+  <tr>
+    <td><span class="tagx">该观测了</span></td>
+    <td><code>已有 N 天没观测（上次 2026-11-08）</code></td>
+    <td>定位到上次观测日</td>
+  </tr>
+</table>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>刷新</code><br><span class="kv">卡片右上角</span></td><td>重新拉"一句话结论"和"关注项"。</td><td>只刷这一块，不重载整个项目表。</td></tr>
+  <tr><td><code>去处理</code></td><td>跳到对应页面并定位。</td><td>报警条目用的是<strong>全部项目（含已归档）</strong>，所以已归档项目的报警也会出现在这里。</td></tr>
+</table>
+
+<h3>项目表格里几个关键列</h3>
+
+<table>
+  <tr><th style="width:20%">列</th><th style="width:36%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>进度</code></td><td><code>还没建测点</code> / <code>已有测点 · 待录数据</code> / <code>N 个测点 · M 条数据</code></td><td>一眼看出这个项目卡在哪一步。</td></tr>
+  <tr><td><code>本期概况</code></td><td>一句话结论，按预警级别着色。</td><td>鼠标停上去看"最近观测日期"。</td></tr>
+  <tr><td><code>预警状态</code></td><td><code>正常</code> / <code>预警 N</code> / <code>报警 N</code> / <code>无数据</code></td><td><strong>预警/报警标签可以点</strong>，点开看明细（哪几个点、累计多少、触发原因）。</td></tr>
+  <tr><td><code>下一步</code></td><td>按钮文案会自动变：<code>先创建测点</code> → <code>录入初始值</code> → <code>录入本期数据</code></td><td>不知道干什么就点它。</td></tr>
+  <tr><td><code>操作</code></td><td><code>导出日报</code> + <code>更多 ⌄</code></td><td>没有观测数据时「导出日报」是灰的。</td></tr>
+</table>
+
+<h2>5.2　曲线图：连拖动调值都算在内</h2>
+
+<p>入口：项目内流程第 ③ 步 → <code>曲线图</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>沉降曲线</code> / <code>水平位移曲线</code><br><span class="kv">分段切换</span></td><td>切换指标。</td><td>切到位移时分量自动变 X。</td></tr>
+  <tr><td><code>X 方向</code> / <code>Y 方向</code><br><span class="kv">仅在水平位移时出现</span></td><td>切换分量。</td><td>—</td></tr>
+  <tr><td>图例（顶部一排测点名）</td><td><strong>点一下可以隐藏/显示这条曲线</strong>。</td><td>测点多时图例会横向滚动。</td></tr>
+  <tr><td>鼠标悬停</td><td>显示该日期所有测点的累计值。</td><td>—</td></tr>
+  <tr><td>虚线参考线</td><td>±控制值、±报警值。</td><td>四条线颜色统一是"预警金"，标签写 <code>+30 预警</code> 这种。</td></tr>
+  <tr><td>红色/金色大圆点</td><td>报警点 / 预警点。</td><td>点上方标测点编号。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>这个页面没有"导出图片"按钮，也没有缩放条。</strong>要留图请用浏览器打印。曲线图的用途是"看趋势 + 快速修数"，正式图在报表里。</p>
+</div>
+
+<h3>拖动调值（这个功能要小心用）</h3>
+
+<p>在某条曲线上按住一个点上下拖，可以直接改这一天的读数。适用场景：明显录错了一个数（少打一位、多打一位），不必回记录页翻。</p>
+
+<table>
+  <tr><th style="width:26%">项</th><th>规则</th></tr>
+  <tr><td>能拖的点</td><td>当前指标的曲线上、鼠标距点 16 像素以内。<strong>基准点（初始值那天）不能拖</strong>；缺测点不能拖。</td></tr>
+  <tr><td>能拖到哪</td><td>限制在 <strong>±控制值（累计变化量）</strong>之间。拖到头会提示 <code>（已到预警线）</code>。<br>所以<strong>不可能把点拖成报警</strong>——报警值不参与限位。</td></tr>
+  <tr><td>拖完会怎样</td><td>弹确认框 <code>确认调整这个读数？</code>，显示累计和读数的新旧值。确认后按「更正」保存：<strong>原记录保留、标记为已被更正</strong>，备注写"曲线图手动调整"。</td></tr>
+  <tr><td>影响范围</td><td>只改<strong>那一天那个分量</strong>。相邻期的"本次变化"和"速率"会跟着变，报表重算。</td></tr>
+</table>
+
+<div class="danger box">
+  <p><strong>拖不动的两种可能，别以为是坏了：</strong></p>
+  <ol>
+    <li><strong>这个项目没配预警规则里的"累计变化量控制值"</strong>——没配就没有限位，整个拖动功能直接不生效，界面也不提示。先去配规则（第 7 章）。</li>
+    <li>拖的是基准点（最早那一期）。基准是累计的起点，不给拖；要改初始值去测点管理页。</li>
+  </ol>
+</div>
+
+<h2>5.3　逐期对比</h2>
+
+<p>入口：项目内流程第 ③ 步 → <code>逐期对比</code>。这一页<strong>没有筛选控件</strong>，打开就是全量清单，每个"测点 × 观测项"一张卡片。</p>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>期次</code></td><td><code>初始值</code> 或 <code>第N期</code>。</td><td>由观测日期自动编号，不能手改。</td></tr>
+  <tr><td><code>对比基准</code></td><td>这一期跟谁比的日期。</td><td>首期显示 <code>(初始值)</code>。</td></tr>
+  <tr><td><code>对比类型</code></td><td><code>首期(相对初始值)</code> / <code>相邻上期</code> / <code>跨期(中间缺测)</code> / <code>缺测</code>。</td><td>看到"跨期"说明中间有几天没测，ΔV 是跨着算的。</td></tr>
+  <tr><td><code>读值(m)</code></td><td>这一期的读数。</td><td>缺测显示 <code>-</code>。</td></tr>
+  <tr><td><code>本次变化 ΔV(mm)</code></td><td>与对比基准之差。</td><td>颜色跟着预警等级走（金=预警、红=报警）。</td></tr>
+  <tr><td><code>累计变化 C(mm)</code></td><td>相对初始值的累计。</td><td>同上。</td></tr>
+  <tr><td><code>间隔(天)</code></td><td>与基准相隔几天。</td><td>鼠标悬停会显示 <code>速率 = 本次变化 ÷ N 天</code>。</td></tr>
+  <tr><td><code>速率(mm/d)</code></td><td>ΔV ÷ 间隔天数。</td><td><strong>隔了好几天才测一次时，速率会被摊薄</strong>——这是速率的定义，不是算错。</td></tr>
+  <tr><td><code>变化方向</code></td><td>文字描述（下沉/上升等）。</td><td>受项目里"正值代表"的设置影响。</td></tr>
+  <tr><td><code>预警状态</code></td><td><code>正常</code> / <code>预警</code> / <code>报警</code>。</td><td>—</td></tr>
+</table>
+
+<h2>5.4　预警事件与数据质量</h2>
+
+<p>入口：项目内流程第 ③ 步 → <code>预警事件</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>重新计算预警</code><br><span class="kv">主按钮</span></td>
+    <td>按<strong>当前</strong>预警规则，把这个项目的预警事件整体重建一遍。</td>
+    <td>事件是"派生数据"，可以随时重算，不会重复累加。<br>改完规则或改完读数，点一下就能刷新判定结果。</td>
+  </tr>
+  <tr>
+    <td><code>修正最新一期超限值</code></td>
+    <td>把"最新一期"里超出限值的读数自动拉回到限值以内。</td>
+    <td><strong>只动最新一期，历史期一个数都不动</strong>（历史期已经报出去了，改它就是篡改）。<br>事件列表为空时按钮是灰的。详见下方。</td>
+  </tr>
+</table>
+
+<h3>事件列表的列</h3>
+
+<table>
+  <tr><th style="width:20%">列</th><th>含义</th></tr>
+  <tr><td><code>等级</code></td><td><code>报警</code>（红）/ <code>预警</code>（金）。</td></tr>
+  <tr><td><code>测点</code> / <code>观测项</code> / <code>日期</code></td><td>哪一点、哪个观测项、哪一天。</td></tr>
+  <tr><td><code>触发项</code></td><td>是哪一维度超的：<code>累计变化量</code> / <code>本次变化量</code> / <code>变化速率</code>。</td></tr>
+  <tr><td><code>值(mm)</code></td><td>触发时的数值。</td></tr>
+  <tr><td><code>说明</code></td><td>一句话描述，过长可悬停看全文。</td></tr>
+</table>
+
+<h3>「修正最新一期超限值」弹窗</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>预警 + 报警一起修（推荐）</code><br><code>只修报警</code></td>
+    <td>选修正范围。</td>
+    <td>默认选第一项。切换会重新预检（不写库）。</td>
+  </tr>
+  <tr>
+    <td>预检汇总 <code>将修正 N 条读数</code></td>
+    <td>告诉你这次会改几条。</td>
+    <td><strong>条数可能多于事件条数</strong>——改了前一期，后一期的变化量会跟着变大，要连带一起修。</td>
+  </tr>
+  <tr>
+    <td><code>确认修正 N 条</code></td>
+    <td>真正执行。</td>
+    <td>走「更正」流程：原读数作废保留、可追溯，不删除任何数据。<br>没有额外的二次确认弹窗，确认靠这个弹窗本身。</td>
+  </tr>
+</table>
+
+<h3>数据质量检查（同页上方）</h3>
+
+<table>
+  <tr><th style="width:26%">标签 / 表格</th><th>含义</th></tr>
+  <tr><td><code>突变疑似 N 条（阈值 Xmm）</code></td><td>单期变化超过阈值的记录。红色表示有，绿色表示无。</td></tr>
+  <tr><td><code>缺测 N 条</code></td><td>缺测记录数。</td></tr>
+  <tr><td>突变疑似表</td><td>列：测点、观测项、日期、单期变化(mm)、提示。</td></tr>
+  <tr><td>缺测表</td><td>列：测点、观测项、日期。</td></tr>
+</table>
+
+<div class="tip box">
+  <p><strong>质量检查只提示、不删数据、也不自动改任何读数。</strong>它的作用是"提醒你回现场核一下"，不是"帮你修数"。</p>
+</div>

@@ -1,0 +1,1787 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>基坑拉森钢板桩沉降与水平位移观测系统 · 使用说明书</title>
+<style>
+  @page { size: A4; margin: 15mm 13mm 16mm 13mm; }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; color:#1f2733; background:#fff;
+    font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+    font-size:10.5pt; line-height:1.72;
+  }
+  .cover{
+    min-height:238mm; padding:46mm 10mm 0 12mm; page-break-after:always; break-after:page;
+  }
+  .cover .band{height:6mm; background:#185FA5; margin-bottom:16mm;}
+  .cover h1{font-size:25pt; line-height:1.4; margin:0 0 8mm; color:#0F4276; font-weight:600;
+            page-break-before:avoid; break-before:avoid;}
+  .cover .sub{font-size:13pt; color:#4A5568; margin-bottom:22mm;}
+  .cover .meta{font-size:10.5pt; color:#4A5568; line-height:2.1; border-top:1px solid #DCE3EC; padding-top:6mm;}
+  .cover .meta b{color:#1f2733;}
+  .cover .note{margin-top:12mm; font-size:10pt; color:#7A8699; line-height:1.8;}
+
+  h1{font-size:17pt; color:#0F4276; margin:0 0 6mm; padding-bottom:3mm;
+     border-bottom:2px solid #185FA5; page-break-before:always; page-break-after:avoid; break-before:page;}
+  h1.nobreak{page-break-before:auto; break-before:auto;}
+  h2{font-size:13pt; color:#185FA5; margin:8mm 0 3mm; page-break-after:avoid;}
+  h3{font-size:11.5pt; color:#1f2733; margin:6mm 0 2mm; page-break-after:avoid;}
+  p{margin:2.5mm 0;}
+  ul,ol{margin:2.5mm 0; padding-left:6mm;}
+  li{margin:1.2mm 0;}
+  code{background:#F1F4F8; padding:.5mm 1.5mm; border-radius:1mm; font-size:9.5pt;
+       font-family:Consolas,"Courier New",monospace; color:#25405F;}
+  b,strong{color:#0F4276;}
+  .lead{font-size:11pt; color:#4A5568;}
+
+  table{width:100%; border-collapse:collapse; margin:3mm 0 4mm; font-size:9.5pt;}
+  th{background:#EAF2FA; color:#0F4276; text-align:left; font-weight:600;
+     border:1px solid #C9D8E8; padding:1.8mm 2.2mm;}
+  td{border:1px solid #DCE3EC; padding:1.8mm 2.2mm; vertical-align:top;}
+  tr{page-break-inside:avoid;}
+  td code{font-size:9pt;}
+
+  .box{border-radius:1.5mm; padding:3mm 4mm; margin:3mm 0; border-left:3.5pt solid;}
+  .box p:first-child{margin-top:0;} .box p:last-child{margin-bottom:0;}
+  .tip{background:#EAF2FA; border-color:#185FA5;}
+  .warn{background:#FFF7E6; border-color:#B45309;}
+  .danger{background:#FEF3F2; border-color:#B42318;}
+  .ok{background:#EDF7F0; border-color:#1B7A43;}
+
+  .toc{page-break-after:always;}
+  .toc h2{font-size:15pt; color:#0F4276; border:none; margin:0 0 4mm; page-break-after:avoid;}
+  .toc ol{list-style:none; padding:0; margin:0;}
+  .toc ol li{margin:.15mm 0; font-size:9pt; line-height:1.38;}
+  .toc .l1{font-weight:600; color:#0F4276; margin-top:1.5mm;}
+  .toc .l2{padding-left:5mm; color:#5A6577;}
+  .toc .tag{float:right; color:#7A8699; font-size:9.5pt;}
+
+  .flow{display:flex; gap:2mm; margin:3mm 0;}
+  .flow div{flex:1; background:#EAF2FA; border:1px solid #C9D8E8; border-radius:1.5mm;
+            padding:2.5mm; text-align:center; font-size:9.5pt; color:#0F4276;}
+  .flow .arrow{flex:0 0 6mm; background:none; border:none; color:#7A8699; font-size:12pt; padding-top:2.5mm;}
+
+  .kv{color:#7A8699; font-size:9.5pt;}
+  .tagx{display:inline-block; padding:.3mm 1.6mm; border-radius:1mm; font-size:9pt;
+        background:#EAF2FA; color:#185FA5; border:1px solid #C9D8E8;}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="band"></div>
+  <h1>基坑拉森钢板桩<br>沉降与水平位移观测系统</h1>
+  <div class="sub">使用说明书 · 逐按钮与逐字段说明</div>
+  <div class="meta">
+    <div>适用对象：<b>现场技术员、监测员、项目技术负责人</b></div>
+    <div>适用版本：<b>v1.1.41</b>（2026-11-15）</div>
+    <div>编写日期：<b>2026 年 11 月 15 日</b></div>
+    <div>覆盖范围：<b>12 个功能页面 · 20 余个弹窗 · 全部按钮与填选框</b></div>
+  </div>
+  <div class="note">
+    本说明按「第一次用 → 每天用 → 出成果 → 做配置 → 出问题怎么办」的顺序编排。<br>
+    每一节的控件表都按「控件 → 作用 → 注意事项」三列写：左边是你看到的东西，中间是它干什么，右边是容易踩的坑。<br>
+    加粗的<b>注意</b>框里写的，都是实际使用中踩过的问题。
+  </div>
+</div>
+
+<div class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li class="l1">第 1 章　开始使用<span class="tag">3</span></li>
+    <li class="l2">1.1　这套系统帮你做什么</li>
+    <li class="l2">1.2　打开系统</li>
+    <li class="l2">1.3　界面总览：顶部导航与四步流程</li>
+    <li class="l2">1.4　项目列表页的三个全局开关</li>
+    <li class="l2">1.5　五条不会让数据出错的规矩</li>
+
+    <li class="l1">第 2 章　建项目与测点（第一次用）<span class="tag">6</span></li>
+    <li class="l2">2.1　新建项目：每个字段怎么填</li>
+    <li class="l2">2.2　先看个示例：不填任何数据先跑通</li>
+    <li class="l2">2.3　批量建项目：一张清单建好几个基坑</li>
+    <li class="l2">2.4　测点管理：新建、编辑、停用、彻底删除</li>
+    <li class="l2">2.5　批量新建测点：粘贴一堆点号</li>
+    <li class="l2">2.6　测点平面布置图</li>
+
+    <li class="l1">第 3 章　录数据（每天用）<span class="tag">12</span></li>
+    <li class="l2">3.1　观测记录页：先认清楚这块界面</li>
+    <li class="l2">3.2　总览表格录入</li>
+    <li class="l2">3.3　顺序录入（键盘流）</li>
+    <li class="l2">3.4　保存与更正：改一个数会发生什么</li>
+    <li class="l2">3.5　自动生成数据：演示与补数</li>
+
+    <li class="l1">第 4 章　批量导入<span class="tag">16</span></li>
+    <li class="l2">4.1　两个导入入口怎么选</li>
+    <li class="l2">4.2　Excel 导入（在项目里，一期一个文件）</li>
+    <li class="l2">4.3　每日导入（一次传当天所有台账）</li>
+    <li class="l2">4.4　导入结果怎么看：五种行的处理方式</li>
+
+    <li class="l1">第 5 章　看结果：曲线、对比、预警<span class="tag">21</span></li>
+    <li class="l2">5.1　项目列表上的「需要关注」</li>
+    <li class="l2">5.2　曲线图：连拖动调值都算在内</li>
+    <li class="l2">5.3　逐期对比</li>
+    <li class="l2">5.4　预警事件与数据质量</li>
+
+    <li class="l1">第 6 章　出日报<span class="tag">25</span></li>
+    <li class="l2">6.1　导出页：从上到下每个控件</li>
+    <li class="l2">6.2　母版体检：导不出来先看这里</li>
+    <li class="l2">6.3　导出预览：不落盘先看成品</li>
+    <li class="l2">6.4　合并报表：南北两侧装订成一份</li>
+    <li class="l2">6.5　母版库：上传、改名、设适用范围</li>
+
+    <li class="l1">第 7 章　配置<span class="tag">32</span></li>
+    <li class="l2">7.1　预警规则：四个格子怎么填</li>
+    <li class="l2">7.2　沉降不允许回弹（只沉不升）</li>
+    <li class="l2">7.3　项目默认值：规则、母版、天气、签名、仪器</li>
+
+    <li class="l1">第 8 章　维护<span class="tag">36</span></li>
+    <li class="l2">8.1　数据备份与还原</li>
+    <li class="l2">8.2　导出文件检查</li>
+    <li class="l2">8.3　归档与彻底删除</li>
+
+    <li class="l1">第 9 章　注意事项总表<span class="tag">39</span></li>
+    <li class="l2">9.1　按钮什么时候是灰的</li>
+    <li class="l2">9.2　常见提示与处理办法</li>
+    <li class="l2">9.3　数据安全的六条底线</li>
+
+    <li class="l1">附录　术语表<span class="tag">41</span></li>
+  </ol>
+</div>
+
+<h1 class="nobreak">第 1 章　开始使用</h1>
+
+<h2>1.1　这套系统帮你做什么</h2>
+
+<p>把工程现场每天重复的<strong>录入 → 计算 → 判断 → 出日报</strong>这几步自动化：</p>
+
+<div class="flow">
+  <div>录入 / 导入<br>观测读数</div>
+  <div class="arrow">→</div>
+  <div>自动算<br>本次变化</div>
+  <div class="arrow">→</div>
+  <div>自动算<br>累计与速率</div>
+  <div class="arrow">→</div>
+  <div>自动判<br>预警 / 报警</div>
+  <div class="arrow">→</div>
+  <div>一键出<br>Excel 日报</div>
+</div>
+
+<p>你只需要做两件事：<strong>把读数弄进系统</strong>（手打或导入），<strong>点导出</strong>。剩下的变化量、累计、速率、预警等级、报表版式，系统自己算。</p>
+
+<p>几条你可能会关心的能力：</p>
+<ul>
+  <li><strong>报表按你单位的格式出</strong>：把你日常报送的那份整卷日报传上去当母版，以后每期只换数字，封面、签字页、概况、布点图都保留。</li>
+  <li><strong>多个基坑（或南北两侧）合成一份册子</strong>：封面、签字、布点图只留一份，各项目的数据表各占一张。</li>
+  <li><strong>每期的预警判断和报表上的控制值同源</strong>：报表上印的「控制值」就是系统判定用的那个数，不会出现表和系统两套口径。</li>
+  <li><strong>改过的数留痕</strong>：任何更正都保留原值，随时能追溯；没有"改了就查不到"的情况。</li>
+</ul>
+
+<h2>1.2　打开系统</h2>
+
+<table>
+  <tr><th style="width:32%">项</th><th>说明</th></tr>
+  <tr>
+    <td>在浏览器里打开</td>
+    <td>输入管理员给你的地址（单位部署形态一般是 <code>http://服务器地址:8000</code>）。<strong>不用装任何软件</strong>，Chrome、Edge、QQ 浏览器都可以，推荐 Chrome。</td>
+  </tr>
+  <tr>
+    <td>要不要登录</td>
+    <td>当前版本<strong>没有账号体系</strong>——能打开这个地址的人就能操作。所以别把地址发到无关的群里；临时给同事演示，用「只读锁定」（见 1.4）。</td>
+  </tr>
+  <tr>
+    <td>数据存在哪</td>
+    <td>存在服务器上的数据库里，<strong>不在你电脑上</strong>。换台电脑打开同一个地址，看到的是同一份数据。</td>
+  </tr>
+  <tr>
+    <td>多久刷新一次</td>
+    <td>页面不会自动刷新。别人刚导完数据，你要点一下页面上的「刷新」或按 <code>F5</code> 才看得到。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>注意：</strong>如果页面能打开但一直转圈、或者提示"网络错误"，先别怀疑数据丢了——多半是服务器上那个服务停了。找管理员重启服务即可，数据都在服务器的数据库文件里。</p>
+</div>
+
+<h2>1.3　界面总览：顶部导航与四步流程</h2>
+
+<h3>顶部导航（每个页面都有）</h3>
+
+<table>
+  <tr><th style="width:22%">按钮</th><th style="width:36%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>项目列表</code></td>
+    <td>回到首页。所有项目的状态、预警、下一步都在这页。</td>
+    <td>在任何页面误入死角，点它都能回来。</td>
+  </tr>
+  <tr>
+    <td><code>每日导入</code></td>
+    <td>一次把<strong>当天所有台账</strong>拖进来，系统按表里写的工程名称自动分到各项目。</td>
+    <td>这个入口<strong>不建项目、不建测点</strong>。新基坑要先去「批量建项目」或「新建项目」。</td>
+  </tr>
+  <tr>
+    <td><code>数据备份</code></td>
+    <td>手动做数据库快照、还原历史快照。</td>
+    <td>还原是<strong>破坏性操作</strong>，会用旧快照覆盖当前全部数据（还原前系统会自动再拍一张，见 8.1）。</td>
+  </tr>
+  <tr>
+    <td><code>文件检查</code></td>
+    <td>扫一遍你导出日报的文件夹，把报表上的数和系统里的数逐个比对。</td>
+    <td>只读，不改任何文件。建议每周跑一次（超过 7 天系统会在首页提醒你）。</td>
+  </tr>
+</table>
+
+<h3>项目内的四步流程</h3>
+
+<p>点进任意一个项目后，页面顶部会有一条流程导航条，告诉你"现在在第几步、下一步该点什么"：</p>
+
+<div class="flow">
+  <div>① 测点与初始值<br><span class="kv">建测点，录一次初始值</span></div>
+  <div class="arrow">→</div>
+  <div>② 观测数据<br><span class="kv">逐日录入 / Excel 导入</span></div>
+  <div class="arrow">→</div>
+  <div>③ 分析与预警<br><span class="kv">曲线 / 对比 / 预警</span></div>
+  <div class="arrow">→</div>
+  <div>④ 成果导出<br><span class="kv">一键出日报</span></div>
+</div>
+
+<p>这四步按顺序走就不会错。跳着走也能用，但第 ①、② 步没做完时，后面几步会提示"还没有测点""还没有观测数据"。</p>
+
+<h2>1.4　项目列表页的三个全局开关</h2>
+
+<p>项目列表页的工具栏右侧有三个开关，它们影响<strong>整个系统</strong>，不是某一个项目。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>生成数据带预警</code><br><span class="kv">小开关</span></td>
+    <td><strong>开</strong>：以后用「自动生成数据」造出来的读数会像真实台账一样偶尔触发预警。<br><strong>关</strong>：生成的数据只在预警线以内波动，不会出现预警/报警点。</td>
+    <td>只影响<strong>以后生成的</strong>数据，已经生成的不变。<br>给监理演示、或只想验证曲线走向时，建议<strong>关掉</strong>——否则演示里一堆红点，容易误会。</td>
+  </tr>
+  <tr>
+    <td><code>只读锁定</code><br><span class="kv">小开关，锁上后文字变成「已锁定（只读）」</span></td>
+    <td>打开后，<strong>后端会拒绝一切写操作</strong>：新增、修改、删除、导入、生成、还原备份全部被挡下。</td>
+    <td>给同事看、演示时打开，怎么点都改不坏数据。<br><strong>注意：按钮不会变灰</strong>，你点下去仍会发请求，然后弹一条错误——这是正常的，不是按钮坏了。<br>解锁开关就在同一个位置（<strong>设置接口本身不受锁影响</strong>，所以还能点开）。</td>
+  </tr>
+  <tr>
+    <td><code>进行中项目</code> / <code>全部（含已归档）</code><br><span class="kv">分段切换</span></td>
+    <td>决定列表里是否显示已归档的项目。</td>
+    <td>切到「全部」后，右侧会出现灰底标签 <code>含 N 个已归档项目</code>。<br>切换时会<strong>清空已勾选的项目</strong>（防止跨范围误操作）。</td>
+  </tr>
+</table>
+
+<h2>1.5　五条不会让数据出错的规矩</h2>
+
+<div class="ok box">
+  <p><strong>这五条是系统的底线，知道它们你就能放心操作：</strong></p>
+  <ol>
+    <li><strong>原始读数只增不改。</strong>你改一个数，系统不是"覆盖"，而是把旧记录标记为"已被更正"并保留，新值另存一条。任何时候都能查到原值。</li>
+    <li><strong>重复导入不会覆盖真实数据。</strong>当天已经有真实记录时，导入的行一律「跳过」；只有系统自己生成的演示数据才会被你的数据替换。</li>
+    <li><strong>没有日期的数据不入库。</strong>系统不会替你猜日期，缺日期的行会单独列出来让你补。</li>
+    <li><strong>删项目要输编号、删测点要输点号，而且删前自动备份。</strong>随手一点是删不掉的。</li>
+    <li><strong>报表上的「控制值」= 系统判定用的数。</strong>只有一个出处（预警规则），不会出现表和系统对不上。</li>
+  </ol>
+</div>
+
+<div class="warn box">
+  <p><strong>反过来说，有三件事你<u>不应该</u>做：</strong></p>
+  <ul>
+    <li>不要在 Excel 里改已经导出、已经报给监理的日报——要改就回系统改数据后<strong>重新导出</strong>。</li>
+    <li>不要为了"好看"去改历史期读数（曲线可以拖，但那是更正，会留痕、会重算）。</li>
+    <li>不要用「彻底删除」代替「归档」——归档保留全部数据，删除不可恢复（虽然有备份）。</li>
+  </ul>
+</div>
+<h1>第 2 章　建项目与测点（第一次用）</h1>
+
+<p class="lead">一个基坑 = 一个「项目」；基坑里的每个观测点 = 一个「测点」。第一次用，先把这两层建起来，之后每天才有地方录数。</p>
+
+<h2>2.1　新建项目：每个字段怎么填</h2>
+
+<p>入口：项目列表页 → 工具栏 <code>新建项目</code>（蓝色主按钮）。</p>
+
+<table>
+  <tr><th style="width:20%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>项目编号</code><br><span class="kv">必填</span></td>
+    <td>项目的唯一编号，列表、报表文件名、导出的日报都用它区分。例如 <code>8号基坑</code>、<code>PRJ001</code>。</td>
+    <td><strong>建好之后不能改</strong>（编辑项目时这一格是灰的）。<br>建议用能一眼对上的写法，别用 <code>001</code> 这种过两天自己都分不清的。</td>
+  </tr>
+  <tr>
+    <td><code>项目名称</code><br><span class="kv">必填</span></td>
+    <td>项目全称，会印在报表封面上（除非合并报表另填了封面工程名称）。</td>
+    <td>可以随时改。报表里出现"工程名称"的地方优先用名字全的那个。</td>
+  </tr>
+  <tr>
+    <td><code>地点</code><br><span class="kv">可空</span></td>
+    <td>工程位置 / 标段，纯备注性质。</td>
+    <td>留空就显示 <code>-</code>，不影响任何计算。</td>
+  </tr>
+  <tr>
+    <td><code>沉降读数：正值代表</code></td>
+    <td>决定报表和文字结论里把"读数的正方向"说成<strong>下沉</strong>还是<strong>隆起</strong>。</td>
+    <td>两个选项：<code>下沉（多数基坑习惯）</code> / <code>隆起 / 上升</code>。<br><strong>填错了不会算错数</strong>，但报表上"下沉/隆起"的说法会反——拿不准就保持默认，它只影响措辞。</td>
+  </tr>
+  <tr>
+    <td><code>水平位移读数：正值代表</code></td>
+    <td>同上，决定位移方向说成<strong>向基坑内</strong>还是<strong>向基坑外</strong>。</td>
+    <td>选项：<code>向基坑内（多数基坑习惯）</code> / <code>向基坑外</code>。</td>
+  </tr>
+</table>
+
+<div class="tip box">
+  <p><strong>一个容易被忽略的点：</strong>项目的编号和名称、方向设置，都可以在项目行的「更多 → 编辑项目」里改（编号除外）。建项目时不用纠结太久。</p>
+</div>
+
+<h2>2.2　先看个示例：不填任何数据先跑通</h2>
+
+<p>入口：项目列表页 → <code>先看个示例</code>（烧瓶图标）。</p>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>先看个示例</code></td>
+    <td>一键建一个演示项目：固定 <strong>8 个测点</strong>、自动配好预警规则、自动生成 <strong>3 期</strong>演示数据。</td>
+    <td>建完就能直接看曲线、导日报，用来熟悉流程。<br>演示项目和你自己建的项目没有区别，用完可以在行内「更多 → 彻底删除」删掉。<br>按钮点击后会转圈，防止连点重复建。</td>
+  </tr>
+</table>
+
+<h2>2.3　批量建项目：一张清单建好几个基坑</h2>
+
+<p>入口：项目列表页 → <code>批量建项目</code>。适用场景：一次测量采集了好几个基坑的点位清单（点号 + X/Y/Z 坐标）。</p>
+
+<div class="warn box">
+  <p><strong>先确认入口别走错：</strong>这里要的是<strong>点位清单</strong>（点号 + 坐标/高程），<u>不是</u>逐期观测台账（那种表里有"观测日期""本次测值"）。逐期台账请进项目后用「Excel 导入」。</p>
+</div>
+
+<h3>第 ①／② 步：上传清单</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>拖拽区 / <code>点击或拖拽清单文件到此处</code></td>
+    <td>上传点位清单（.xlsx / .xlsm / .xls）。</td>
+    <td><strong>一次只能传一个文件</strong>，重新上传会整体覆盖上次的结果。<br>表里只要有点号和坐标/高程就行，有没有表头都能认。</td>
+  </tr>
+  <tr>
+    <td>解析结果条<br><code>读到 N 个点 ｜ 数据表：xxx</code></td>
+    <td>显示识别到多少个点、从哪个 Sheet 读的、各列对应关系。</td>
+    <td>会提示 <code>X/Y 是根据坐标数值大小自动判的，核对一下有没有判反（X 一般 341 万量级，Y 一般 51 万量级）</code>。<strong>这句要认真看</strong>，判反了平面布置图会横竖颠倒。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步：分组与点号规则</h3>
+
+<p>系统会按点号尾部序号猜一次分组（比如 JJC1~JJC8 一组、JJC9~JJC16 一组），猜错可以逐行改。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>所属基坑（可改）</code><br><span class="kv">表格里每一行</span></td>
+    <td>给这个点选一个基坑，可以直接输入新名字。</td>
+    <td>没分组的行整行有底色，一眼能看出来。<br>系统无法自动分组时会提示 <code>没能自动分组，请在表格里给每行选一个基坑（可以勾选多行一起归类）</code>。</td>
+  </tr>
+  <tr>
+    <td>批量归类工具条<br>输入框 <code>归到哪个基坑</code> + 按钮 <code>归到这个基坑</code></td>
+    <td>先勾选多行，再输入基坑名，一次归好。</td>
+    <td>按钮<strong>没勾选行、或名字没填时是灰的</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>项目编号</code> / <code>项目名称</code><br><span class="kv">每组两个输入框</span></td>
+    <td>这组要建成（或复用）哪个项目。</td>
+    <td>如果名字和系统里已有项目一致，会显示 <code>已有项目「xxx」→ 直接用它</code>，<strong>不会重复建</strong>。<br>该项目已有测点时还会提醒你注意点号别撞。</td>
+  </tr>
+  <tr>
+    <td><code>初始值日期</code><br><span class="kv">每组一个，必填</span></td>
+    <td>这一组的初始值（第 0 期）算哪一天测的。</td>
+    <td><strong>没有默认值，必须手选</strong>。没选就点生成会被拦下并点名是哪几组。<br>顶部有 <code>统一设为这一天</code> + <code>应用到全部</code>，多组同一天时用它省事。</td>
+  </tr>
+  <tr>
+    <td><code>点号规则</code><br>前缀 / 起始序号 / 补零位数</td>
+    <td>把清单里的原始点号，按规则重新编成系统里的点号。</td>
+    <td>默认：前缀 <code>JJC</code>、起始序号 <code>1</code>、<code>不补零</code> → 生成 <code>JJC1、JJC2…</code>。<br><strong>组内按清单出现顺序编号</strong>，不沿用表里的原编号。右侧会实时显示区间（如 <code>JJC1 ~ JJC12</code>）。</td>
+  </tr>
+  <tr>
+    <td><code>取消这个分组</code></td>
+    <td>把这一组拆掉，点退回"未分组"。</td>
+    <td><strong>只取消分组，不删点</strong>，重新分就行。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步底部：生成</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>生成 N 个项目（M 个测点）</code><br><span class="kv">主按钮</span></td>
+    <td>一次创建全部项目、测点、初始值记录。</td>
+    <td>点之前会校验三件事：有没有分组、每组有没有选初始值日期、每组有没有填点号前缀。<strong>缺一项就停下并告诉你缺哪组</strong>。<br>同名测点会<strong>跳过</strong>，不会覆盖它的初始值。</td>
+  </tr>
+  <tr>
+    <td><code>重新选择</code></td>
+    <td>清空解析结果和分组，回到上传。</td>
+    <td>已分好的组会一起清掉，注意别误点。</td>
+  </tr>
+</table>
+
+<h3>第 ③ 步：完成</h3>
+
+<p>结果会逐组列出：<code>组名 → 项目「名称」（编号）【新建】/【复用已有】：测点 N 个、初始值 M 条、日期 2026-03-05</code>。有跳过的点会单独点名并给出原因。</p>
+
+<h2>2.4　测点管理：新建、编辑、停用、彻底删除</h2>
+
+<p>入口：项目列表 → 行内「下一步」按钮（<code>先创建测点</code> / <code>录入初始值</code>），或「更多 → 测点管理」。</p>
+
+<h3>页面工具条</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>新建测点</code><br><span class="kv">主按钮</span></td><td>逐个建点。</td><td>见下方字段表。</td></tr>
+  <tr><td><code>批量新建</code><br><span class="kv">加号图标</span></td><td>粘贴多行文本一次建多个点。</td><td>见 2.5。</td></tr>
+  <tr><td><code>观测录入</code></td><td>跳到记录页开始录当天读数。</td><td>测点建好后才有意义。</td></tr>
+  <tr><td><code>显示已停用：</code><br><span class="kv">开关，默认开</span></td><td>是否把停用的测点一起列出来。</td><td>关掉后列表只剩在用点。停用的点数据仍在，只是不再出现在录入表里。</td></tr>
+</table>
+
+<h3>新建 / 编辑测点弹窗</h3>
+
+<table>
+  <tr><th style="width:22%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>测点编号</code><br><span class="kv">必填</span></td>
+    <td>点号，如 <code>JJC1</code>、<code>QC01</code>。项目内唯一。</td>
+    <td><strong>编辑时不能改</strong>。建错点号只能删掉重建。</td>
+  </tr>
+  <tr>
+    <td><code>观测类型</code><br><span class="kv">必填，无默认值</span></td>
+    <td>这个点测什么：<code>沉降</code> / <code>水平位移</code> / <code>沉降 + 水平位移</code>。</td>
+    <td>决定录入时要填几个数：沉降 1 个、位移 2 个（X/Y）、两者都要 3 个。<strong>新建时必须手动选</strong>，不会替你默认。</td>
+  </tr>
+  <tr>
+    <td><code>显式初始值 V0(mm，可选)</code></td>
+    <td>手工指定这个点的初始读数（毫米）。</td>
+    <td><strong>强烈建议留空</strong>——留空时系统取"首期有效读数"作为 V0（推荐默认行为）。<br>只有在你确实有一份独立的初始值采集成果时才填。<br>这里填的是<strong>毫米</strong>，注意和录入时的"米"区分。</td>
+  </tr>
+  <tr>
+    <td><code>位置描述</code></td>
+    <td>现场位置备注，如 <code>1#钢板桩桩顶 / 桩号 K2+100</code>。</td>
+    <td>会显示在顺序录入面板上，方便核对。可空。</td>
+  </tr>
+</table>
+
+<h3>表格与行操作</h3>
+
+<table>
+  <tr><th style="width:26%">列 / 按钮</th><th style="width:32%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>ID</code></td><td>数据库内部编号。</td><td>日常用不到。</td></tr>
+  <tr><td><code>测点编号</code> / <code>类型</code> / <code>位置描述</code></td><td>建点时填的内容。</td><td>位置为空显示 <code>-</code>。</td></tr>
+  <tr><td><code>初始值(mm)</code></td><td>显式指定的 V0（毫米原值）。</td><td>显示的是<strong>毫米</strong>；记录页显示的是<strong>米</strong>，别以为是两套数。</td></tr>
+  <tr><td><code>状态</code></td><td><code>在用</code>（绿）/ <code>已停用</code>（灰）。</td><td>停用不删数据。</td></tr>
+  <tr><td><code>编辑</code></td><td>改名称、类型、初始值、位置。</td><td>停用的点也能编辑。</td></tr>
+  <tr><td><code>停用</code></td><td>软删除：不再出现在录入表里，数据全部保留。</td><td>确认框问 <code>确定停用测点 xxx？</code>。<br><strong>日常建议用这个，不要用删除。</strong></td></tr>
+  <tr><td><code>恢复</code></td><td>把停用点改回在用。</td><td>没有二次确认，点了就恢复。</td></tr>
+  <tr><td><code>删除…</code></td><td><strong>物理删除</strong>：连同该点的全部观测数据、预警事件一起删。</td><td>必须<strong>手动输入测点编号</strong>才能点确认按钮。<br>删除前系统自动备份数据库，但不要依赖它——有数据的点请用「停用」。</td></tr>
+</table>
+
+<h2>2.5　批量新建测点：粘贴一堆点号</h2>
+
+<p>入口：测点管理页 → <code>批量新建</code>。</p>
+
+<h3>第一步：粘贴文本</h3>
+
+<p>文本框里一行一个测点，格式：</p>
+
+<p><code>编号,类型,初始值(mm，可空),位置(可空)</code></p>
+
+<table>
+  <tr><th style="width:24%">字段</th><th>说明</th></tr>
+  <tr><td>编号</td><td>点号。这一格为空的行会被跳过。</td></tr>
+  <tr><td>类型</td><td><code>settlement</code>/<code>沉降</code>、<code>displacement</code>/<code>水平位移</code>、<code>both</code>/<code>沉降+位移</code>。认不出来时按 <code>both</code> 处理。</td></tr>
+  <tr><td>初始值</td><td>毫米。只有能转成数字才写入，写错字就留空（等于走"首期读数自动作废 V0"）。</td></tr>
+  <tr><td>位置</td><td>位置描述。</td></tr>
+</table>
+
+<p>分隔符用逗号、中文逗号、分号、Tab 都可以。表头行（含"编号/点号/point"且只有两格）会自动跳过。</p>
+
+<p>示例：</p>
+<pre style="background:#F1F4F8;padding:3mm;border-radius:1mm;font-size:9.5pt;line-height:1.6;">JJC1,both,4907000,1#钢板桩
+JJC2,settlement,,2#钢板桩
+JJC3,displacement,3413055112,3#钢板桩</pre>
+
+<h3>第二步：预览与创建</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>校验并预览</code></td>
+    <td>先解析、不落库，把每一行的校验结果列出来。</td>
+    <td>一行都没解析出来会提示格式写法。</td>
+  </tr>
+  <tr>
+    <td>预览表格的<code>校验结果</code>列</td>
+    <td>三态：<code>可创建</code>（绿）/ <code>跳过（原因）</code>（橙，通常是已存在）/ <code>错误（原因）</code>（红）。</td>
+    <td>只有「可创建」的会被提交。</td>
+  </tr>
+  <tr>
+    <td><code>← 返回编辑</code></td>
+    <td>回到文本编辑，改完再校验。</td>
+    <td>返回会清空预览行。</td>
+  </tr>
+  <tr>
+    <td><code>确认创建 N 个测点</code></td>
+    <td>真正落库。</td>
+    <td>可创建数为 0 时会提示"没有可创建的测点（全部冲突/错误）"，不提交。</td>
+  </tr>
+</table>
+
+<h2>2.6　测点平面布置图</h2>
+
+<p>测点管理页上方会自动画一张平面图（有坐标数据时才出现）。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>坐标数值</code> <span class="kv">开关，默认开</span></td>
+    <td>在每个点下方显示 X / Y 坐标。</td>
+    <td>点挤在一起时可以关掉。</td>
+  </tr>
+  <tr>
+    <td><code>相邻间距</code> <span class="kv">开关，默认开</span></td>
+    <td>画相邻点之间的虚线和距离（如 <code>12.5 m</code>）。</td>
+    <td>按点号顺序连，不是按实际相邻关系算的。</td>
+  </tr>
+  <tr>
+    <td><code>范围框</code> <span class="kv">开关，默认开</span></td>
+    <td>画所有点的外包虚线矩形。</td>
+    <td><strong>只是包络框，不代表围护结构或基坑边界。</strong></td>
+  </tr>
+  <tr>
+    <td><code>收起图</code> / <code>展开图</code></td>
+    <td>折叠图形，给下方表格让出空间。</td>
+    <td>收起后显示 <code>图已收起（N 个点，范围 W m × H m）</code>。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>为什么有的点画不上：</strong>平面位置取的是<strong>水平位移的 X/Y 首期读数</strong>。纯沉降点没有 X/Y、或者缺 Y 的点，画不出来。系统会把画不上的点<strong>点名列出来</strong>，不会静默少点。</p>
+</div>
+
+<h1>第 3 章　录数据（每天用）</h1>
+
+<h2>3.1　观测记录页：先认清楚这块界面</h2>
+
+<p>入口：项目内流程第 ② 步 → <code>逐日录入</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>日期选择器<br><span class="kv">工具条最左，默认今天</span></td>
+    <td>切换"正在录哪一期"。</td>
+    <td>从「需要关注」点进来时会自动定位到有问题的那一天。<br>日期不能清空；<strong>没有测点时是灰的</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>保存本期观测</code><br><span class="kv">蓝色主按钮</span></td>
+    <td>保存当前日期、当前表格里<strong>所有测点</strong>的读数。</td>
+    <td>保存是<strong>整张表</strong>的，不能只存一个点。<br>"留空"也会被保存成一条"缺测"记录——这是有意的，等于告诉系统"这天没测"。</td>
+  </tr>
+  <tr>
+    <td><code>自动生成数据</code><br><span class="kv">闪电图标</span></td>
+    <td>打开演示数据生成器（见 3.5）。</td>
+    <td>日常真实观测不要用它。</td>
+  </tr>
+  <tr>
+    <td><code>总览表格</code> / <code>顺序录入</code><br><span class="kv">分段切换</span></td>
+    <td>两种录入方式。</td>
+    <td>数据是同一份，切换方式不会丢已填的内容。</td>
+  </tr>
+</table>
+
+<h3>日期面板上的标记怎么读</h3>
+
+<table>
+  <tr><th style="width:26%">标记</th><th>含义</th></tr>
+  <tr><td>底色浅红 / 浅金</td><td>这天有<strong>报警</strong> / <strong>预警</strong>。</td></tr>
+  <tr><td>右上角 <code>休</code> / <code>班</code></td><td>法定放假 / 调休上班。</td></tr>
+  <tr><td>左上角蓝点</td><td>这天是<strong>初始值日</strong>（V0 的来源日）。</td></tr>
+  <tr><td>底部横条（红/金/绿）</td><td>这天<strong>已录入</strong>，颜色表示当天最严重的预警等级。</td></tr>
+  <tr><td>日期数字变灰</td><td>周末。</td></tr>
+</table>
+
+<h2>3.2　总览表格录入</h2>
+
+<p>一行 = 一个测点（不是一条记录）。列的含义：</p>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>测点</code> / <code>类型</code></td><td>点号和观测类型。</td><td>类型决定后面三格哪几个能填。</td></tr>
+  <tr><td><code>初始值 V0 (m)</code></td><td>显示该点各观测项的 V0，带来源标签 <code>显式</code> 或 <code>首期</code>。</td><td><strong>这里不能改</strong>。要改 V0 去测点管理页。</td></tr>
+  <tr><td><code>沉降读数 (m)</code></td><td>当天沉降读数，占位符 <code>留空=缺测</code>。</td><td>纯位移点这一格显示 <code>-</code>。</td></tr>
+  <tr><td><code>位移 X (m)</code> / <code>位移 Y (m)</code></td><td>当天水平位移读数。</td><td>纯沉降点这两格显示 <code>-</code>。</td></tr>
+  <tr><td><code>录入状态</code></td><td><code>未录入</code> / <code>已录入</code> / <code>缺测</code> / <code>异常</code> / <code>作废</code>。</td><td>按测点聚合：<strong>只要有一个观测项缺测，整行就显示"缺测"</strong>。</td></tr>
+  <tr><td><code>预警状态</code></td><td><code>正常</code> / <code>预警</code> / <code>报警</code>，或 <code>—</code>。</td><td>报警优先于预警。显示的是<strong>所选日期</strong>那一天的状态。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>单位要当心：</strong>录入框里填的是<strong>米</strong>（如 <code>2.9775</code>），保存后系统内部按毫米存（<code>2977.5</code>）。测点管理页的「初始值(mm)」那一列显示的是<strong>毫米</strong>原值——两边数字差 1000 倍是正常的。</p>
+</div>
+
+<div class="tip box">
+  <p><strong>录入框没有任何格式校验</strong>（能打字母、能打两个小数点）。提交时系统按数字解析，写错了会保存失败或算出怪数。建议只用数字和小数点，别粘贴带单位的文本。</p>
+</div>
+
+<h2>3.3　顺序录入（键盘流）</h2>
+
+<p>一屏一个测点，适合现场一个一个念着录。切换方式：工具条 <code>顺序录入</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件 / 按键</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td>进度 <code>第 N / M 个测点</code></td><td>当前在第几个点。</td><td>—</td></tr>
+  <tr><td>进度条 <code>x / y 项已填</code></td><td>已填字段数 / 应有字段数。</td><td>按"这一格有内容"计数，填了字母也算已填。</td></tr>
+  <tr><td>输入框（带后缀 <code>m</code>）</td><td>填读数，标签是 <code>沉降读数</code> / <code>位移 X</code> / <code>位移 Y</code>。</td><td>占位符 <code>留空=缺测</code>。<br>已有值时右侧会显示灰字 <code>已录 x.xxx</code>。</td></tr>
+  <tr><td><code>回车</code></td><td>跳到本点下一格；在最后一格回车 = 跳到下一个点。</td><td>在最后一个点的最后一格回车 = <strong>直接保存</strong>（省一次点击）。</td></tr>
+  <tr><td><code>↑</code> / <code>↓</code></td><td>上一个 / 下一个测点。</td><td>切换后自动聚焦输入框。</td></tr>
+  <tr><td><code>上一个</code> / <code>下一个</code></td><td>同样的切换，用鼠标点。</td><td>第一个点时「上一个」是灰的，最后一个点时「下一个」是灰的。</td></tr>
+  <tr><td><code>保存本期观测</code></td><td>与工具条那个按钮同一个动作。</td><td>最后一个点下方会提示"按回车或点保存即可提交"。</td></tr>
+</table>
+
+<h2>3.4　保存与更正：改一个数会发生什么</h2>
+
+<p>点「保存本期观测」后，系统逐测点比对"你现在填的"和"系统里已有的"：</p>
+
+<table>
+  <tr><th style="width:26%">情况</th><th style="width:34%">系统怎么处理</th><th>你会看到</th></tr>
+  <tr><td>这一期还没有记录</td><td>新增一条（留空的也会新增一条"缺测"记录）。</td><td>汇总提示 <code>保存完成：新增 N 条</code></td></tr>
+  <tr><td>有记录、值没变</td><td>不动。</td><td>如果整张表都没变：<code>本期数据无变化，无需保存</code></td></tr>
+  <tr><td>有记录、值变了</td><td><strong>更正</strong>：旧记录标记为"已被更正"并保留，新值另存一条。</td><td>先弹确认框 <code>确认更正以下数据？</code>，逐行列出 <code>1.234m → 1.240m</code>（或 <code>→ 缺测</code>）</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>更正确认框里那句「原值将保留（可追溯），新值生效」不是客套话：</strong>旧读数不会被删，只是不再是"当前有效值"。所以改错了还能查回来，也所以<strong>改历史期会让报表重算</strong>——已经出过的日报不会自动变，需要重新导出。</p>
+</div>
+
+<h2>3.5　自动生成数据：演示与补数</h2>
+
+<p>入口：记录页 → <code>自动生成数据</code>（闪电图标）。用于演示、培训，或在真实数据还没到时先把流程跑通。</p>
+
+<table>
+  <tr><th style="width:24%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>开始：</code> / <code>结束：</code></td><td>生成的日期范围。默认"今天前 6 天 ~ 今天"。</td><td>结束早于开始会提示。<br>生成范围里的每一天都会有一条读数。</td></tr>
+  <tr><td><code>每日缺测概率：N%</code><br><span class="kv">滑块，默认 0%</span></td><td>每天被随机判为"缺测"的概率（0~50%）。</td><td>想模拟真实台账那种"偶尔漏测"就调大一点；演示用保持 0。</td></tr>
+  <tr><td><code>随机种子（可选，固定可复现）</code></td><td>填一个数，同样参数每次生成同一批数据。</td><td>要在会上演示、想保证每次都一样，就填一个固定值（如 <code>20260801</code>）。</td></tr>
+  <tr><td><code>全站仪观测模式</code><br><span class="kv">开关，默认关</span></td><td>开启后叠加"每次架站"的公共误差：同一期所有位移点会一起偏一点。</td><td>只影响<strong>水平位移</strong>（沉降是水准仪测的，不受影响）。<br>开启后还要填对中误差、定向误差、工作距离。</td></tr>
+</table>
+
+<h3>点「开始生成」之后</h3>
+
+<table>
+  <tr><th style="width:26%">情况</th><th>会发生什么</th></tr>
+  <tr><td>范围内都是空日期</td><td>直接生成，不打扰你。</td></tr>
+  <tr><td>范围内已有数据</td><td>弹窗问你怎么办，三个选项见下。</td></tr>
+</table>
+
+<table>
+  <tr><th style="width:30%">选项</th><th style="width:36%">含义</th><th>什么时候选</th></tr>
+  <tr>
+    <td><code>跳过它们，只填空白的那 N 天</code></td>
+    <td>已有数据一律不动。</td>
+    <td><strong>涉及真实数据时的默认选项</strong>，也是最安全的。</td>
+  </tr>
+  <tr>
+    <td><code>替换掉自动生成的那 N 天</code></td>
+    <td>只重做系统自己生成的演示数据，真实数据仍然跳过。</td>
+    <td>之前造过演示数据、想重新造一批。</td>
+  </tr>
+  <tr>
+    <td><code>连真实数据一起替换（N 天 / 约 M 条）</code></td>
+    <td>真实读数会被顶替——<strong>但原值不删除，标记为「作废」保留</strong>。</td>
+    <td>基本不要选。选了会弹红色警告，并建议你先去「数据备份」做快照。</td>
+  </tr>
+</table>
+
+<p>生成完成后，结果会以卡片形式<strong>留在页面上</strong>（弹窗会自动关闭），列出"生成了多少条、替换了几条、跳过几天"，还会给一张"原读数 → 新读数"的对照表，让你确认数据确实换过了。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>收起</code></td><td>关掉结果卡片。</td><td>再生成一次也会覆盖。</td></tr>
+  <tr><td><code>清理自动生成的数据</code><br><span class="kv">红色小按钮，在生成弹窗里</span></td><td>删除<strong>整个项目</strong>的全部自动生成数据。</td><td><strong>没有日期范围限制</strong>——点一下清的是这个项目所有演示数据，不是当前选的区间。<br>真实录入/导入的数据不受影响。<br>操作前有气泡确认。</td></tr>
+</table>
+<h1>第 4 章　批量导入</h1>
+
+<h2>4.1　两个导入入口怎么选</h2>
+
+<table>
+  <tr><th style="width:22%">入口</th><th style="width:30%">什么时候用</th><th>关键区别</th></tr>
+  <tr>
+    <td>顶部导航 <code>每日导入</code></td>
+    <td>每天把所有基坑的台账<strong>一次拖进来</strong>，系统按表里的工程名称自动分到各项目。</td>
+    <td>不绑定项目；<strong>不能建点、不能映射点号</strong>；分不清的表要你手工指派。</td>
+  </tr>
+  <tr>
+    <td>项目内 <code>Excel 导入</code></td>
+    <td>只导某一个项目的台账；需要处理"表里的点号系统里没有"这种情况。</td>
+    <td>能建点、能映射点号、能同步台账里的控制值。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>最容易走错的一步：</strong>新基坑、批量建测点，<u>不在这两个页面</u>。请回项目列表用「新建项目」或「批量建项目」。<br>
+  两个导入页都会识别出"点位清单"并提醒你走错门了——看到那条黄色提示，说明你传的文件类型不对。</p>
+</div>
+
+<h2>4.2　Excel 导入（在项目里，一期一个文件）</h2>
+
+<p>入口：项目内流程第 ② 步 → <code>Excel 导入</code>。三步：选择文件 → 核对并导入 → 完成。</p>
+
+<h3>第 ① 步：选择文件</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>拖拽区<br><code>点击或拖拽 Excel 文件到此处（可一次选多个）</code></td>
+    <td>上传台账，支持 .xlsx / .xlsm / .xls，<strong>可多选</strong>。</td>
+    <td>一期一个文件也可以；一个文件里有多个 Sheet 也认。<br>上传后系统逐个解析，<strong>解析是独立的</strong>：某个文件失败不影响其它文件。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步：核对（这是最需要看懂的一屏）</h3>
+
+<p>先看页面顶部可能出现的提示条：</p>
+
+<table>
+  <tr><th style="width:30%">提示条</th><th>说明什么</th></tr>
+  <tr><td><code>这 N 个文件是「点号 + 坐标/高程」点位清单</code></td><td>你传的是建项目的清单，不是观测台账。要建项目请回列表用「批量建项目」；如果只是想把它当初始值导入，可以忽略这条继续。</td></tr>
+  <tr><td><code>台账里的「控制值」和本项目预警规则对不上</code></td><td>表里写的控制值和系统规则里的数不一样。下面会出现一个<strong>默认不勾</strong>的选项：<code>导入时把台账里的控制值同步到本项目预警规则</code>。要不要勾见 4.2 末尾。</td></tr>
+  <tr><td><code>有 N 条数据还没确定观测日期</code></td><td>这些行<strong>不会导入</strong>。去「观测日期（可改）」列给对应数据表选个日期即可。</td></tr>
+</table>
+
+<h3>文件清单表</h3>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>文件</code></td><td>文件名。</td><td>正在查看的那份加粗。</td></tr>
+  <tr><td><code>观测日期（可改）</code></td><td>每个 Sheet 一个日期选择器。<br>标签会显示这个 Sheet 是沉降 / 位移 / 沉降+位移。</td><td>改过之后会出现蓝色 <code>已改</code> 标签。<br>表里没写日期、或写错了，都在这里改。</td></tr>
+  <tr><td><code>可导入</code></td><td>这个文件有多少条能导。</td><td>—</td></tr>
+  <tr><td><code>冲突/错误</code></td><td>两个数字：冲突行数 / 错误行数。</td><td>冲突=当天已有真实记录（会跳过）；错误=数据本身有问题（不入库）。</td></tr>
+  <tr><td><code>状态</code></td><td><code>解析中…</code> / <code>解析失败</code> / <code>已导入 N 条</code> / <code>按新日期核对中…</code> / <code>待导入 N 条</code> / <code>待指定日期</code> / <code>无可导入数据</code>。</td><td>看到 <code>待指定日期</code>，说明这个文件里有行缺日期，去上面那列选。</td></tr>
+  <tr><td><code>查看</code> / <code>移除</code></td><td>切换下方明细 / 把这个文件从本次导入里去掉。</td><td>移除只是不导这一份，不动已解析的其它文件。</td></tr>
+</table>
+
+<h3>明细区（点「查看」展开）</h3>
+
+<p>会按顺序出现最多 8 个区块，对应不同的行：</p>
+
+<table>
+  <tr><th style="width:30%">区块</th><th style="width:32%">说明</th><th>系统怎么处理</th></tr>
+  <tr><td><code>识别 N 个数据 Sheet</code></td><td>告诉每个 Sheet 认出了哪些列（点号=A列、初始值=B列…）。</td><td>认不出会列出常见原因（表头不在前 15 行、缺少"点号/测值"字样等）。</td></tr>
+  <tr><td><code>观测日期</code></td><td>每个 Sheet 的生效日期，可在这里改。</td><td>改完系统会<strong>立刻按新日期重新核对</strong>：冲突可能变成可导入，反之亦然。</td></tr>
+  <tr><td><code>测点匹配（N 个点号在项目中不存在）</code></td><td>表里的点号系统里没有。</td><td>默认已替你选好：能对上已有测点的<strong>自动映射</strong>，对不上的<strong>自动新建</strong>。可以逐点改成"跳过"。<br><strong>这是「Excel 导入」独有的能力</strong>，每日导入没有。</td></tr>
+  <tr><td><code>✓ 可导入</code></td><td>真正会入库的行。</td><td>右上角有 <code>全部排除</code>（整份文件都不导）。<br><strong>没有逐行勾选框</strong>，只有整份排除。</td></tr>
+  <tr><td><code>⚠ 将覆盖系统自动生成的数据</code></td><td>这些日期系统生成过演示数据。</td><td>标记 <code>以你的数据为准（覆盖生成数据）</code>，原值留痕。</td></tr>
+  <tr><td><code>⚠ 冲突</code></td><td>当天已经有<strong>真实记录</strong>。</td><td>标记 <code>跳过（不覆盖原始数据）</code>，不会有任何覆盖。</td></tr>
+  <tr><td><code>⚠ 待指定观测日期</code></td><td>缺日期的行。</td><td><strong>不会导入</strong>，补了日期再来。</td></tr>
+  <tr><td><code>✗ 校验失败</code></td><td>读不通、类型不对等硬错误。</td><td>不导入，原因那列会写明。</td></tr>
+</table>
+
+<h3>底部按钮</h3>
+
+<table>
+  <tr><th style="width:26%">按钮</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>全部导入（N 个文件 / M 条）</code><br><span class="kv">蓝色主按钮</span></td>
+    <td>把当前所有可导入的行一次性入库。</td>
+    <td>有缺日期行时文案会变成 <code>全部导入（还有 N 条待选日期）</code>。<br>没有任何可导入文件时按钮是灰的。</td>
+  </tr>
+  <tr>
+    <td><code>重新选择</code></td>
+    <td>清空全部文件，回到第 ① 步。</td>
+    <td>已解析的结果一起清掉。</td>
+  </tr>
+</table>
+
+<div class="tip box">
+  <p><strong>关于"台账里的控制值和规则对不上"那个勾：</strong></p>
+  <ul>
+    <li>默认<strong>不勾</strong>——系统不会擅自改你的判定口径。</li>
+    <li>勾了 = 把台账上写的控制值写进本项目预警规则（<strong>只改控制值，报警值不动</strong>，因为台账里没有报警值的依据）。</li>
+    <li>不管勾不勾，<strong>数据都会正常入库</strong>；同步失败（比如台账控制值比系统报警值还大）也不影响数据。</li>
+  </ul>
+</div>
+
+<h2>4.3　每日导入（一次传当天所有台账）</h2>
+
+<p>入口：顶部导航 <code>每日导入</code>。同样三步。</p>
+
+<h3>第 ① 步：选择文件</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>拖拽区<br><code>点击或拖拽当天的台账到此处（可一次选多个）</code></td>
+    <td>一次上传当天所有基坑的台账。</td>
+    <td>一份文件里有好几个基坑的表也可以——<strong>按表分开认</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>补传台账</code></td>
+    <td>在已有结果上继续追加文件。</td>
+    <td>页面已有内容时是<strong>追加</strong>，不会顶掉刚才传的。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步：核对</h3>
+
+<p>系统按<strong>每张表里写的「监测工程名称」</strong>自动找项目。认不出来的会单独摆出来：</p>
+
+<table>
+  <tr><th style="width:28%">区域</th><th style="width:34%">说明</th><th>你该做什么</th></tr>
+  <tr>
+    <td><code>这些表认不出是哪个基坑（N）</code></td>
+    <td>列出认不出 / 分不清的表，并给出"为什么没认出来"和"最像的 3 个项目"。</td>
+    <td>在 <code>分到哪个项目</code> 里选一个，点 <code>指派</code>。指派后这张表会并入下方分组，一起导入。</td>
+  </tr>
+  <tr>
+    <td><code>自动分好的（N 个项目分组 / M 条待导入）</code></td>
+    <td>系统已经认准的分组，一个项目一行。</td>
+    <td>点行左边的箭头展开，可以改观测日期、看冲突与错误明细。</td>
+  </tr>
+</table>
+
+<h3>分组表的列</h3>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>项目</code></td><td>项目名 + 编号。</td><td>归档项目会标 <code>· 已归档</code>。</td></tr>
+  <tr><td><code>文件 / 数据表</code></td><td>来自哪个文件、哪几个 Sheet。</td><td>—</td></tr>
+  <tr><td><code>观测日期</code></td><td>这一组各 Sheet 的生效日期。</td><td>展开后可以逐个改；改完自动重新核对。</td></tr>
+  <tr><td><code>可导入</code></td><td>有日期、能入库的行数。</td><td>—</td></tr>
+  <tr><td><code>要拿主意</code></td><td><code>冲突 N</code> / <code>错误 N</code> / <code>缺日期 N</code>；都没有时显示 <code>没有</code>。</td><td>这三个都不是"阻止导入"，只是提醒你有行不会进。</td></tr>
+  <tr><td><code>凭什么认成它</code></td><td>匹配依据 + 表里写的工程名称；可能带 <code>请核一眼</code> / <code>分不清</code> 标签。</td><td><strong>带「请核一眼」的一定要看一眼</strong>，认错了会导到别的项目。</td></tr>
+</table>
+
+<h3>底部按钮</h3>
+
+<table>
+  <tr><th style="width:26%">按钮</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>全部导入（N 个项目 / M 条）</code></td>
+    <td>逐组导入。</td>
+    <td>有缺日期或某组一条都导不进去时，会先提示（不阻断）再继续。<br>这一页<strong>不同步控制值</strong>——要同步请去项目内的「Excel 导入」。</td>
+  </tr>
+  <tr><td><code>重新选择</code></td><td>清空全部，回到第 ① 步。</td><td>分组和手工指派都会清掉。</td></tr>
+</table>
+
+<h2>4.4　导入结果怎么看：五种行的处理方式</h2>
+
+<p>无论哪个入口，导入的行最终只会有五种下场。这张表建议记住：</p>
+
+<table>
+  <tr><th style="width:18%">行的类型</th><th style="width:26%">判定条件</th><th style="width:24%">系统处理</th><th>你能做什么</th></tr>
+  <tr>
+    <td><strong>可导入</strong></td>
+    <td>日期有、点号能对上（或已选建点）、当天没有真实记录。</td>
+    <td>入库。</td>
+    <td>不想导就整份「全部排除」。</td>
+  </tr>
+  <tr>
+    <td><strong>覆盖生成数据</strong></td>
+    <td>当天已有的是<strong>系统自动生成</strong>的数据。</td>
+    <td>用你的数据替换，原值留痕。</td>
+    <td>正常情况，直接导。</td>
+  </tr>
+  <tr>
+    <td><strong>冲突</strong></td>
+    <td>当天已有<strong>真实记录</strong>（手工录入或以前导入的）。</td>
+    <td><strong>跳过，绝不覆盖</strong>。</td>
+    <td>要改这一天的数，去记录页做"更正"。</td>
+  </tr>
+  <tr>
+    <td><strong>缺日期</strong></td>
+    <td>表里没写日期、系统也认不出。</td>
+    <td><strong>不入库</strong>（系统不猜日期）。</td>
+    <td>在「观测日期」列给它选一天，会自动重新核对。</td>
+  </tr>
+  <tr>
+    <td><strong>校验失败</strong></td>
+    <td>数据本身有问题（类型不对、点号空、数值读不通）。</td>
+    <td>不入库，原因写在表格里。</td>
+    <td>回原始台账改了再传。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>改日期会重置你的选择：</strong>在「观测日期」里改过之后，系统会按新日期重新核对一遍，<strong>之前做过的「排除」选择会被清空</strong>（界面会提示一句）。这不是 bug——日期变了，冲突关系也全变了。</p>
+</div>
+
+<h1>第 5 章　看结果：曲线、对比、预警</h1>
+
+<h2>5.1　项目列表上的「需要关注」</h2>
+
+<p>首页顶部如果出现 <code>⚠ 需要关注（N）</code> 卡片，说明有事情要处理。三类：</p>
+
+<table>
+  <tr><th style="width:18%">标签</th><th style="width:42%">含义</th><th>点「去处理」会去哪</th></tr>
+  <tr>
+    <td><span class="tagx" style="background:#FEF3F2;color:#B42318;border-color:#F7C1C1;">报警</span></td>
+    <td><code>N 项达到报警值，如 QC01 累计 32.5mm</code></td>
+    <td>定位到那一天、那个测点的记录页，并提示原因</td>
+  </tr>
+  <tr>
+    <td><span class="tagx" style="background:#FFF7E6;color:#B45309;border-color:#FADFA8;">数据可疑</span></td>
+    <td><code>N 条数据变化异常，如 QC02 单期 8.0mm 请复核</code></td>
+    <td>同样定位到那一天，让你核对读数</td>
+  </tr>
+  <tr>
+    <td><span class="tagx">该观测了</span></td>
+    <td><code>已有 N 天没观测（上次 2026-11-08）</code></td>
+    <td>定位到上次观测日</td>
+  </tr>
+</table>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>刷新</code><br><span class="kv">卡片右上角</span></td><td>重新拉"一句话结论"和"关注项"。</td><td>只刷这一块，不重载整个项目表。</td></tr>
+  <tr><td><code>去处理</code></td><td>跳到对应页面并定位。</td><td>报警条目用的是<strong>全部项目（含已归档）</strong>，所以已归档项目的报警也会出现在这里。</td></tr>
+</table>
+
+<h3>项目表格里几个关键列</h3>
+
+<table>
+  <tr><th style="width:20%">列</th><th style="width:36%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>进度</code></td><td><code>还没建测点</code> / <code>已有测点 · 待录数据</code> / <code>N 个测点 · M 条数据</code></td><td>一眼看出这个项目卡在哪一步。</td></tr>
+  <tr><td><code>本期概况</code></td><td>一句话结论，按预警级别着色。</td><td>鼠标停上去看"最近观测日期"。</td></tr>
+  <tr><td><code>预警状态</code></td><td><code>正常</code> / <code>预警 N</code> / <code>报警 N</code> / <code>无数据</code></td><td><strong>预警/报警标签可以点</strong>，点开看明细（哪几个点、累计多少、触发原因）。</td></tr>
+  <tr><td><code>下一步</code></td><td>按钮文案会自动变：<code>先创建测点</code> → <code>录入初始值</code> → <code>录入本期数据</code></td><td>不知道干什么就点它。</td></tr>
+  <tr><td><code>操作</code></td><td><code>导出日报</code> + <code>更多 ⌄</code></td><td>没有观测数据时「导出日报」是灰的。</td></tr>
+</table>
+
+<h2>5.2　曲线图：连拖动调值都算在内</h2>
+
+<p>入口：项目内流程第 ③ 步 → <code>曲线图</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>沉降曲线</code> / <code>水平位移曲线</code><br><span class="kv">分段切换</span></td><td>切换指标。</td><td>切到位移时分量自动变 X。</td></tr>
+  <tr><td><code>X 方向</code> / <code>Y 方向</code><br><span class="kv">仅在水平位移时出现</span></td><td>切换分量。</td><td>—</td></tr>
+  <tr><td>图例（顶部一排测点名）</td><td><strong>点一下可以隐藏/显示这条曲线</strong>。</td><td>测点多时图例会横向滚动。</td></tr>
+  <tr><td>鼠标悬停</td><td>显示该日期所有测点的累计值。</td><td>—</td></tr>
+  <tr><td>虚线参考线</td><td>±控制值、±报警值。</td><td>四条线颜色统一是"预警金"，标签写 <code>+30 预警</code> 这种。</td></tr>
+  <tr><td>红色/金色大圆点</td><td>报警点 / 预警点。</td><td>点上方标测点编号。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>这个页面没有"导出图片"按钮，也没有缩放条。</strong>要留图请用浏览器打印。曲线图的用途是"看趋势 + 快速修数"，正式图在报表里。</p>
+</div>
+
+<h3>拖动调值（这个功能要小心用）</h3>
+
+<p>在某条曲线上按住一个点上下拖，可以直接改这一天的读数。适用场景：明显录错了一个数（少打一位、多打一位），不必回记录页翻。</p>
+
+<table>
+  <tr><th style="width:26%">项</th><th>规则</th></tr>
+  <tr><td>能拖的点</td><td>当前指标的曲线上、鼠标距点 16 像素以内。<strong>基准点（初始值那天）不能拖</strong>；缺测点不能拖。</td></tr>
+  <tr><td>能拖到哪</td><td>限制在 <strong>±控制值（累计变化量）</strong>之间。拖到头会提示 <code>（已到预警线）</code>。<br>所以<strong>不可能把点拖成报警</strong>——报警值不参与限位。</td></tr>
+  <tr><td>拖完会怎样</td><td>弹确认框 <code>确认调整这个读数？</code>，显示累计和读数的新旧值。确认后按「更正」保存：<strong>原记录保留、标记为已被更正</strong>，备注写"曲线图手动调整"。</td></tr>
+  <tr><td>影响范围</td><td>只改<strong>那一天那个分量</strong>。相邻期的"本次变化"和"速率"会跟着变，报表重算。</td></tr>
+</table>
+
+<div class="danger box">
+  <p><strong>拖不动的两种可能，别以为是坏了：</strong></p>
+  <ol>
+    <li><strong>这个项目没配预警规则里的"累计变化量控制值"</strong>——没配就没有限位，整个拖动功能直接不生效，界面也不提示。先去配规则（第 7 章）。</li>
+    <li>拖的是基准点（最早那一期）。基准是累计的起点，不给拖；要改初始值去测点管理页。</li>
+  </ol>
+</div>
+
+<h2>5.3　逐期对比</h2>
+
+<p>入口：项目内流程第 ③ 步 → <code>逐期对比</code>。这一页<strong>没有筛选控件</strong>，打开就是全量清单，每个"测点 × 观测项"一张卡片。</p>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>期次</code></td><td><code>初始值</code> 或 <code>第N期</code>。</td><td>由观测日期自动编号，不能手改。</td></tr>
+  <tr><td><code>对比基准</code></td><td>这一期跟谁比的日期。</td><td>首期显示 <code>(初始值)</code>。</td></tr>
+  <tr><td><code>对比类型</code></td><td><code>首期(相对初始值)</code> / <code>相邻上期</code> / <code>跨期(中间缺测)</code> / <code>缺测</code>。</td><td>看到"跨期"说明中间有几天没测，ΔV 是跨着算的。</td></tr>
+  <tr><td><code>读值(m)</code></td><td>这一期的读数。</td><td>缺测显示 <code>-</code>。</td></tr>
+  <tr><td><code>本次变化 ΔV(mm)</code></td><td>与对比基准之差。</td><td>颜色跟着预警等级走（金=预警、红=报警）。</td></tr>
+  <tr><td><code>累计变化 C(mm)</code></td><td>相对初始值的累计。</td><td>同上。</td></tr>
+  <tr><td><code>间隔(天)</code></td><td>与基准相隔几天。</td><td>鼠标悬停会显示 <code>速率 = 本次变化 ÷ N 天</code>。</td></tr>
+  <tr><td><code>速率(mm/d)</code></td><td>ΔV ÷ 间隔天数。</td><td><strong>隔了好几天才测一次时，速率会被摊薄</strong>——这是速率的定义，不是算错。</td></tr>
+  <tr><td><code>变化方向</code></td><td>文字描述（下沉/上升等）。</td><td>受项目里"正值代表"的设置影响。</td></tr>
+  <tr><td><code>预警状态</code></td><td><code>正常</code> / <code>预警</code> / <code>报警</code>。</td><td>—</td></tr>
+</table>
+
+<h2>5.4　预警事件与数据质量</h2>
+
+<p>入口：项目内流程第 ③ 步 → <code>预警事件</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>重新计算预警</code><br><span class="kv">主按钮</span></td>
+    <td>按<strong>当前</strong>预警规则，把这个项目的预警事件整体重建一遍。</td>
+    <td>事件是"派生数据"，可以随时重算，不会重复累加。<br>改完规则或改完读数，点一下就能刷新判定结果。</td>
+  </tr>
+  <tr>
+    <td><code>修正最新一期超限值</code></td>
+    <td>把"最新一期"里超出限值的读数自动拉回到限值以内。</td>
+    <td><strong>只动最新一期，历史期一个数都不动</strong>（历史期已经报出去了，改它就是篡改）。<br>事件列表为空时按钮是灰的。详见下方。</td>
+  </tr>
+</table>
+
+<h3>事件列表的列</h3>
+
+<table>
+  <tr><th style="width:20%">列</th><th>含义</th></tr>
+  <tr><td><code>等级</code></td><td><code>报警</code>（红）/ <code>预警</code>（金）。</td></tr>
+  <tr><td><code>测点</code> / <code>观测项</code> / <code>日期</code></td><td>哪一点、哪个观测项、哪一天。</td></tr>
+  <tr><td><code>触发项</code></td><td>是哪一维度超的：<code>累计变化量</code> / <code>本次变化量</code> / <code>变化速率</code>。</td></tr>
+  <tr><td><code>值(mm)</code></td><td>触发时的数值。</td></tr>
+  <tr><td><code>说明</code></td><td>一句话描述，过长可悬停看全文。</td></tr>
+</table>
+
+<h3>「修正最新一期超限值」弹窗</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>预警 + 报警一起修（推荐）</code><br><code>只修报警</code></td>
+    <td>选修正范围。</td>
+    <td>默认选第一项。切换会重新预检（不写库）。</td>
+  </tr>
+  <tr>
+    <td>预检汇总 <code>将修正 N 条读数</code></td>
+    <td>告诉你这次会改几条。</td>
+    <td><strong>条数可能多于事件条数</strong>——改了前一期，后一期的变化量会跟着变大，要连带一起修。</td>
+  </tr>
+  <tr>
+    <td><code>确认修正 N 条</code></td>
+    <td>真正执行。</td>
+    <td>走「更正」流程：原读数作废保留、可追溯，不删除任何数据。<br>没有额外的二次确认弹窗，确认靠这个弹窗本身。</td>
+  </tr>
+</table>
+
+<h3>数据质量检查（同页上方）</h3>
+
+<table>
+  <tr><th style="width:26%">标签 / 表格</th><th>含义</th></tr>
+  <tr><td><code>突变疑似 N 条（阈值 Xmm）</code></td><td>单期变化超过阈值的记录。红色表示有，绿色表示无。</td></tr>
+  <tr><td><code>缺测 N 条</code></td><td>缺测记录数。</td></tr>
+  <tr><td>突变疑似表</td><td>列：测点、观测项、日期、单期变化(mm)、提示。</td></tr>
+  <tr><td>缺测表</td><td>列：测点、观测项、日期。</td></tr>
+</table>
+
+<div class="tip box">
+  <p><strong>质量检查只提示、不删数据、也不自动改任何读数。</strong>它的作用是"提醒你回现场核一下"，不是"帮你修数"。</p>
+</div>
+<h1>第 6 章　出日报</h1>
+
+<p class="lead">这一章是整个系统最终要交付的东西。前面数据录得对，这里才有意义。</p>
+
+<h2>6.1　导出页：从上到下每个控件</h2>
+
+<p>入口：项目内流程第 ④ 步 → <code>成果导出</code>，或项目列表行内 <code>导出日报</code>。</p>
+
+<h3>第一行：报告模板</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>报告模板：</code>下拉框</td>
+    <td>选这次用哪份 Excel 母版出报表。</td>
+    <td>选项带前缀：<code>【通用母版】</code> / <code>【我的模板】</code> / <code>【系统标准】</code>。<br>原件丢失的会标 <code>（原件缺失，请重传）</code> 并<strong>灰掉不可选</strong>。<br>默认值按"你上次用的 → 你项目自己的 → 系统标准"依次回落，<strong>每个项目分别记忆</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>重命名</code><br><span class="kv">铅笔图标</span></td>
+    <td>改这份母版的显示名。</td>
+    <td>只对<strong>非系统标准</strong>的母版出现。只改名字，不改文件、不改已识别的布局。</td>
+  </tr>
+  <tr>
+    <td><code>设置适用项目</code><br><span class="kv">齿轮图标</span></td>
+    <td>改这份母版给哪些项目用。</td>
+    <td>如果你把当前项目取消勾选，会先问你一句 <code>取消后本项目就用不了这份母版了</code>。</td>
+  </tr>
+  <tr>
+    <td>状态行<br><code>✓ 布局已自动识别</code> / <code>⚠ 布局未识别</code> / <code>✗ 模板原件文件缺失</code></td>
+    <td>这份母版能不能正常用。</td>
+    <td>看到 <code>⚠ 布局未识别</code>，导出会退回系统版式——不是报错，但你的封面签字页就没了。</td>
+  </tr>
+  <tr>
+    <td><code>上传报送母版</code></td>
+    <td>打开上传弹窗（见 6.5 的开头部分）。</td>
+    <td>每次打开都会把"作用项目"重置成<strong>只勾当前项目</strong>。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>系统标准版式只有两张数据表</strong>，没有封面、签字页、概况。要用你自己的报表格式，必须上传母版。</p>
+</div>
+
+<h3>第二行：期次、仪器、天气</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>选择期次（观测日期…）</code><br><span class="kv">日期区间选择器</span></td>
+    <td>起止选同一天 = 单期；框一段 = 多期。<br>进页面时默认选中<strong>最近一个观测日</strong>。</td>
+    <td><strong>只有"有读数"的日期能选</strong>，其余是灰的。日历上带底部横条的日子才是观测日。<br>选区间时，中间没数据的日子<strong>不会被算成期次</strong>——实际导出的是区间内真有读数的那些天。</td>
+  </tr>
+  <tr>
+    <td><code>仪器：</code>下拉</td>
+    <td>报表上印哪台仪器（名称/型号/出厂编号/检定日期）。</td>
+    <td><strong>只有「项目默认值」里配过仪器才出现</strong>。<br>不选 = 母版上原来是啥就是啥。</td>
+  </tr>
+  <tr>
+    <td><code>天气：</code>下拉</td>
+    <td>报表上填的天气。选项：<code>自动</code> / 晴 / 多云 / 阴 / 小雨 / 中雨 / 大雨。</td>
+    <td><code>自动</code> = 按「项目默认值」里配的天气位置查当天天气，查不到就填晴。<br>默认值：这个项目上次选过的 → 全站默认天气 → 自动。也是<strong>按项目记忆</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>刷新</code><br><span class="kv">循环箭头图标</span></td>
+    <td>重拉期次、模板、仪器、设置。</td>
+    <td>别人刚导完数据时点一下。</td>
+  </tr>
+</table>
+
+<h3>期次统计提示</h3>
+
+<p>选择器下面会实时告诉你这次要出几期：</p>
+<ul>
+  <li><code>将导出 1 期：2026-11-15（单文件）</code></li>
+  <li><code>将导出 6 期：2026-11-10 ~ 2026-11-15（打包 ZIP）</code>，并估算耗时（约 0.5 秒/期）</li>
+  <li><code>所选区间内没有观测数据（共 12 期可选…）</code> —— 这时按钮点了也没用，要重选</li>
+</ul>
+
+<h3>第三行：五个按钮</h3>
+
+<table>
+  <tr><th style="width:26%">按钮</th><th style="width:32%">点了会发生什么</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>导出 Excel 日报（单文件）</code><br>多期时变成 <code>批量导出 Excel（N 期 → ZIP）</code></td>
+    <td>单期：直接下载一个 xlsx。<br>多期：逐期生成后打包成一个 ZIP 下载。</td>
+    <td>文件名：单期 <code>监测日报_2026-11-15.xlsx</code>；多期 <code>监测日报批量_2026-11-10~2026-11-15_共6期.zip</code>。<br><strong>母版体检有 error 时这个按钮是灰的。</strong></td>
+  </tr>
+  <tr>
+    <td><code>打印日报</code><br>多期时变成 <code>打印日报（N 期）</code></td>
+    <td>服务端把 Excel 转成 PDF，<strong>直接弹出系统打印对话框</strong>，页面不跳转。</td>
+    <td>单期出一份 PDF；<strong>多期合成一份 PDF</strong>，一次打印全部（不是开一堆窗口）。<br>同样受体检 error 限制。</td>
+  </tr>
+  <tr>
+    <td><code>体检这份母版</code><br><span class="kv">盾牌图标</span></td>
+    <td>手动重跑一次母版体检。</td>
+    <td>选中系统标准版式时不可点（没原件可检）。改完母版或配完规则后点它。</td>
+  </tr>
+  <tr>
+    <td><code>预览</code></td>
+    <td>打开预览弹窗，看"点导出会拿到的那份文件长什么样"。</td>
+    <td>不落盘、不下载。<strong>不受体检 error 限制</strong>，可以先用它看问题出在哪。</td>
+  </tr>
+  <tr>
+    <td><code>导出 Word 日报</code></td>
+    <td>生成 .docx 日报。</td>
+    <td><strong>只支持单期</strong>（多期会提示你把起止选成同一天）。<br>Word 是固定版式，<strong>不套用你的 Excel 母版</strong>。</td>
+  </tr>
+</table>
+
+<h3>导出成功后可能出现的提示</h3>
+
+<table>
+  <tr><th style="width:34%">提示</th><th>含义</th></tr>
+  <tr><td><code>日报已导出</code></td><td>正常完成。</td></tr>
+  <tr><td><code>母版点位不够，已自动补上：…</code></td><td>你的母版只留了 8 行、这个项目有 9 个点，系统自动加了行（格式会跟着调）。</td></tr>
+  <tr><td><code>「原始数据区」的点位网格已排满，仍放不下：…</code></td><td>原始数据那块地方不够，这些点的坐标没导出。要全的话得换一份预留更多点位的母版。</td></tr>
+  <tr><td><code>…处文字已按本期数据自动重写；母版里多出来的旧文字已清空</code></td><td>概况/分析/成果提交这几页的正文是按本期数据重写的，正常。</td></tr>
+  <tr><td><code>母版里的段落格子不够放本期内容</code></td><td>文字太长装不下，换一份预留段落更多的母版。</td></tr>
+</table>
+
+<h2>6.2　母版体检：导不出来先看这里</h2>
+
+<p>选中一份非系统标准母版后，系统会自动体检（"这份母版套到这个项目上会怎样"）。结果分四档：</p>
+
+<table>
+  <tr><th style="width:16%">结果</th><th style="width:34%">界面表现</th><th>你要做什么</th></tr>
+  <tr>
+    <td><strong>通过</strong><br><span class="kv">绿色</span></td>
+    <td><code>体检通过 —— 页、表头、数据区和本项目都对得上，「控制值」也能按现行预警规则逐格重写。</code></td>
+    <td>直接导出。</td>
+  </tr>
+  <tr>
+    <td><strong>有 error</strong><br><span class="kv">红色，会拦导出</span></td>
+    <td><code>先别导出 —— 有 N 处会让这份报表出错</code>，逐条列出问题和涉及的格子。</td>
+    <td>按提示改。若是"没配控制值"，点右侧 <code>去配预警规则</code> 直接配。<br>改完点 <code>改好了，重新体检</code>。</td>
+  </tr>
+  <tr>
+    <td><strong>有 warn</strong><br><span class="kv">橙色，不拦</span></td>
+    <td><code>可以导出，但有 N 处不会被更新</code>。</td>
+    <td>能导，但那些格子会保持母版原样。知道就行。</td>
+  </tr>
+  <tr>
+    <td><strong>有 info</strong><br><span class="kv">蓝色</span></td>
+    <td><code>导出时会自动做这些事</code>（补几行、换掉哪个基坑名）。</td>
+    <td>预告性质，不用操作。</td>
+  </tr>
+</table>
+
+<div class="danger box">
+  <p><strong>体检有 error 时，「导出 Excel」和「打印日报」同时变灰</strong>，鼠标停上去会写 <code>母版体检有必须先处理的问题，改好后才能导出</code>。<br>
+  这是唯一会"拦住你导出"的情况——因为它导出来的文件是错的。<br>
+  体检请求本身失败<strong>不拦导出</strong>（只弹一句警告），后端在导出时还会再校一次。</p>
+</div>
+
+<h2>6.3　导出预览：不落盘先看成品</h2>
+
+<table>
+  <tr><th style="width:26%">元素</th><th>说明</th></tr>
+  <tr><td>弹窗标题 <code>导出预览 —— 文件名</code></td><td>宽屏展示，没有底部按钮，点右上角关闭。</td></tr>
+  <tr><td>调整摘要</td><td><code>本次生成对母版做了这些调整：母版点位行数 9；自动补的测点 0；…</code>，把系统动过的地方说清楚。</td></tr>
+  <tr><td>页签（每个 Sheet 一个）</td><td>页签标题上可能有标签：<code>Excel 里隐藏</code> / <code>只画了前面一部分</code> / <code>控制值对不上</code>。</td></tr>
+  <tr><td>淡蓝底格子</td><td><strong>本次会重写的数据区</strong>和「控制值」列。</td></tr>
+  <tr><td>红底格子</td><td>控制值和系统规则对不上。鼠标停上去看具体原因。</td></tr>
+  <tr><td>斜体 <code>fx</code> 格子</td><td>公式格。<strong>文件里没有算好的值</strong>，Excel 打开后才算得出。</td></tr>
+  <tr><td>截断提示</td><td><code>这张表超出预览上限（约 220 行 × 30 列），只画了左上角那一段 —— 文件本身是完整的。</code></td></tr>
+  <tr><td>控制值核对结论</td><td>通过：<code>「控制值」已逐格核对：第 8~16 行共 9 行，两格都等于预警规则里的 30 / 3。</code><br>不通过：点明有几格不符、几格规则有值表上为空。</td></tr>
+</table>
+
+<h2>6.4　合并报表：南北两侧装订成一份</h2>
+
+<p>入口：项目列表 → 工具栏 <code>合并报表</code>。</p>
+
+<div class="tip box">
+  <p><strong>它解决什么问题：</strong>南北两侧（或几个相邻基坑）每天各出一份全套日报，等于打两份封面、两份签字页。合并报表把这些<strong>只留一份</strong>，数据表各占一张——一天从几十页压到九页。</p>
+  <p><strong>它不做什么：</strong>不动数据、不合并项目。数据仍然各存各的项目、各导各的台账，合并只发生在"打印装订"这一层。</p>
+</div>
+
+<h3>列表界面</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>新建合并报表</code></td><td>进入编辑界面配一份新的。</td><td>—</td></tr>
+  <tr><td>列 <code>名称</code></td><td>名称 + 封面印的工程名称。</td><td>—</td></tr>
+  <tr><td>列 <code>数据表 ← 项目</code></td><td>每张数据表装哪个项目。主项目那张表会标「主项目」。</td><td>一眼看出有没有配错。</td></tr>
+  <tr><td><code>导出</code></td><td>导出最新一期的 Excel。</td><td>—</td></tr>
+  <tr><td><code>打印</code></td><td>生成 PDF 并直接调起打印。</td><td>—</td></tr>
+  <tr><td><code>补打…</code></td><td>选历史期次（见下）。</td><td>—</td></tr>
+  <tr><td>铅笔图标 / 红色垃圾桶图标</td><td>编辑 / 删除这份合并报表。</td><td>删除<strong>只删装订关系</strong>，两个项目的数据一条都不动。</td></tr>
+</table>
+
+<h3>编辑界面：每个字段</h3>
+
+<table>
+  <tr><th style="width:26%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>名称（也做文件名）</code></td><td>如"钢栈桥监测日报"。</td><td>必填。<strong>导出的文件名就是它</strong>。</td></tr>
+  <tr><td><code>封面工程名称（可留空）</code></td><td>打印在封面上的工程名。</td><td>留空则用主项目的名称。</td></tr>
+  <tr><td><code>用哪份母版</code></td><td>决定这份册子有几张数据表。</td><td><strong>只能选「合并母版」</strong>。母版库里没有的话，去母版库上传时勾上"合并母版"。<br>换母版会重新拉数据表清单，已配的对应关系要重配。</td></tr>
+  <tr><td><code>主项目（封面/签字/期次跟它）</code></td><td>封面、签字页、期次以哪个项目为准。</td><td>必须选。<strong>主项目必须出现在数据表里</strong>，否则保存时会被拦下（封面工程名会跟数据对不上）。</td></tr>
+  <tr><td><code>每张数据表装哪个项目</code></td><td>逐张表配项目。</td><td>一张表装一个项目；<strong>同一个项目不要出现在两张表里</strong>（点号会撞）。</td></tr>
+</table>
+
+<h3>补打历史期次</h3>
+
+<table>
+  <tr><th style="width:26%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>日期区间选择器</td>
+    <td>起止同一天 = 单期，框一段 = 多期。</td>
+    <td><strong>只能选"两侧同一天都有数据"的日子</strong>，其余灰掉。日历图例：底部横条 = 两侧都有数据。<br>打开时默认选中最新一期。</td>
+  </tr>
+  <tr><td><code>全部期次</code></td><td>把区间设成最早一期到最新一期。</td><td>可打期次为 0 时是灰的。</td></tr>
+  <tr><td><code>清空</code></td><td>清掉已选区间。</td><td>清掉后两个导出按钮变灰。</td></tr>
+  <tr><td>提示行 <code>已选 N 期：…</code></td><td>确认你选了几期、从哪期到哪期。</td><td>没选时是橙色提示。</td></tr>
+  <tr><td><code>导出 N 期 Excel</code></td><td>多期打包成一个 ZIP。</td><td>—</td></tr>
+  <tr><td><code>打印 N 期</code></td><td>多期<strong>合成一份 PDF</strong>，一次打完。</td><td>和单项目导出页的批量打印一致。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>合并报表的硬性要求：各项目必须"同一天都有数据"。</strong><br>
+  你选的那天如果某一侧没测，系统会直接告诉你"某项目最近一期是哪天"，<strong>不会拿旧数据凑一页</strong>。<br>
+  这是故意的：凑出来的册子，日期和数对不上，交出去就是错报表。</p>
+</div>
+
+<h2>6.5　母版库：上传、改名、设适用范围</h2>
+
+<p>入口：项目列表 → 工具栏 <code>母版库</code>。</p>
+
+<div class="tip box">
+  <p><strong>核心概念：母版不属于某个项目。</strong>它自己声明"给哪些项目用"。一份母版可以同时给好几个基坑用——版式一样时，改表头只要重传一次同名母版，原先绑定的项目自动跟过来。</p>
+</div>
+
+<h3>列表</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>上传母版</code></td><td>打开上传弹窗。</td><td>—</td></tr>
+  <tr><td>列 <code>母版名称</code></td><td>名称，带标签 <code>系统内置</code> / <code>合并母版</code>。</td><td>带「合并母版」紫标签的只能用于合并报表。</td></tr>
+  <tr><td>列 <code>作用于哪些项目</code></td><td>通用 / 具体项目列表。</td><td><code>还没绑定任何项目</code> 的母版在导出页里选不到。</td></tr>
+  <tr><td>列 <code>原件</code></td><td><code>在</code>（绿）/ <code>原件缺失</code>（红）。</td><td>原件缺失 = 文件被删了，这份母版用不了，得重传。</td></tr>
+  <tr><td><code>改名</code> / <code>设置适用项目</code></td><td>见下。</td><td>系统内置母版没有这些按钮。</td></tr>
+  <tr><td>下载图标</td><td>下载母版原件（想直接改样板时用）。</td><td>原件缺失时是灰的。</td></tr>
+  <tr><td><code>删除</code></td><td>删掉这份母版。</td><td>会解除它与各项目的绑定，<strong>已经导出的报表不受影响</strong>。</td></tr>
+</table>
+
+<h3>上传弹窗（这里有个顺序坑）</h3>
+
+<table>
+  <tr><th style="width:26%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>母版名称（可留空）</code></td><td>显示名。</td><td>留空就用文件名，上传后也能改。</td></tr>
+  <tr>
+    <td><code>合并母版（多个项目装订成一份）</code><br><span class="kv">开关</span></td>
+    <td>勾上 = 这份母版只能用于「合并报表」，不会出现在单项目导出的下拉里。</td>
+    <td>母版里有<strong>多张数据表、每张装一个项目</strong>时才勾。<br>普通单项目母版<strong>不要勾</strong>——勾了就导不了单项目日报。</td>
+  </tr>
+  <tr><td><code>所有项目通用</code> + 项目多选</td><td>这份母版给谁用。</td><td>不勾通用时必须选至少一个项目，否则导出页里找不到它。</td></tr>
+  <tr>
+    <td><code>选择整卷文件上传</code></td>
+    <td>选 Excel 文件。</td>
+    <td><strong>⚠ 选完文件就立即上传，没有"再确认一次"的步骤。</strong><br>所以顺序是：<u>先填名称 → 先勾合并母版 → 先选作用范围 → 最后才点选文件</u>。反了就会带着空配置上传（或被拦下）。</td>
+  </tr>
+</table>
+
+<h3>设置适用项目 / 改名</h3>
+
+<table>
+  <tr><th style="width:26%">弹窗</th><th>说明</th></tr>
+  <tr><td><code>设置适用项目</code></td><td>勾选项目 + 「所有项目通用」开关。<br>两者都没选会被拦：<code>请至少选一个项目，或者设为「所有项目通用」</code>。<br>把当前项目取消勾选时会二次确认。</td></tr>
+  <tr><td><code>母版改名</code></td><td>只改显示名，文件和布局不受影响。<br>名称不能为空；不能和已有母版重名（同名两个在下拉里分不出来）。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>重传同名母版 = 原地替换：</strong>母版 id 不变，合并报表的绑定不会断。<strong>但请保持文件名/名称一致</strong>——换了名字会被当成新的一份，老的还挂在那儿。</p>
+</div>
+
+<h1>第 7 章　配置</h1>
+
+<h2>7.1　预警规则：四个格子怎么填</h2>
+
+<p>入口：项目列表 → 工具栏 <code>预警规则</code>（规则库视角），或项目行内「更多 → 预警规则」（项目视角）。</p>
+
+<h3>先理解"一套规则"</h3>
+
+<p>一套规则 = <strong>4 行</strong>：沉降·控制值、沉降·报警值、水平位移·控制值、水平位移·报警值。</p>
+
+<p>关键点：<strong>一套规则可以作用于好几个项目</strong>。几个基坑限值一样时，改一次它们一起变。</p>
+
+<h3>弹窗里的控件</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>规则：</code>下拉</td>
+    <td>切换正在编辑哪一套。</td>
+    <td>从项目进来时会自动选中本项目绑定的那套。<br>项目"借用通用规则"时下拉是空的（草稿状态）。</td>
+  </tr>
+  <tr><td><code>新建一套</code></td><td>清空表单新建。</td><td>会清空所有已填数值。</td></tr>
+  <tr><td><code>删除这套</code><br><span class="kv">红字</span></td><td>删掉当前规则套。</td><td>会解除它与各项目的绑定，这些项目改回套用通用规则。<br>有气泡确认。</td></tr>
+  <tr><td><code>规则名称：</code></td><td>如"八号基坑监测方案"。</td><td><strong>新建时必填</strong>；编辑时可留空 = 保持原名。</td></tr>
+  <tr><td><code>来源标注：</code></td><td>如 <code>GB 50497-2019</code>。</td><td>选规范预设时会自动带出。</td></tr>
+  <tr><td><code>所有项目通用</code> + 项目多选</td><td>这套规则给谁用。</td><td>和母版不同：勾了通用之后，<strong>还能再额外指定个别项目</strong>，多选框不会禁用。</td></tr>
+  <tr><td><code>选择规范预设：</code></td><td>一键把某个规范的限值填进 4 行。</td><td><strong>会整体覆盖当前已填的数值</strong>，没有二次确认。改完还能逐格微调。<br>切换规则套时预设下拉会被清空。</td></tr>
+</table>
+
+<h3>阈值表格：三个格子各管什么</h3>
+
+<table>
+  <tr><th style="width:24%">列</th><th style="width:36%">含义</th><th>报表上</th></tr>
+  <tr>
+    <td><code>累计变化限值(mm)</code></td>
+    <td>相对初始值<strong>总共</strong>能变多少。</td>
+    <td><strong>印在「控制值」第一列</strong></td>
+  </tr>
+  <tr>
+    <td><code>本次变化量限值(mm)</code></td>
+    <td>这一期相对上一期<strong>跳了多少</strong>的上限。<strong>不看间隔天数</strong>，隔 3 天测也不会被摊薄。</td>
+    <td><strong>不印</strong>，只参与判定</td>
+  </tr>
+  <tr>
+    <td><code>变化速率限值(mm/d)</code></td>
+    <td>本次变化 ÷ 间隔天数。</td>
+    <td><strong>印在「控制值」第二列</strong></td>
+  </tr>
+</table>
+
+<p>三格都可以留空。<strong>留空 = 这一维不判</strong>（绝不拿 0 当阈值）。判定规则：三样各判一次，<strong>取最严的那一级</strong>：≥报警值 → 报警；≥控制值 → 预警。</p>
+
+<h3>两条硬校验</h3>
+
+<table>
+  <tr><th style="width:28%">情况</th><th>结果</th></tr>
+  <tr>
+    <td>报警值 < 控制值</td>
+    <td><strong>拒绝保存</strong>。红色提示会列出哪一维倒挂，并解释：这样"预警"这一级永远不会出现，一到控制值就直接报警。</td>
+  </tr>
+  <tr>
+    <td>报警值 = 控制值</td>
+    <td>允许，但会提醒：实际只有一级判定（到值就报报警，不会先出预警）。规范做法是报警值比控制值宽一档。</td>
+  </tr>
+</table>
+
+<h3>改共用规则会发生什么</h3>
+
+<div class="warn box">
+  <p><strong>两种情况，结果完全不同，一定要分清：</strong></p>
+  <table style="margin:2mm 0 0;">
+    <tr><th style="width:34%">情况</th><th>保存时</th></tr>
+    <tr>
+      <td>本项目<strong>借用的是通用规则</strong>（自己没有套）</td>
+      <td>系统会<strong>为本项目单独建一套</strong>，不动通用规则、不影响别的项目（自动分叉，安全）。</td>
+    </tr>
+    <tr>
+      <td>本项目<strong>和别的项目共用同一套</strong></td>
+      <td><strong>会一起改掉所有共用项目</strong>，不会自动分叉。界面只给橙色警告 + 保存时二次确认。<br>只想改一个项目，请点「新建一套」并只勾那一个。</td>
+    </tr>
+  </table>
+</div>
+
+<div class="tip box">
+  <p><strong>改完限值之后，旧报表不会自动变。</strong>已经导出的文件里印的还是当时的旧数，需要重新导出；要翻出哪些旧文件已经对不上，用「文件检查」（第 8.2 节）。</p>
+</div>
+
+<h2>7.2　沉降不允许回弹（只沉不升）</h2>
+
+<p>位置：预警规则弹窗，表格下方那个开关。</p>
+
+<p>适用场景：<strong>盖梁支架</strong>这类理论上"只沉不升"的观测。测出来的"回升"是测量误差，不该让曲线掉头。</p>
+
+<table>
+  <tr><th style="width:26%">项</th><th>说明</th></tr>
+  <tr><td>开启后</td><td>累计变化的绝对值<strong>不再变小</strong>；本期被判为回弹时，成果读数取上一期，本次变化记 0、速率记 0。</td></tr>
+  <tr><td>原始读数</td><td><strong>照旧存库，记录页查到的还是实测值。</strong>改的只是成果口径（报表上印的累计和变化）。</td></tr>
+  <tr><td>报表自洽</td><td>「本次测值 − 上次测值」仍然等于「本次变化量」——因为成果读数、变化量、累计都基于同一个数算。</td></tr>
+  <tr><td>作用范围</td><td><strong>只对沉降生效</strong>。水平位移有来有回是真实变形，不会被抹平。</td></tr>
+  <tr><td>默认值</td><td><strong>关闭</strong>。基坑这类可能有真实回弹的场景保持关闭。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>只勾开关不填阈值 = 只锁方向、不锁大小。</strong>回升会被抹平，但一直沉下去也不会报警。要真正约束，必须把「累计变化限值」和「变化速率限值」填上。</p>
+</div>
+
+<p>判定依据是「这一期的累计变化绝对值，是否比上一期小」，基准是<strong>初始值 V0</strong>。所以 V0 填错了，累计、回弹判断、控制值比对会一起错。</p>
+
+<h2>7.3　项目默认值：规则、母版、天气、签名、仪器</h2>
+
+<p>入口：项目列表 → 工具栏 <code>项目默认值</code>。</p>
+
+<div class="tip box">
+  <p><strong>这里只影响以后新建的项目</strong>，已经建好的项目一个都不动。要把已有的项目改成同一套，回列表勾选它们，用「套用规则 / 套用母版」。</p>
+</div>
+
+<table>
+  <tr><th style="width:24%">区块 / 字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>默认预警规则</code></td>
+    <td>新建项目自动绑这套，建完就能判预警。</td>
+    <td>选「不绑定」则靠通用规则兜底。</td>
+  </tr>
+  <tr>
+    <td><code>默认导出母版</code></td>
+    <td>新建项目自动加入这份母版的适用范围。</td>
+    <td>下拉里<strong>只有普通 Excel 母版</strong>（合并母版和 Word 不走这条）。</td>
+  </tr>
+  <tr>
+    <td><code>默认天气</code></td>
+    <td>导出页打开时默认选它。</td>
+    <td>现场每期还能单独改。</td>
+  </tr>
+  <tr>
+    <td><code>天气位置</code><br>输入框 + <code>搜索</code> + 候选下拉 + 位置标签</td>
+    <td>配好后导出日报的天气会按当天当地自动填。</td>
+    <td><strong>中文地名可能搜不到，用拼音更稳</strong>（Jiashan / Jiaxing / Shanghai）。<br>点位置标签上的 × 可清除。</td>
+  </tr>
+</table>
+
+<h3>电子签名</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>每个签字栏一行<br><code>上传</code> / <code>重传</code> / <code>删除</code></td>
+    <td>给每个角色传自己的手写签名（白纸黑字，PNG/JPG 都行）。</td>
+    <td><strong>选完文件立即上传</strong>，不用点保存。<br><strong>没上传的栏留空</strong>，不会拿别人的顶替。<br>也可以直接把 PNG 放进服务器 <code>database/signatures/</code>，文件名用栏名（如 <code>编制.png</code>）。</td>
+  </tr>
+  <tr>
+    <td><code>签名大小</code><br><span class="kv">滑块 24~64</span></td>
+    <td>控制签名在报表里的像素高度。</td>
+    <td>右侧实时显示 px。<strong>拖动不会自动保存</strong>，要点「保存」。</td>
+  </tr>
+  <tr>
+    <td><code>位置微调 — 左右 / 上下</code><br><span class="kv">两个滑块</span></td>
+    <td>左右 ±60px、上下 ±40px。</td>
+    <td>同样要点保存。右侧有灰字显示 <code>→12 / ↓5</code> 这样的方向。</td>
+  </tr>
+  <tr>
+    <td><code>回正</code></td>
+    <td>把两个偏移都归 0。</td>
+    <td>都是 0 时按钮是灰的。</td>
+  </tr>
+  <tr>
+    <td>样张（两张 1:1 示意）</td>
+    <td>左边是签字页那行（压线居中），右边是数据表那行（紧跟文字）。</td>
+    <td>拖动滑块约 0.1 秒后重画。<strong>所见即所得</strong>，导出就是这个尺寸。</td>
+  </tr>
+</table>
+
+<h3>测量仪器</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>已配仪器标签</td>
+    <td>显示配过的仪器，点 × 移除。</td>
+    <td>移除只是本地操作，<strong>点保存才真正写入</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>从常见仪器里选</code><br><span class="kv">可搜型号</span></td>
+    <td>预置了几十款常见水准仪/全站仪，按类别分组。</td>
+    <td>选中<strong>只预填名称和型号</strong>，出厂编号、检定日期还得手填。</td>
+  </tr>
+  <tr>
+    <td>四栏：名称 / 型号 / 出厂编号 / 检定日期 + <code>添加这台仪器</code></td>
+    <td>手输一台仪器。</td>
+    <td><strong>型号为空时「添加」是灰的。</strong><br>检定日期是普通文本框，格式手输（如 <code>2025-10-20</code>）。<br>保存时只有"型号或出厂编号至少一项"的才会存下来。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>哪些即时生效、哪些要保存：</strong><br>
+  <strong>即时</strong>：电子签名的上传 / 删除。<br>
+  <strong>要按「保存」</strong>：三个下拉、天气位置、仪器清单、签名大小、签名左右/上下偏移。<br>
+  <code>重新读取当前设置</code> 会丢弃未保存的修改，且<strong>没有二次确认</strong>。</p>
+</div>
+<h1>第 8 章　维护</h1>
+
+<h2>8.1　数据备份与还原</h2>
+
+<p>入口：顶部导航 <code>数据备份</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>立即备份</code><br><span class="kv">主按钮</span></td>
+    <td>立即生成一份数据库完整快照（含全部项目/测点/观测/预警/规则）。</td>
+    <td>成功提示 <code>备份完成：文件名</code>。<br>系统在删除项目/测点、还原之前也会自动备份。</td>
+  </tr>
+  <tr>
+    <td><code>刷新</code></td>
+    <td>重新读备份列表。</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><code>备份位置</code></td>
+    <td>告诉你文件在哪。</td>
+    <td>只弹提示，不下载：文件在服务器的 <code>database/backups/</code> 目录，可直接拷贝保存。</td>
+  </tr>
+  <tr>
+    <td><code>还原</code><br><span class="kv">每行红色小按钮</span></td>
+    <td>用这份快照覆盖当前数据库。</td>
+    <td><strong>破坏性操作。</strong>确认框会写明后果。<br>还原前系统会<strong>自动给当前数据再拍一张快照</strong>，所以还原本身也能回退。<br>只读锁定状态下，还原会被后端挡下。</td>
+  </tr>
+</table>
+
+<h3>备份列表的列</h3>
+
+<table>
+  <tr><th style="width:22%">列</th><th>含义</th></tr>
+  <tr><td><code>ID</code> / <code>备份文件</code></td><td>备份编号和文件名（带时间戳）。</td></tr>
+  <tr><td><code>大小</code></td><td>自动换算成 KB / MB。</td></tr>
+  <tr><td><code>类型</code></td><td><code>手动</code>（你点「立即备份」建的）/ <code>自动</code>（系统在关键操作前拍的）。</td></tr>
+  <tr><td><code>说明</code> / <code>创建时间</code></td><td>备注与时间。</td></tr>
+</table>
+
+<div class="danger box">
+  <p><strong>还原前先想清楚：</strong>还原会把"从这份快照之后的所有操作"抹掉——包括别人今天刚导的数据。<br>
+  还原后如果发现不对，用刚才自动生成的那份快照再还原一次就能回来（但记住：这期间的操作不会自动恢复）。</p>
+</div>
+
+<h2>8.2　导出文件检查</h2>
+
+<p>入口：顶部导航 <code>文件检查</code>。作用：把你<strong>已经导出</strong>的日报和系统里的数逐个比对，防止"报表印错了还没发现"。</p>
+
+<table>
+  <tr><th style="width:26%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>路径输入框<br><span class="kv">占位：导出日报统一存放的那个文件夹</span></td>
+    <td>填要扫描的文件夹绝对路径，如 <code>D:\文件\测量台账\导出日报</code>。</td>
+    <td>进页面会自动带出上次记住的路径。回车即开始检查。</td>
+  </tr>
+  <tr>
+    <td><code>浏览…</code></td>
+    <td>打开文件夹选择弹窗（后端列目录，因为浏览器拿不到绝对路径）。</td>
+    <td>单击进文件夹，双击直接选中并回填。</td>
+  </tr>
+  <tr>
+    <td><code>记住这个文件夹</code></td>
+    <td>存进系统设置，下次打开自动带出。</td>
+    <td>路径为空时按钮是灰的。</td>
+  </tr>
+  <tr>
+    <td><code>开始检查</code></td>
+    <td>扫描并逐份比对。</td>
+    <td>文件多时会慢，界面会显示已用秒数。<br><strong>只读</strong>，不改文件也不改数据。</td>
+  </tr>
+  <tr>
+    <td><code>导出结果 CSV</code></td>
+    <td>把明细导成 CSV（带 BOM，Excel 打开不乱码）。</td>
+    <td>导出的是<strong>全部明细</strong>，不受上面的标签筛选影响。</td>
+  </tr>
+</table>
+
+<h3>它比对什么</h3>
+
+<ul>
+  <li>变化速率 / 本次变化量 / 本次累计变化量是否和系统一致；</li>
+  <li>变化速率和累计有没有超过预警规则；</li>
+  <li>报表上印的「控制值」和现行规则是不是同一个数；</li>
+  <li>报表判的等级和系统判的等级是否一致。</li>
+</ul>
+
+<h3>结果怎么看</h3>
+
+<table>
+  <tr><th style="width:26%">区域</th><th>说明</th></tr>
+  <tr><td>汇总行 <code>扫到 N 个文件，比对 M 份、共 K 行</code></td><td>扫描范围与规模。</td></tr>
+  <tr><td><code>有问题的行：N</code></td><td>红色表示有问题，绿色表示干净。</td></tr>
+  <tr><td>问题类型标签（可点击）</td><td>点一下按类型筛选表格，再点取消。类型包括：速率不一致、变化量不一致、累计不一致、超速率、超累计、控制值对不上、判级不一致、测点不存在、报表空、系统无数据等。</td></tr>
+  <tr><td>明细表列</td><td><code>项目</code> / <code>观测日期</code> / <code>测点</code> / <code>观测项</code> / <code>变化速率</code> / <code>本次变化量</code> / <code>本次累计</code> / <code>问题</code> / <code>来源</code>。<br>报表值和系统值不一致时会并列显示（报表值红色加粗）。<code>来源</code> 列写明出自哪个文件、哪个 Sheet、第几行。</td></tr>
+</table>
+
+<h3>三种"不是错误"的提示</h3>
+
+<table>
+  <tr><th style="width:30%">提示</th><th>含义与处理</th></tr>
+  <tr>
+    <td><code>有 N 份日报的基坑名和系统里的项目名不是完全一样，是按「相近」认的</code></td>
+    <td>报表里的工程名带地名前缀、中文数字、括号限定，系统会按相近认。下面会列出"认成哪个项目、报表里写的是什么"，<strong>扫一眼确认没认歪</strong>——认错了会比对出一堆假问题。</td>
+  </tr>
+  <tr>
+    <td><code>有 N 个文件没能检查</code></td>
+    <td>认不出是哪个项目。会告诉你"最像的是谁（相似度）"。要查就先确认文件到底是哪个项目的。</td>
+  </tr>
+  <tr>
+    <td><code>有 N 份属于已归档项目，本次没查</code></td>
+    <td>归档项目的旧报表再报"对不上"也没意义，默认跳过。要查就先在列表里「恢复在用」再跑一次。</td>
+  </tr>
+</table>
+
+<div class="tip box">
+  <p><strong>每周提醒：</strong>如果配了检查文件夹、且距上次检查超过 7 天，打开系统时项目列表顶部会出现橙色提醒 <code>该检查一下导出的日报了</code>，点「去检查」直接过来。<br>
+  系统没有常驻定时器（关了就不跑），所以做成"打开系统时补扫"。</p>
+</div>
+
+<h2>8.3　归档与彻底删除</h2>
+
+<table>
+  <tr><th style="width:22%">操作</th><th style="width:30%">入口</th><th>说明</th></tr>
+  <tr>
+    <td><strong>归档项目</strong></td>
+    <td>行内「更多 → 归档项目」，或勾选多个后点批量栏 <code>归档</code></td>
+    <td><strong>推荐做法。</strong>归档后不再出现在「进行中」列表，<strong>数据完整保留</strong>，可随时「恢复在用」。<br>有二次确认。</td>
+  </tr>
+  <tr>
+    <td><strong>恢复在用</strong></td>
+    <td>行内「更多 → 恢复在用」，或批量栏 <code>恢复在用</code></td>
+    <td>直接执行，没有二次确认（因为无害）。</td>
+  </tr>
+  <tr>
+    <td><strong>彻底删除项目</strong></td>
+    <td>行内「更多 → 彻底删除…」</td>
+    <td>必须<strong>手动输入项目编号</strong>才能点下确认按钮；删除前自动备份；同时删掉全部测点、观测数据、预警事件与规则。<br>不可恢复（除非用备份还原）。</td>
+  </tr>
+  <tr>
+    <td><strong>停用测点</strong></td>
+    <td>测点管理页行内 <code>停用</code></td>
+    <td>软删除，数据保留，可「恢复」。</td>
+  </tr>
+  <tr>
+    <td><strong>彻底删除测点</strong></td>
+    <td>测点管理页行内 <code>删除…</code></td>
+    <td>必须输入测点编号；删除前自动备份；连带删掉该点全部观测记录和预警事件。<br><strong>只有建错点、重复点才用。</strong></td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>有观测数据的项目/测点，请一律用「归档 / 停用」。</strong>物理删除只适合"建错了、还没用过"的对象——虽然系统会备份，但还原一次要把后面所有人的操作一起回退。</p>
+</div>
+
+<h1>第 9 章　注意事项总表</h1>
+
+<h2>9.1　按钮什么时候是灰的</h2>
+
+<table>
+  <tr><th style="width:36%">按钮</th><th>变灰条件</th></tr>
+  <tr><td>项目列表 · <code>导出日报</code></td><td>该项目还没有任何观测数据</td></tr>
+  <tr><td>项目列表 · 批量操作按钮（导出/套用母版/套用规则/归档/恢复/取消勾选）</td><td>任一批量任务进行中</td></tr>
+  <tr><td>彻底删除项目 · <code>确认彻底删除</code></td><td>输入框内容 ≠ 项目编号（<strong>刚打开时必定是灰的</strong>）</td></tr>
+  <tr><td>新建项目 · <code>项目编号</code></td><td>编辑已有项目时（编号不可改）</td></tr>
+  <tr><td>测点 · <code>测点编号</code></td><td>编辑时恒灰</td></tr>
+  <tr><td>彻底删除测点 · <code>确认彻底删除</code></td><td>输入内容 ≠ 测点编号</td></tr>
+  <tr><td>记录页 · 日期选择器 / 保存 / 自动生成 / 录入方式切换</td><td>项目还没有测点</td></tr>
+  <tr><td>顺序录入 · <code>上一个</code> / <code>下一个</code></td><td>已是第一个 / 最后一个测点</td></tr>
+  <tr><td>导出页 · <code>导出 Excel 日报</code> / <code>打印日报</code></td><td><strong>母版体检有 error</strong>；或所选区间内没有观测期次</td></tr>
+  <tr><td>导出页 · <code>导出 Word 日报</code></td><td>选了多期（Word 只支持单期）</td></tr>
+  <tr><td>导出页 · <code>体检这份母版</code></td><td>选的是系统标准版式</td></tr>
+  <tr><td>合并报表 · <code>打印</code></td><td>该行正在导出/打印</td></tr>
+  <tr><td>合并报表 · <code>导出 N 期 Excel</code> / <code>打印 N 期</code></td><td>没选任何日期</td></tr>
+  <tr><td>合并报表 · <code>全部期次</code></td><td>可打期次为 0</td></tr>
+  <tr><td>母版库 · 下载原件（图标）</td><td>原件缺失</td></tr>
+  <tr><td>项目默认值 · <code>回正</code></td><td>左右、上下偏移都为 0</td></tr>
+  <tr><td>项目默认值 · <code>添加这台仪器</code></td><td>型号为空</td></tr>
+  <tr><td>文件检查 · <code>开始检查</code> / <code>记住这个文件夹</code></td><td>路径为空</td></tr>
+  <tr><td>文件检查 · <code>导出结果 CSV</code></td><td>结果为空</td></tr>
+</table>
+
+<h2>9.2　常见提示与处理办法</h2>
+
+<table>
+  <tr><th style="width:38%">看到这句话</th><th>它是什么意思 / 怎么办</th></tr>
+  <tr><td><code>当期是只读模式 —— 所有修改都会被拒绝</code></td><td>只读锁开着。去列表页把那个开关关掉。</td></tr>
+  <tr><td><code>本期数据无变化，无需保存</code></td><td>你填的数和系统里已有的一模一样，没必要再存一次。</td></tr>
+  <tr><td><code>系统不会替你猜日期</code></td><td>有行缺日期。去「观测日期」列补选一天，会自动重新核对。</td></tr>
+  <tr><td><code>跳过（不覆盖原始数据）</code></td><td>当天已有真实记录，导入不会覆盖。要改数请去记录页做"更正"。</td></tr>
+  <tr><td><code>以你的数据为准（覆盖生成数据）</code></td><td>当天是演示数据，你导入的会替换它。正常情况。</td></tr>
+  <tr><td><code>先别导出 —— 有 N 处会让这份报表出错</code></td><td>母版体检没通过。按红色提示改，改完点「改好了，重新体检」。</td></tr>
+  <tr><td><code>母版体检有必须先处理的问题，改好后才能导出</code></td><td>鼠标停在灰掉的导出按钮上出现的提示。同上。</td></tr>
+  <tr><td><code>这些日期不是两侧都有数据：2026-11-15</code></td><td>合并报表要求同一天各项目都有数据。换一天，或等另一侧补测。</td></tr>
+  <tr><td><code>报警值不能低于控制值</code></td><td>填反了。这样"预警"永远出不来，一超就直接报警。</td></tr>
+  <tr><td><code>这套规则还被另外 N 个项目使用</code></td><td>改限值会一起改掉它们。只想改一个，先「新建一套」并只勾该项目。</td></tr>
+  <tr><td><code>本项目目前借用的是通用规则</code></td><td>保存后会为本项目单独建一套，不动通用规则。</td></tr>
+  <tr><td><code>母版里的段落格子不够放本期内容</code></td><td>文字太长装不下，换一份预留段落更多的母版。</td></tr>
+  <tr><td><code>网络错误 / 请求超时</code></td><td>服务停了或网络断了。刷新页面；仍不行找管理员重启服务。</td></tr>
+</table>
+
+<h2>9.3　数据安全的六条底线</h2>
+
+<div class="danger box">
+  <ol>
+    <li><strong>不要在 Excel 里改已导出的日报</strong>，要改就回系统改数据后重新导出。</li>
+    <li><strong>不要用「彻底删除」代替「归档 / 停用」</strong>，除非是建错且没用过的对象。</li>
+    <li><strong>改共用规则前先看清楚它影响几个项目</strong>（弹窗会写），只想改一个就新建一套。</li>
+    <li><strong>还原备份前先确认时间点</strong>，因为这会抹掉之后的所有操作。</li>
+    <li><strong>演示前打开「只读锁定」</strong>，演示完记得关。</li>
+    <li><strong>每周跑一次「文件检查」</strong>，别等监理发现报表数不对。</li>
+  </ol>
+</div>
+
+<h1>附录　术语表</h1>
+
+<table>
+  <tr><th style="width:20%">术语</th><th>含义</th></tr>
+  <tr><td><strong>项目</strong></td><td>一个基坑（或一处独立工点）。数据、报表、规则都以它为单位组织。</td></tr>
+  <tr><td><strong>测点</strong></td><td>一个观测点，如 JJC1。一个项目下可以有多个测点。</td></tr>
+  <tr><td><strong>观测项 / 分量</strong></td><td>测点测什么：沉降（value）、水平位移 X、水平位移 Y。</td></tr>
+  <tr><td><strong>V0（初始值）</strong></td><td>累计变化的起算基准。优先用测点上手工指定的；没指定则取首期有效读数。</td></tr>
+  <tr><td><strong>本次变化 ΔV</strong></td><td>这一期相对上一期（或最近有效一期）的变化量。</td></tr>
+  <tr><td><strong>累计变化 C</strong></td><td>这一期相对 V0 的变化量。</td></tr>
+  <tr><td><strong>速率</strong></td><td>ΔV ÷ 间隔天数（mm/d）。隔几天测一次时会被摊薄。</td></tr>
+  <tr><td><strong>控制值 / 报警值</strong></td><td>两级阈值。超控制值 = 预警，超报警值 = 报警。三样各判一次，取最严。</td></tr>
+  <tr><td><strong>缺测</strong></td><td>这天没测（录入时留空）。会生成一条"缺测"记录，不参与后续比较。</td></tr>
+  <tr><td><strong>更正</strong></td><td>改已有读数。旧值保留并标记"已被更正"，新值生效。</td></tr>
+  <tr><td><strong>母版</strong></td><td>你上传的整卷 Excel 样板（封面/签字/数据表全套）。导出时复制它、只换数字。</td></tr>
+  <tr><td><strong>合并母版</strong></td><td>含多张数据表、每张装一个项目的母版，只能用于「合并报表」。</td></tr>
+  <tr><td><strong>合并报表</strong></td><td>把多个项目装订成一份册子：封面/签字/布点图共用，数据表各占一张。</td></tr>
+  <tr><td><strong>规则套</strong></td><td>一套预警规则（4 行限值 + 适用项目），可以给多个项目共用。</td></tr>
+  <tr><td><strong>归档</strong></td><td>项目不再出现在「进行中」列表，数据完整保留，可随时恢复。</td></tr>
+  <tr><td><strong>只读锁定</strong></td><td>全站开关，打开后一切写操作被后端拒绝。</td></tr>
+</table>
+
+<div style="margin-top:14mm; padding-top:5mm; border-top:1px solid #DCE3EC; color:#7A8699; font-size:9.5pt;">
+  <p>本说明书对应系统版本 v1.1.41（2026-11-15）。界面如有更新，以实际页面为准。</p>
+  <p>写这份文档时逐页核对了代码里的按钮文案与校验逻辑；少量"未确认"项（如个别提示文字随部署环境略有差异）已在正文中标注"以实际界面为准"。</p>
+</div>
+
+</body>
+</html>

@@ -4,7 +4,7 @@ import { Button, Layout, message, Space, Typography,
   Spin,
 } from 'antd'
 
-import { DatabaseOutlined, HomeOutlined, ImportOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, DatabaseOutlined, HomeOutlined, ImportOutlined, SafetyCertificateOutlined } from '@ant-design/icons'
 
 import ProjectsPage from './pages/ProjectsPage'
 
@@ -22,6 +22,7 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const BackupPage = lazy(() => import('./pages/BackupPage'))
 const BatchProjectsPage = lazy(() => import('./pages/BatchProjectsPage'))
 const AuditPage = lazy(() => import('./pages/AuditPage'))
+const NavPage = lazy(() => import('./pages/NavPage'))
 
 
 
@@ -156,9 +157,13 @@ const REQUIRED_BACKEND_FEATURES = [
 
 /** focus：从「需要关注」跳进来时携带的定位目标（哪一天 / 哪个测点） */
 
-type View =
+export type View =
 
   | { kind: 'projects' }
+
+  /** 总导航：全站入口地图（2026-11-16 用户要求"把入口摊在一页上"） */
+
+  | { kind: 'nav' }
 
   | { kind: 'backup' }
 
@@ -180,7 +185,11 @@ type View =
 
 export default function App() {
 
-  const [view, setView] = useState<View>({ kind: 'projects' })
+  // 支持 #nav 直达总导航：现场同事可以把地址存成书签/设成浏览器主页，
+  // 不用每次先打开项目列表再点一下（也只认这一个锚点，不引入整套路由）。
+  const [view, setView] = useState<View>(() =>
+    typeof window !== 'undefined' && window.location.hash === '#nav' ? { kind: 'nav' } : { kind: 'projects' },
+  )
 
   /** 后端报上来的版本号 —— 顶栏右上角显示，用户随时能确认"我跑的是哪一版"（2026-10-17） */
 
@@ -197,6 +206,8 @@ export default function App() {
   const isProjectView =
 
     view.kind !== 'projects' &&
+
+    view.kind !== 'nav' &&
 
     view.kind !== 'backup' &&
 
@@ -342,6 +353,22 @@ export default function App() {
 
           </Button>
 
+          <Button
+
+            type="text"
+
+            icon={<AppstoreOutlined />}
+
+            style={{ color: BRAND.onPrimary }}
+
+            onClick={() => setView({ kind: 'nav' })}
+
+          >
+
+            总导航
+
+          </Button>
+
         </Space>
 
       </Layout.Header>
@@ -410,6 +437,8 @@ export default function App() {
         {view.kind === 'warning-events' && <WarningEventsPage projectId={view.project.id} onBack={goProjects} />}
 
         {view.kind === 'reports' && <ReportsPage projectId={view.project.id} onBack={goProjects} />}
+
+        {view.kind === 'nav' && <NavPage onNavigate={setView} />}
 
         {view.kind === 'backup' && <BackupPage />}
 

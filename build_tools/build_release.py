@@ -35,10 +35,11 @@ APP_NAME = "MonitorSystem"          # 进程/目录名用 ASCII，避免打包�
 RELEASE_NAME = "基坑监测系统-测试版"
 ENTRY = ROOT / "build_tools" / "app_entry.py"
 
-# 随包发放的文档（使用说明书：HTML 供屏幕看/可打印，PDF 供转发与存档）。
+# 随包发放的文档。
+# 只发 PDF：用户 2026-11-16 明确"只出 PDF 文件"——HTML 源留在 docs/manual/ 供以后改，
+# 不再作为交付物散出去（两个版本同时在传，收的人反而分不清哪个是最新的）。
 # 加在这里而不是手工拷：避免"重新打包一次、文档就丢了"。
 BUNDLED_DOCS = [
-    ROOT / "docs" / "使用说明书.html",
     ROOT / "docs" / "使用说明书.pdf",
 ]
 

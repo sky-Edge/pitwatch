@@ -1,0 +1,243 @@
+<h1>第 8 章　维护</h1>
+
+<h2>8.1　数据备份与还原</h2>
+
+<p>入口：顶部导航 <code>数据备份</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>立即备份</code><br><span class="kv">主按钮</span></td>
+    <td>立即生成一份数据库完整快照（含全部项目/测点/观测/预警/规则）。</td>
+    <td>成功提示 <code>备份完成：文件名</code>。<br>系统在删除项目/测点、还原之前也会自动备份。</td>
+  </tr>
+  <tr>
+    <td><code>刷新</code></td>
+    <td>重新读备份列表。</td>
+    <td>—</td>
+  </tr>
+  <tr>
+    <td><code>备份位置</code></td>
+    <td>告诉你文件在哪。</td>
+    <td>只弹提示，不下载：文件在服务器的 <code>database/backups/</code> 目录，可直接拷贝保存。</td>
+  </tr>
+  <tr>
+    <td><code>还原</code><br><span class="kv">每行红色小按钮</span></td>
+    <td>用这份快照覆盖当前数据库。</td>
+    <td><strong>破坏性操作。</strong>确认框会写明后果。<br>还原前系统会<strong>自动给当前数据再拍一张快照</strong>，所以还原本身也能回退。<br>只读锁定状态下，还原会被后端挡下。</td>
+  </tr>
+</table>
+
+<h3>备份列表的列</h3>
+
+<table>
+  <tr><th style="width:22%">列</th><th>含义</th></tr>
+  <tr><td><code>ID</code> / <code>备份文件</code></td><td>备份编号和文件名（带时间戳）。</td></tr>
+  <tr><td><code>大小</code></td><td>自动换算成 KB / MB。</td></tr>
+  <tr><td><code>类型</code></td><td><code>手动</code>（你点「立即备份」建的）/ <code>自动</code>（系统在关键操作前拍的）。</td></tr>
+  <tr><td><code>说明</code> / <code>创建时间</code></td><td>备注与时间。</td></tr>
+</table>
+
+<div class="danger box">
+  <p><strong>还原前先想清楚：</strong>还原会把"从这份快照之后的所有操作"抹掉——包括别人今天刚导的数据。<br>
+  还原后如果发现不对，用刚才自动生成的那份快照再还原一次就能回来（但记住：这期间的操作不会自动恢复）。</p>
+</div>
+
+<h2>8.2　导出文件检查</h2>
+
+<p>入口：顶部导航 <code>文件检查</code>。作用：把你<strong>已经导出</strong>的日报和系统里的数逐个比对，防止"报表印错了还没发现"。</p>
+
+<table>
+  <tr><th style="width:26%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>路径输入框<br><span class="kv">占位：导出日报统一存放的那个文件夹</span></td>
+    <td>填要扫描的文件夹绝对路径，如 <code>D:\文件\测量台账\导出日报</code>。</td>
+    <td>进页面会自动带出上次记住的路径。回车即开始检查。</td>
+  </tr>
+  <tr>
+    <td><code>浏览…</code></td>
+    <td>打开文件夹选择弹窗（后端列目录，因为浏览器拿不到绝对路径）。</td>
+    <td>单击进文件夹，双击直接选中并回填。</td>
+  </tr>
+  <tr>
+    <td><code>记住这个文件夹</code></td>
+    <td>存进系统设置，下次打开自动带出。</td>
+    <td>路径为空时按钮是灰的。</td>
+  </tr>
+  <tr>
+    <td><code>开始检查</code></td>
+    <td>扫描并逐份比对。</td>
+    <td>文件多时会慢，界面会显示已用秒数。<br><strong>只读</strong>，不改文件也不改数据。</td>
+  </tr>
+  <tr>
+    <td><code>导出结果 CSV</code></td>
+    <td>把明细导成 CSV（带 BOM，Excel 打开不乱码）。</td>
+    <td>导出的是<strong>全部明细</strong>，不受上面的标签筛选影响。</td>
+  </tr>
+</table>
+
+<h3>它比对什么</h3>
+
+<ul>
+  <li>变化速率 / 本次变化量 / 本次累计变化量是否和系统一致；</li>
+  <li>变化速率和累计有没有超过预警规则；</li>
+  <li>报表上印的「控制值」和现行规则是不是同一个数；</li>
+  <li>报表判的等级和系统判的等级是否一致。</li>
+</ul>
+
+<h3>结果怎么看</h3>
+
+<table>
+  <tr><th style="width:26%">区域</th><th>说明</th></tr>
+  <tr><td>汇总行 <code>扫到 N 个文件，比对 M 份、共 K 行</code></td><td>扫描范围与规模。</td></tr>
+  <tr><td><code>有问题的行：N</code></td><td>红色表示有问题，绿色表示干净。</td></tr>
+  <tr><td>问题类型标签（可点击）</td><td>点一下按类型筛选表格，再点取消。类型包括：速率不一致、变化量不一致、累计不一致、超速率、超累计、控制值对不上、判级不一致、测点不存在、报表空、系统无数据等。</td></tr>
+  <tr><td>明细表列</td><td><code>项目</code> / <code>观测日期</code> / <code>测点</code> / <code>观测项</code> / <code>变化速率</code> / <code>本次变化量</code> / <code>本次累计</code> / <code>问题</code> / <code>来源</code>。<br>报表值和系统值不一致时会并列显示（报表值红色加粗）。<code>来源</code> 列写明出自哪个文件、哪个 Sheet、第几行。</td></tr>
+</table>
+
+<h3>三种"不是错误"的提示</h3>
+
+<table>
+  <tr><th style="width:30%">提示</th><th>含义与处理</th></tr>
+  <tr>
+    <td><code>有 N 份日报的基坑名和系统里的项目名不是完全一样，是按「相近」认的</code></td>
+    <td>报表里的工程名带地名前缀、中文数字、括号限定，系统会按相近认。下面会列出"认成哪个项目、报表里写的是什么"，<strong>扫一眼确认没认歪</strong>——认错了会比对出一堆假问题。</td>
+  </tr>
+  <tr>
+    <td><code>有 N 个文件没能检查</code></td>
+    <td>认不出是哪个项目。会告诉你"最像的是谁（相似度）"。要查就先确认文件到底是哪个项目的。</td>
+  </tr>
+  <tr>
+    <td><code>有 N 份属于已归档项目，本次没查</code></td>
+    <td>归档项目的旧报表再报"对不上"也没意义，默认跳过。要查就先在列表里「恢复在用」再跑一次。</td>
+  </tr>
+</table>
+
+<div class="tip box">
+  <p><strong>每周提醒：</strong>如果配了检查文件夹、且距上次检查超过 7 天，打开系统时项目列表顶部会出现橙色提醒 <code>该检查一下导出的日报了</code>，点「去检查」直接过来。<br>
+  系统没有常驻定时器（关了就不跑），所以做成"打开系统时补扫"。</p>
+</div>
+
+<h2>8.3　归档与彻底删除</h2>
+
+<table>
+  <tr><th style="width:22%">操作</th><th style="width:30%">入口</th><th>说明</th></tr>
+  <tr>
+    <td><strong>归档项目</strong></td>
+    <td>行内「更多 → 归档项目」，或勾选多个后点批量栏 <code>归档</code></td>
+    <td><strong>推荐做法。</strong>归档后不再出现在「进行中」列表，<strong>数据完整保留</strong>，可随时「恢复在用」。<br>有二次确认。</td>
+  </tr>
+  <tr>
+    <td><strong>恢复在用</strong></td>
+    <td>行内「更多 → 恢复在用」，或批量栏 <code>恢复在用</code></td>
+    <td>直接执行，没有二次确认（因为无害）。</td>
+  </tr>
+  <tr>
+    <td><strong>彻底删除项目</strong></td>
+    <td>行内「更多 → 彻底删除…」</td>
+    <td>必须<strong>手动输入项目编号</strong>才能点下确认按钮；删除前自动备份；同时删掉全部测点、观测数据、预警事件与规则。<br>不可恢复（除非用备份还原）。</td>
+  </tr>
+  <tr>
+    <td><strong>停用测点</strong></td>
+    <td>测点管理页行内 <code>停用</code></td>
+    <td>软删除，数据保留，可「恢复」。</td>
+  </tr>
+  <tr>
+    <td><strong>彻底删除测点</strong></td>
+    <td>测点管理页行内 <code>删除…</code></td>
+    <td>必须输入测点编号；删除前自动备份；连带删掉该点全部观测记录和预警事件。<br><strong>只有建错点、重复点才用。</strong></td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>有观测数据的项目/测点，请一律用「归档 / 停用」。</strong>物理删除只适合"建错了、还没用过"的对象——虽然系统会备份，但还原一次要把后面所有人的操作一起回退。</p>
+</div>
+
+<h1>第 9 章　注意事项总表</h1>
+
+<h2>9.1　按钮什么时候是灰的</h2>
+
+<table>
+  <tr><th style="width:36%">按钮</th><th>变灰条件</th></tr>
+  <tr><td>项目列表 · <code>导出日报</code></td><td>该项目还没有任何观测数据</td></tr>
+  <tr><td>项目列表 · 批量操作按钮（导出/套用母版/套用规则/归档/恢复/取消勾选）</td><td>任一批量任务进行中</td></tr>
+  <tr><td>彻底删除项目 · <code>确认彻底删除</code></td><td>输入框内容 ≠ 项目编号（<strong>刚打开时必定是灰的</strong>）</td></tr>
+  <tr><td>新建项目 · <code>项目编号</code></td><td>编辑已有项目时（编号不可改）</td></tr>
+  <tr><td>测点 · <code>测点编号</code></td><td>编辑时恒灰</td></tr>
+  <tr><td>彻底删除测点 · <code>确认彻底删除</code></td><td>输入内容 ≠ 测点编号</td></tr>
+  <tr><td>记录页 · 日期选择器 / 保存 / 自动生成 / 录入方式切换</td><td>项目还没有测点</td></tr>
+  <tr><td>顺序录入 · <code>上一个</code> / <code>下一个</code></td><td>已是第一个 / 最后一个测点</td></tr>
+  <tr><td>导出页 · <code>导出 Excel 日报</code> / <code>打印日报</code></td><td><strong>母版体检有 error</strong>；或所选区间内没有观测期次</td></tr>
+  <tr><td>导出页 · <code>导出 Word 日报</code></td><td>选了多期（Word 只支持单期）</td></tr>
+  <tr><td>导出页 · <code>体检这份母版</code></td><td>选的是系统标准版式</td></tr>
+  <tr><td>合并报表 · <code>打印</code></td><td>该行正在导出/打印</td></tr>
+  <tr><td>合并报表 · <code>导出 N 期 Excel</code> / <code>打印 N 期</code></td><td>没选任何日期</td></tr>
+  <tr><td>合并报表 · <code>全部期次</code></td><td>可打期次为 0</td></tr>
+  <tr><td>母版库 · 下载原件（图标）</td><td>原件缺失</td></tr>
+  <tr><td>项目默认值 · <code>回正</code></td><td>左右、上下偏移都为 0</td></tr>
+  <tr><td>项目默认值 · <code>添加这台仪器</code></td><td>型号为空</td></tr>
+  <tr><td>文件检查 · <code>开始检查</code> / <code>记住这个文件夹</code></td><td>路径为空</td></tr>
+  <tr><td>文件检查 · <code>导出结果 CSV</code></td><td>结果为空</td></tr>
+</table>
+
+<h2>9.2　常见提示与处理办法</h2>
+
+<table>
+  <tr><th style="width:38%">看到这句话</th><th>它是什么意思 / 怎么办</th></tr>
+  <tr><td><code>当期是只读模式 —— 所有修改都会被拒绝</code></td><td>只读锁开着。去列表页把那个开关关掉。</td></tr>
+  <tr><td><code>本期数据无变化，无需保存</code></td><td>你填的数和系统里已有的一模一样，没必要再存一次。</td></tr>
+  <tr><td><code>系统不会替你猜日期</code></td><td>有行缺日期。去「观测日期」列补选一天，会自动重新核对。</td></tr>
+  <tr><td><code>跳过（不覆盖原始数据）</code></td><td>当天已有真实记录，导入不会覆盖。要改数请去记录页做"更正"。</td></tr>
+  <tr><td><code>以你的数据为准（覆盖生成数据）</code></td><td>当天是演示数据，你导入的会替换它。正常情况。</td></tr>
+  <tr><td><code>先别导出 —— 有 N 处会让这份报表出错</code></td><td>母版体检没通过。按红色提示改，改完点「改好了，重新体检」。</td></tr>
+  <tr><td><code>母版体检有必须先处理的问题，改好后才能导出</code></td><td>鼠标停在灰掉的导出按钮上出现的提示。同上。</td></tr>
+  <tr><td><code>这些日期不是两侧都有数据：2026-11-15</code></td><td>合并报表要求同一天各项目都有数据。换一天，或等另一侧补测。</td></tr>
+  <tr><td><code>报警值不能低于控制值</code></td><td>填反了。这样"预警"永远出不来，一超就直接报警。</td></tr>
+  <tr><td><code>这套规则还被另外 N 个项目使用</code></td><td>改限值会一起改掉它们。只想改一个，先「新建一套」并只勾该项目。</td></tr>
+  <tr><td><code>本项目目前借用的是通用规则</code></td><td>保存后会为本项目单独建一套，不动通用规则。</td></tr>
+  <tr><td><code>母版里的段落格子不够放本期内容</code></td><td>文字太长装不下，换一份预留段落更多的母版。</td></tr>
+  <tr><td><code>网络错误 / 请求超时</code></td><td>服务停了或网络断了。刷新页面；仍不行找管理员重启服务。</td></tr>
+</table>
+
+<h2>9.3　数据安全的六条底线</h2>
+
+<div class="danger box">
+  <ol>
+    <li><strong>不要在 Excel 里改已导出的日报</strong>，要改就回系统改数据后重新导出。</li>
+    <li><strong>不要用「彻底删除」代替「归档 / 停用」</strong>，除非是建错且没用过的对象。</li>
+    <li><strong>改共用规则前先看清楚它影响几个项目</strong>（弹窗会写），只想改一个就新建一套。</li>
+    <li><strong>还原备份前先确认时间点</strong>，因为这会抹掉之后的所有操作。</li>
+    <li><strong>演示前打开「只读锁定」</strong>，演示完记得关。</li>
+    <li><strong>每周跑一次「文件检查」</strong>，别等监理发现报表数不对。</li>
+  </ol>
+</div>
+
+<h1>附录　术语表</h1>
+
+<table>
+  <tr><th style="width:20%">术语</th><th>含义</th></tr>
+  <tr><td><strong>项目</strong></td><td>一个基坑（或一处独立工点）。数据、报表、规则都以它为单位组织。</td></tr>
+  <tr><td><strong>测点</strong></td><td>一个观测点，如 JJC1。一个项目下可以有多个测点。</td></tr>
+  <tr><td><strong>观测项 / 分量</strong></td><td>测点测什么：沉降（value）、水平位移 X、水平位移 Y。</td></tr>
+  <tr><td><strong>V0（初始值）</strong></td><td>累计变化的起算基准。优先用测点上手工指定的；没指定则取首期有效读数。</td></tr>
+  <tr><td><strong>本次变化 ΔV</strong></td><td>这一期相对上一期（或最近有效一期）的变化量。</td></tr>
+  <tr><td><strong>累计变化 C</strong></td><td>这一期相对 V0 的变化量。</td></tr>
+  <tr><td><strong>速率</strong></td><td>ΔV ÷ 间隔天数（mm/d）。隔几天测一次时会被摊薄。</td></tr>
+  <tr><td><strong>控制值 / 报警值</strong></td><td>两级阈值。超控制值 = 预警，超报警值 = 报警。三样各判一次，取最严。</td></tr>
+  <tr><td><strong>缺测</strong></td><td>这天没测（录入时留空）。会生成一条"缺测"记录，不参与后续比较。</td></tr>
+  <tr><td><strong>更正</strong></td><td>改已有读数。旧值保留并标记"已被更正"，新值生效。</td></tr>
+  <tr><td><strong>母版</strong></td><td>你上传的整卷 Excel 样板（封面/签字/数据表全套）。导出时复制它、只换数字。</td></tr>
+  <tr><td><strong>合并母版</strong></td><td>含多张数据表、每张装一个项目的母版，只能用于「合并报表」。</td></tr>
+  <tr><td><strong>合并报表</strong></td><td>把多个项目装订成一份册子：封面/签字/布点图共用，数据表各占一张。</td></tr>
+  <tr><td><strong>规则套</strong></td><td>一套预警规则（4 行限值 + 适用项目），可以给多个项目共用。</td></tr>
+  <tr><td><strong>归档</strong></td><td>项目不再出现在「进行中」列表，数据完整保留，可随时恢复。</td></tr>
+  <tr><td><strong>只读锁定</strong></td><td>全站开关，打开后一切写操作被后端拒绝。</td></tr>
+</table>
+
+<div style="margin-top:14mm; padding-top:5mm; border-top:1px solid #DCE3EC; color:#7A8699; font-size:9.5pt;">
+  <p>本说明书对应系统版本 v1.1.41（2026-11-15）。界面如有更新，以实际页面为准。</p>
+  <p>写这份文档时逐页核对了代码里的按钮文案与校验逻辑；少量"未确认"项（如个别提示文字随部署环境略有差异）已在正文中标注"以实际界面为准"。</p>
+</div>
+
+</body>
+</html>

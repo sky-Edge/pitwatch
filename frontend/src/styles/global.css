@@ -155,3 +155,17 @@
     content: "" !important;
   }
 }
+
+
+/* 总导航的入口卡片：整块可点，hover 时描主色边（inline style 覆盖不了伪类，只能放这里） */
+.nav-card {
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.nav-card:hover {
+  border-color: var(--wm-brand-primary) !important;
+  background: var(--wm-focus-bg) !important;
+}
+.nav-card:focus-visible {
+  outline: 2px solid var(--wm-brand-primary);
+  outline-offset: 2px;
+}

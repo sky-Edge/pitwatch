@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>基坑拉森钢板桩沉降与水平位移观测系统 · 使用说明书</title>
+<style>
+  @page { size: A4; margin: 15mm 13mm 16mm 13mm; }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; color:#1f2733; background:#fff;
+    font-family:"Microsoft YaHei","PingFang SC","Source Han Sans SC",sans-serif;
+    font-size:10.5pt; line-height:1.72;
+  }
+  .cover{
+    min-height:238mm; padding:46mm 10mm 0 12mm; page-break-after:always; break-after:page;
+  }
+  .cover .band{height:6mm; background:#185FA5; margin-bottom:16mm;}
+  .cover h1{font-size:25pt; line-height:1.4; margin:0 0 8mm; color:#0F4276; font-weight:600;
+            page-break-before:avoid; break-before:avoid;}
+  .cover .sub{font-size:13pt; color:#4A5568; margin-bottom:22mm;}
+  .cover .meta{font-size:10.5pt; color:#4A5568; line-height:2.1; border-top:1px solid #DCE3EC; padding-top:6mm;}
+  .cover .meta b{color:#1f2733;}
+  .cover .note{margin-top:12mm; font-size:10pt; color:#7A8699; line-height:1.8;}
+
+  h1{font-size:17pt; color:#0F4276; margin:0 0 6mm; padding-bottom:3mm;
+     border-bottom:2px solid #185FA5; page-break-before:always; page-break-after:avoid; break-before:page;}
+  h1.nobreak{page-break-before:auto; break-before:auto;}
+  h2{font-size:13pt; color:#185FA5; margin:8mm 0 3mm; page-break-after:avoid;}
+  h3{font-size:11.5pt; color:#1f2733; margin:6mm 0 2mm; page-break-after:avoid;}
+  p{margin:2.5mm 0;}
+  ul,ol{margin:2.5mm 0; padding-left:6mm;}
+  li{margin:1.2mm 0;}
+  code{background:#F1F4F8; padding:.5mm 1.5mm; border-radius:1mm; font-size:9.5pt;
+       font-family:Consolas,"Courier New",monospace; color:#25405F;}
+  b,strong{color:#0F4276;}
+  .lead{font-size:11pt; color:#4A5568;}
+
+  table{width:100%; border-collapse:collapse; margin:3mm 0 4mm; font-size:9.5pt;}
+  th{background:#EAF2FA; color:#0F4276; text-align:left; font-weight:600;
+     border:1px solid #C9D8E8; padding:1.8mm 2.2mm;}
+  td{border:1px solid #DCE3EC; padding:1.8mm 2.2mm; vertical-align:top;}
+  tr{page-break-inside:avoid;}
+  td code{font-size:9pt;}
+
+  .box{border-radius:1.5mm; padding:3mm 4mm; margin:3mm 0; border-left:3.5pt solid;}
+  .box p:first-child{margin-top:0;} .box p:last-child{margin-bottom:0;}
+  .tip{background:#EAF2FA; border-color:#185FA5;}
+  .warn{background:#FFF7E6; border-color:#B45309;}
+  .danger{background:#FEF3F2; border-color:#B42318;}
+  .ok{background:#EDF7F0; border-color:#1B7A43;}
+
+  .toc{page-break-after:always;}
+  .toc h2{font-size:15pt; color:#0F4276; border:none; margin:0 0 4mm; page-break-after:avoid;}
+  .toc ol{list-style:none; padding:0; margin:0;}
+  .toc ol li{margin:.15mm 0; font-size:9pt; line-height:1.38;}
+  .toc .l1{font-weight:600; color:#0F4276; margin-top:1.5mm;}
+  .toc .l2{padding-left:5mm; color:#5A6577;}
+  .toc .tag{float:right; color:#7A8699; font-size:9.5pt;}
+
+  .flow{display:flex; gap:2mm; margin:3mm 0;}
+  .flow div{flex:1; background:#EAF2FA; border:1px solid #C9D8E8; border-radius:1.5mm;
+            padding:2.5mm; text-align:center; font-size:9.5pt; color:#0F4276;}
+  .flow .arrow{flex:0 0 6mm; background:none; border:none; color:#7A8699; font-size:12pt; padding-top:2.5mm;}
+
+  .kv{color:#7A8699; font-size:9.5pt;}
+  .tagx{display:inline-block; padding:.3mm 1.6mm; border-radius:1mm; font-size:9pt;
+        background:#EAF2FA; color:#185FA5; border:1px solid #C9D8E8;}
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="band"></div>
+  <h1>基坑拉森钢板桩<br>沉降与水平位移观测系统</h1>
+  <div class="sub">使用说明书 · 逐按钮与逐字段说明</div>
+  <div class="meta">
+    <div>适用对象：<b>现场技术员、监测员、项目技术负责人</b></div>
+    <div>适用版本：<b>v1.1.41</b>（2026-11-15）</div>
+    <div>编写日期：<b>2026 年 11 月 15 日</b></div>
+    <div>覆盖范围：<b>12 个功能页面 · 20 余个弹窗 · 全部按钮与填选框</b></div>
+  </div>
+  <div class="note">
+    本说明按「第一次用 → 每天用 → 出成果 → 做配置 → 出问题怎么办」的顺序编排。<br>
+    每一节的控件表都按「控件 → 作用 → 注意事项」三列写：左边是你看到的东西，中间是它干什么，右边是容易踩的坑。<br>
+    加粗的<b>注意</b>框里写的，都是实际使用中踩过的问题。
+  </div>
+</div>
+
+<div class="toc">
+  <h2>目录</h2>
+  <ol>
+    <li class="l1">第 1 章　开始使用<span class="tag">3</span></li>
+    <li class="l2">1.1　这套系统帮你做什么</li>
+    <li class="l2">1.2　打开系统</li>
+    <li class="l2">1.3　界面总览：顶部导航与四步流程</li>
+    <li class="l2">1.4　项目列表页的三个全局开关</li>
+    <li class="l2">1.5　五条不会让数据出错的规矩</li>
+
+    <li class="l1">第 2 章　建项目与测点（第一次用）<span class="tag">6</span></li>
+    <li class="l2">2.1　新建项目：每个字段怎么填</li>
+    <li class="l2">2.2　先看个示例：不填任何数据先跑通</li>
+    <li class="l2">2.3　批量建项目：一张清单建好几个基坑</li>
+    <li class="l2">2.4　测点管理：新建、编辑、停用、彻底删除</li>
+    <li class="l2">2.5　批量新建测点：粘贴一堆点号</li>
+    <li class="l2">2.6　测点平面布置图</li>
+
+    <li class="l1">第 3 章　录数据（每天用）<span class="tag">12</span></li>
+    <li class="l2">3.1　观测记录页：先认清楚这块界面</li>
+    <li class="l2">3.2　总览表格录入</li>
+    <li class="l2">3.3　顺序录入（键盘流）</li>
+    <li class="l2">3.4　保存与更正：改一个数会发生什么</li>
+    <li class="l2">3.5　自动生成数据：演示与补数</li>
+
+    <li class="l1">第 4 章　批量导入<span class="tag">16</span></li>
+    <li class="l2">4.1　两个导入入口怎么选</li>
+    <li class="l2">4.2　Excel 导入（在项目里，一期一个文件）</li>
+    <li class="l2">4.3　每日导入（一次传当天所有台账）</li>
+    <li class="l2">4.4　导入结果怎么看：五种行的处理方式</li>
+
+    <li class="l1">第 5 章　看结果：曲线、对比、预警<span class="tag">21</span></li>
+    <li class="l2">5.1　项目列表上的「需要关注」</li>
+    <li class="l2">5.2　曲线图：连拖动调值都算在内</li>
+    <li class="l2">5.3　逐期对比</li>
+    <li class="l2">5.4　预警事件与数据质量</li>
+
+    <li class="l1">第 6 章　出日报<span class="tag">25</span></li>
+    <li class="l2">6.1　导出页：从上到下每个控件</li>
+    <li class="l2">6.2　母版体检：导不出来先看这里</li>
+    <li class="l2">6.3　导出预览：不落盘先看成品</li>
+    <li class="l2">6.4　合并报表：南北两侧装订成一份</li>
+    <li class="l2">6.5　母版库：上传、改名、设适用范围</li>
+
+    <li class="l1">第 7 章　配置<span class="tag">32</span></li>
+    <li class="l2">7.1　预警规则：四个格子怎么填</li>
+    <li class="l2">7.2　沉降不允许回弹（只沉不升）</li>
+    <li class="l2">7.3　项目默认值：规则、母版、天气、签名、仪器</li>
+
+    <li class="l1">第 8 章　维护<span class="tag">36</span></li>
+    <li class="l2">8.1　数据备份与还原</li>
+    <li class="l2">8.2　导出文件检查</li>
+    <li class="l2">8.3　归档与彻底删除</li>
+
+    <li class="l1">第 9 章　注意事项总表<span class="tag">39</span></li>
+    <li class="l2">9.1　按钮什么时候是灰的</li>
+    <li class="l2">9.2　常见提示与处理办法</li>
+    <li class="l2">9.3　数据安全的六条底线</li>
+
+    <li class="l1">附录　术语表<span class="tag">41</span></li>
+  </ol>
+</div>
+
+<h1 class="nobreak">第 1 章　开始使用</h1>
+
+<h2>1.1　这套系统帮你做什么</h2>
+
+<p>把工程现场每天重复的<strong>录入 → 计算 → 判断 → 出日报</strong>这几步自动化：</p>
+
+<div class="flow">
+  <div>录入 / 导入<br>观测读数</div>
+  <div class="arrow">→</div>
+  <div>自动算<br>本次变化</div>
+  <div class="arrow">→</div>
+  <div>自动算<br>累计与速率</div>
+  <div class="arrow">→</div>
+  <div>自动判<br>预警 / 报警</div>
+  <div class="arrow">→</div>
+  <div>一键出<br>Excel 日报</div>
+</div>
+
+<p>你只需要做两件事：<strong>把读数弄进系统</strong>（手打或导入），<strong>点导出</strong>。剩下的变化量、累计、速率、预警等级、报表版式，系统自己算。</p>
+
+<p>几条你可能会关心的能力：</p>
+<ul>
+  <li><strong>报表按你单位的格式出</strong>：把你日常报送的那份整卷日报传上去当母版，以后每期只换数字，封面、签字页、概况、布点图都保留。</li>
+  <li><strong>多个基坑（或南北两侧）合成一份册子</strong>：封面、签字、布点图只留一份，各项目的数据表各占一张。</li>
+  <li><strong>每期的预警判断和报表上的控制值同源</strong>：报表上印的「控制值」就是系统判定用的那个数，不会出现表和系统两套口径。</li>
+  <li><strong>改过的数留痕</strong>：任何更正都保留原值，随时能追溯；没有"改了就查不到"的情况。</li>
+</ul>
+
+<h2>1.2　打开系统</h2>
+
+<table>
+  <tr><th style="width:32%">项</th><th>说明</th></tr>
+  <tr>
+    <td>在浏览器里打开</td>
+    <td>输入管理员给你的地址（单位部署形态一般是 <code>http://服务器地址:8000</code>）。<strong>不用装任何软件</strong>，Chrome、Edge、QQ 浏览器都可以，推荐 Chrome。</td>
+  </tr>
+  <tr>
+    <td>要不要登录</td>
+    <td>当前版本<strong>没有账号体系</strong>——能打开这个地址的人就能操作。所以别把地址发到无关的群里；临时给同事演示，用「只读锁定」（见 1.4）。</td>
+  </tr>
+  <tr>
+    <td>数据存在哪</td>
+    <td>存在服务器上的数据库里，<strong>不在你电脑上</strong>。换台电脑打开同一个地址，看到的是同一份数据。</td>
+  </tr>
+  <tr>
+    <td>多久刷新一次</td>
+    <td>页面不会自动刷新。别人刚导完数据，你要点一下页面上的「刷新」或按 <code>F5</code> 才看得到。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>注意：</strong>如果页面能打开但一直转圈、或者提示"网络错误"，先别怀疑数据丢了——多半是服务器上那个服务停了。找管理员重启服务即可，数据都在服务器的数据库文件里。</p>
+</div>
+
+<h2>1.3　界面总览：顶部导航与四步流程</h2>
+
+<h3>顶部导航（每个页面都有）</h3>
+
+<table>
+  <tr><th style="width:22%">按钮</th><th style="width:36%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>项目列表</code></td>
+    <td>回到首页。所有项目的状态、预警、下一步都在这页。</td>
+    <td>在任何页面误入死角，点它都能回来。</td>
+  </tr>
+  <tr>
+    <td><code>每日导入</code></td>
+    <td>一次把<strong>当天所有台账</strong>拖进来，系统按表里写的工程名称自动分到各项目。</td>
+    <td>这个入口<strong>不建项目、不建测点</strong>。新基坑要先去「批量建项目」或「新建项目」。</td>
+  </tr>
+  <tr>
+    <td><code>数据备份</code></td>
+    <td>手动做数据库快照、还原历史快照。</td>
+    <td>还原是<strong>破坏性操作</strong>，会用旧快照覆盖当前全部数据（还原前系统会自动再拍一张，见 8.1）。</td>
+  </tr>
+  <tr>
+    <td><code>文件检查</code></td>
+    <td>扫一遍你导出日报的文件夹，把报表上的数和系统里的数逐个比对。</td>
+    <td>只读，不改任何文件。建议每周跑一次（超过 7 天系统会在首页提醒你）。</td>
+  </tr>
+</table>
+
+<h3>项目内的四步流程</h3>
+
+<p>点进任意一个项目后，页面顶部会有一条流程导航条，告诉你"现在在第几步、下一步该点什么"：</p>
+
+<div class="flow">
+  <div>① 测点与初始值<br><span class="kv">建测点，录一次初始值</span></div>
+  <div class="arrow">→</div>
+  <div>② 观测数据<br><span class="kv">逐日录入 / Excel 导入</span></div>
+  <div class="arrow">→</div>
+  <div>③ 分析与预警<br><span class="kv">曲线 / 对比 / 预警</span></div>
+  <div class="arrow">→</div>
+  <div>④ 成果导出<br><span class="kv">一键出日报</span></div>
+</div>
+
+<p>这四步按顺序走就不会错。跳着走也能用，但第 ①、② 步没做完时，后面几步会提示"还没有测点""还没有观测数据"。</p>
+
+<h2>1.4　项目列表页的三个全局开关</h2>
+
+<p>项目列表页的工具栏右侧有三个开关，它们影响<strong>整个系统</strong>，不是某一个项目。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>生成数据带预警</code><br><span class="kv">小开关</span></td>
+    <td><strong>开</strong>：以后用「自动生成数据」造出来的读数会像真实台账一样偶尔触发预警。<br><strong>关</strong>：生成的数据只在预警线以内波动，不会出现预警/报警点。</td>
+    <td>只影响<strong>以后生成的</strong>数据，已经生成的不变。<br>给监理演示、或只想验证曲线走向时，建议<strong>关掉</strong>——否则演示里一堆红点，容易误会。</td>
+  </tr>
+  <tr>
+    <td><code>只读锁定</code><br><span class="kv">小开关，锁上后文字变成「已锁定（只读）」</span></td>
+    <td>打开后，<strong>后端会拒绝一切写操作</strong>：新增、修改、删除、导入、生成、还原备份全部被挡下。</td>
+    <td>给同事看、演示时打开，怎么点都改不坏数据。<br><strong>注意：按钮不会变灰</strong>，你点下去仍会发请求，然后弹一条错误——这是正常的，不是按钮坏了。<br>解锁开关就在同一个位置（<strong>设置接口本身不受锁影响</strong>，所以还能点开）。</td>
+  </tr>
+  <tr>
+    <td><code>进行中项目</code> / <code>全部（含已归档）</code><br><span class="kv">分段切换</span></td>
+    <td>决定列表里是否显示已归档的项目。</td>
+    <td>切到「全部」后，右侧会出现灰底标签 <code>含 N 个已归档项目</code>。<br>切换时会<strong>清空已勾选的项目</strong>（防止跨范围误操作）。</td>
+  </tr>
+</table>
+
+<h2>1.5　五条不会让数据出错的规矩</h2>
+
+<div class="ok box">
+  <p><strong>这五条是系统的底线，知道它们你就能放心操作：</strong></p>
+  <ol>
+    <li><strong>原始读数只增不改。</strong>你改一个数，系统不是"覆盖"，而是把旧记录标记为"已被更正"并保留，新值另存一条。任何时候都能查到原值。</li>
+    <li><strong>重复导入不会覆盖真实数据。</strong>当天已经有真实记录时，导入的行一律「跳过」；只有系统自己生成的演示数据才会被你的数据替换。</li>
+    <li><strong>没有日期的数据不入库。</strong>系统不会替你猜日期，缺日期的行会单独列出来让你补。</li>
+    <li><strong>删项目要输编号、删测点要输点号，而且删前自动备份。</strong>随手一点是删不掉的。</li>
+    <li><strong>报表上的「控制值」= 系统判定用的数。</strong>只有一个出处（预警规则），不会出现表和系统对不上。</li>
+  </ol>
+</div>
+
+<div class="warn box">
+  <p><strong>反过来说，有三件事你<u>不应该</u>做：</strong></p>
+  <ul>
+    <li>不要在 Excel 里改已经导出、已经报给监理的日报——要改就回系统改数据后<strong>重新导出</strong>。</li>
+    <li>不要为了"好看"去改历史期读数（曲线可以拖，但那是更正，会留痕、会重算）。</li>
+    <li>不要用「彻底删除」代替「归档」——归档保留全部数据，删除不可恢复（虽然有备份）。</li>
+  </ul>
+</div>

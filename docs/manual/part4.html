@@ -1,0 +1,472 @@
+<h1>第 6 章　出日报</h1>
+
+<p class="lead">这一章是整个系统最终要交付的东西。前面数据录得对，这里才有意义。</p>
+
+<h2>6.1　导出页：从上到下每个控件</h2>
+
+<p>入口：项目内流程第 ④ 步 → <code>成果导出</code>，或项目列表行内 <code>导出日报</code>。</p>
+
+<h3>第一行：报告模板</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>报告模板：</code>下拉框</td>
+    <td>选这次用哪份 Excel 母版出报表。</td>
+    <td>选项带前缀：<code>【通用母版】</code> / <code>【我的模板】</code> / <code>【系统标准】</code>。<br>原件丢失的会标 <code>（原件缺失，请重传）</code> 并<strong>灰掉不可选</strong>。<br>默认值按"你上次用的 → 你项目自己的 → 系统标准"依次回落，<strong>每个项目分别记忆</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>重命名</code><br><span class="kv">铅笔图标</span></td>
+    <td>改这份母版的显示名。</td>
+    <td>只对<strong>非系统标准</strong>的母版出现。只改名字，不改文件、不改已识别的布局。</td>
+  </tr>
+  <tr>
+    <td><code>设置适用项目</code><br><span class="kv">齿轮图标</span></td>
+    <td>改这份母版给哪些项目用。</td>
+    <td>如果你把当前项目取消勾选，会先问你一句 <code>取消后本项目就用不了这份母版了</code>。</td>
+  </tr>
+  <tr>
+    <td>状态行<br><code>✓ 布局已自动识别</code> / <code>⚠ 布局未识别</code> / <code>✗ 模板原件文件缺失</code></td>
+    <td>这份母版能不能正常用。</td>
+    <td>看到 <code>⚠ 布局未识别</code>，导出会退回系统版式——不是报错，但你的封面签字页就没了。</td>
+  </tr>
+  <tr>
+    <td><code>上传报送母版</code></td>
+    <td>打开上传弹窗（见 6.5 的开头部分）。</td>
+    <td>每次打开都会把"作用项目"重置成<strong>只勾当前项目</strong>。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>系统标准版式只有两张数据表</strong>，没有封面、签字页、概况。要用你自己的报表格式，必须上传母版。</p>
+</div>
+
+<h3>第二行：期次、仪器、天气</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>选择期次（观测日期…）</code><br><span class="kv">日期区间选择器</span></td>
+    <td>起止选同一天 = 单期；框一段 = 多期。<br>进页面时默认选中<strong>最近一个观测日</strong>。</td>
+    <td><strong>只有"有读数"的日期能选</strong>，其余是灰的。日历上带底部横条的日子才是观测日。<br>选区间时，中间没数据的日子<strong>不会被算成期次</strong>——实际导出的是区间内真有读数的那些天。</td>
+  </tr>
+  <tr>
+    <td><code>仪器：</code>下拉</td>
+    <td>报表上印哪台仪器（名称/型号/出厂编号/检定日期）。</td>
+    <td><strong>只有「项目默认值」里配过仪器才出现</strong>。<br>不选 = 母版上原来是啥就是啥。</td>
+  </tr>
+  <tr>
+    <td><code>天气：</code>下拉</td>
+    <td>报表上填的天气。选项：<code>自动</code> / 晴 / 多云 / 阴 / 小雨 / 中雨 / 大雨。</td>
+    <td><code>自动</code> = 按「项目默认值」里配的天气位置查当天天气，查不到就填晴。<br>默认值：这个项目上次选过的 → 全站默认天气 → 自动。也是<strong>按项目记忆</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>刷新</code><br><span class="kv">循环箭头图标</span></td>
+    <td>重拉期次、模板、仪器、设置。</td>
+    <td>别人刚导完数据时点一下。</td>
+  </tr>
+</table>
+
+<h3>期次统计提示</h3>
+
+<p>选择器下面会实时告诉你这次要出几期：</p>
+<ul>
+  <li><code>将导出 1 期：2026-11-15（单文件）</code></li>
+  <li><code>将导出 6 期：2026-11-10 ~ 2026-11-15（打包 ZIP）</code>，并估算耗时（约 0.5 秒/期）</li>
+  <li><code>所选区间内没有观测数据（共 12 期可选…）</code> —— 这时按钮点了也没用，要重选</li>
+</ul>
+
+<h3>第三行：五个按钮</h3>
+
+<table>
+  <tr><th style="width:26%">按钮</th><th style="width:32%">点了会发生什么</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>导出 Excel 日报（单文件）</code><br>多期时变成 <code>批量导出 Excel（N 期 → ZIP）</code></td>
+    <td>单期：直接下载一个 xlsx。<br>多期：逐期生成后打包成一个 ZIP 下载。</td>
+    <td>文件名：单期 <code>监测日报_2026-11-15.xlsx</code>；多期 <code>监测日报批量_2026-11-10~2026-11-15_共6期.zip</code>。<br><strong>母版体检有 error 时这个按钮是灰的。</strong></td>
+  </tr>
+  <tr>
+    <td><code>打印日报</code><br>多期时变成 <code>打印日报（N 期）</code></td>
+    <td>服务端把 Excel 转成 PDF，<strong>直接弹出系统打印对话框</strong>，页面不跳转。</td>
+    <td>单期出一份 PDF；<strong>多期合成一份 PDF</strong>，一次打印全部（不是开一堆窗口）。<br>同样受体检 error 限制。</td>
+  </tr>
+  <tr>
+    <td><code>体检这份母版</code><br><span class="kv">盾牌图标</span></td>
+    <td>手动重跑一次母版体检。</td>
+    <td>选中系统标准版式时不可点（没原件可检）。改完母版或配完规则后点它。</td>
+  </tr>
+  <tr>
+    <td><code>预览</code></td>
+    <td>打开预览弹窗，看"点导出会拿到的那份文件长什么样"。</td>
+    <td>不落盘、不下载。<strong>不受体检 error 限制</strong>，可以先用它看问题出在哪。</td>
+  </tr>
+  <tr>
+    <td><code>导出 Word 日报</code></td>
+    <td>生成 .docx 日报。</td>
+    <td><strong>只支持单期</strong>（多期会提示你把起止选成同一天）。<br>Word 是固定版式，<strong>不套用你的 Excel 母版</strong>。</td>
+  </tr>
+</table>
+
+<h3>导出成功后可能出现的提示</h3>
+
+<table>
+  <tr><th style="width:34%">提示</th><th>含义</th></tr>
+  <tr><td><code>日报已导出</code></td><td>正常完成。</td></tr>
+  <tr><td><code>母版点位不够，已自动补上：…</code></td><td>你的母版只留了 8 行、这个项目有 9 个点，系统自动加了行（格式会跟着调）。</td></tr>
+  <tr><td><code>「原始数据区」的点位网格已排满，仍放不下：…</code></td><td>原始数据那块地方不够，这些点的坐标没导出。要全的话得换一份预留更多点位的母版。</td></tr>
+  <tr><td><code>…处文字已按本期数据自动重写；母版里多出来的旧文字已清空</code></td><td>概况/分析/成果提交这几页的正文是按本期数据重写的，正常。</td></tr>
+  <tr><td><code>母版里的段落格子不够放本期内容</code></td><td>文字太长装不下，换一份预留段落更多的母版。</td></tr>
+</table>
+
+<h2>6.2　母版体检：导不出来先看这里</h2>
+
+<p>选中一份非系统标准母版后，系统会自动体检（"这份母版套到这个项目上会怎样"）。结果分四档：</p>
+
+<table>
+  <tr><th style="width:16%">结果</th><th style="width:34%">界面表现</th><th>你要做什么</th></tr>
+  <tr>
+    <td><strong>通过</strong><br><span class="kv">绿色</span></td>
+    <td><code>体检通过 —— 页、表头、数据区和本项目都对得上，「控制值」也能按现行预警规则逐格重写。</code></td>
+    <td>直接导出。</td>
+  </tr>
+  <tr>
+    <td><strong>有 error</strong><br><span class="kv">红色，会拦导出</span></td>
+    <td><code>先别导出 —— 有 N 处会让这份报表出错</code>，逐条列出问题和涉及的格子。</td>
+    <td>按提示改。若是"没配控制值"，点右侧 <code>去配预警规则</code> 直接配。<br>改完点 <code>改好了，重新体检</code>。</td>
+  </tr>
+  <tr>
+    <td><strong>有 warn</strong><br><span class="kv">橙色，不拦</span></td>
+    <td><code>可以导出，但有 N 处不会被更新</code>。</td>
+    <td>能导，但那些格子会保持母版原样。知道就行。</td>
+  </tr>
+  <tr>
+    <td><strong>有 info</strong><br><span class="kv">蓝色</span></td>
+    <td><code>导出时会自动做这些事</code>（补几行、换掉哪个基坑名）。</td>
+    <td>预告性质，不用操作。</td>
+  </tr>
+</table>
+
+<div class="danger box">
+  <p><strong>体检有 error 时，「导出 Excel」和「打印日报」同时变灰</strong>，鼠标停上去会写 <code>母版体检有必须先处理的问题，改好后才能导出</code>。<br>
+  这是唯一会"拦住你导出"的情况——因为它导出来的文件是错的。<br>
+  体检请求本身失败<strong>不拦导出</strong>（只弹一句警告），后端在导出时还会再校一次。</p>
+</div>
+
+<h2>6.3　导出预览：不落盘先看成品</h2>
+
+<table>
+  <tr><th style="width:26%">元素</th><th>说明</th></tr>
+  <tr><td>弹窗标题 <code>导出预览 —— 文件名</code></td><td>宽屏展示，没有底部按钮，点右上角关闭。</td></tr>
+  <tr><td>调整摘要</td><td><code>本次生成对母版做了这些调整：母版点位行数 9；自动补的测点 0；…</code>，把系统动过的地方说清楚。</td></tr>
+  <tr><td>页签（每个 Sheet 一个）</td><td>页签标题上可能有标签：<code>Excel 里隐藏</code> / <code>只画了前面一部分</code> / <code>控制值对不上</code>。</td></tr>
+  <tr><td>淡蓝底格子</td><td><strong>本次会重写的数据区</strong>和「控制值」列。</td></tr>
+  <tr><td>红底格子</td><td>控制值和系统规则对不上。鼠标停上去看具体原因。</td></tr>
+  <tr><td>斜体 <code>fx</code> 格子</td><td>公式格。<strong>文件里没有算好的值</strong>，Excel 打开后才算得出。</td></tr>
+  <tr><td>截断提示</td><td><code>这张表超出预览上限（约 220 行 × 30 列），只画了左上角那一段 —— 文件本身是完整的。</code></td></tr>
+  <tr><td>控制值核对结论</td><td>通过：<code>「控制值」已逐格核对：第 8~16 行共 9 行，两格都等于预警规则里的 30 / 3。</code><br>不通过：点明有几格不符、几格规则有值表上为空。</td></tr>
+</table>
+
+<h2>6.4　合并报表：南北两侧装订成一份</h2>
+
+<p>入口：项目列表 → 工具栏 <code>合并报表</code>。</p>
+
+<div class="tip box">
+  <p><strong>它解决什么问题：</strong>南北两侧（或几个相邻基坑）每天各出一份全套日报，等于打两份封面、两份签字页。合并报表把这些<strong>只留一份</strong>，数据表各占一张——一天从几十页压到九页。</p>
+  <p><strong>它不做什么：</strong>不动数据、不合并项目。数据仍然各存各的项目、各导各的台账，合并只发生在"打印装订"这一层。</p>
+</div>
+
+<h3>列表界面</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>新建合并报表</code></td><td>进入编辑界面配一份新的。</td><td>—</td></tr>
+  <tr><td>列 <code>名称</code></td><td>名称 + 封面印的工程名称。</td><td>—</td></tr>
+  <tr><td>列 <code>数据表 ← 项目</code></td><td>每张数据表装哪个项目。主项目那张表会标「主项目」。</td><td>一眼看出有没有配错。</td></tr>
+  <tr><td><code>导出</code></td><td>导出最新一期的 Excel。</td><td>—</td></tr>
+  <tr><td><code>打印</code></td><td>生成 PDF 并直接调起打印。</td><td>—</td></tr>
+  <tr><td><code>补打…</code></td><td>选历史期次（见下）。</td><td>—</td></tr>
+  <tr><td>铅笔图标 / 红色垃圾桶图标</td><td>编辑 / 删除这份合并报表。</td><td>删除<strong>只删装订关系</strong>，两个项目的数据一条都不动。</td></tr>
+</table>
+
+<h3>编辑界面：每个字段</h3>
+
+<table>
+  <tr><th style="width:26%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>名称（也做文件名）</code></td><td>如"钢栈桥监测日报"。</td><td>必填。<strong>导出的文件名就是它</strong>。</td></tr>
+  <tr><td><code>封面工程名称（可留空）</code></td><td>打印在封面上的工程名。</td><td>留空则用主项目的名称。</td></tr>
+  <tr><td><code>用哪份母版</code></td><td>决定这份册子有几张数据表。</td><td><strong>只能选「合并母版」</strong>。母版库里没有的话，去母版库上传时勾上"合并母版"。<br>换母版会重新拉数据表清单，已配的对应关系要重配。</td></tr>
+  <tr><td><code>主项目（封面/签字/期次跟它）</code></td><td>封面、签字页、期次以哪个项目为准。</td><td>必须选。<strong>主项目必须出现在数据表里</strong>，否则保存时会被拦下（封面工程名会跟数据对不上）。</td></tr>
+  <tr><td><code>每张数据表装哪个项目</code></td><td>逐张表配项目。</td><td>一张表装一个项目；<strong>同一个项目不要出现在两张表里</strong>（点号会撞）。</td></tr>
+</table>
+
+<h3>补打历史期次</h3>
+
+<table>
+  <tr><th style="width:26%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>日期区间选择器</td>
+    <td>起止同一天 = 单期，框一段 = 多期。</td>
+    <td><strong>只能选"两侧同一天都有数据"的日子</strong>，其余灰掉。日历图例：底部横条 = 两侧都有数据。<br>打开时默认选中最新一期。</td>
+  </tr>
+  <tr><td><code>全部期次</code></td><td>把区间设成最早一期到最新一期。</td><td>可打期次为 0 时是灰的。</td></tr>
+  <tr><td><code>清空</code></td><td>清掉已选区间。</td><td>清掉后两个导出按钮变灰。</td></tr>
+  <tr><td>提示行 <code>已选 N 期：…</code></td><td>确认你选了几期、从哪期到哪期。</td><td>没选时是橙色提示。</td></tr>
+  <tr><td><code>导出 N 期 Excel</code></td><td>多期打包成一个 ZIP。</td><td>—</td></tr>
+  <tr><td><code>打印 N 期</code></td><td>多期<strong>合成一份 PDF</strong>，一次打完。</td><td>和单项目导出页的批量打印一致。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>合并报表的硬性要求：各项目必须"同一天都有数据"。</strong><br>
+  你选的那天如果某一侧没测，系统会直接告诉你"某项目最近一期是哪天"，<strong>不会拿旧数据凑一页</strong>。<br>
+  这是故意的：凑出来的册子，日期和数对不上，交出去就是错报表。</p>
+</div>
+
+<h2>6.5　母版库：上传、改名、设适用范围</h2>
+
+<p>入口：项目列表 → 工具栏 <code>母版库</code>。</p>
+
+<div class="tip box">
+  <p><strong>核心概念：母版不属于某个项目。</strong>它自己声明"给哪些项目用"。一份母版可以同时给好几个基坑用——版式一样时，改表头只要重传一次同名母版，原先绑定的项目自动跟过来。</p>
+</div>
+
+<h3>列表</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>上传母版</code></td><td>打开上传弹窗。</td><td>—</td></tr>
+  <tr><td>列 <code>母版名称</code></td><td>名称，带标签 <code>系统内置</code> / <code>合并母版</code>。</td><td>带「合并母版」紫标签的只能用于合并报表。</td></tr>
+  <tr><td>列 <code>作用于哪些项目</code></td><td>通用 / 具体项目列表。</td><td><code>还没绑定任何项目</code> 的母版在导出页里选不到。</td></tr>
+  <tr><td>列 <code>原件</code></td><td><code>在</code>（绿）/ <code>原件缺失</code>（红）。</td><td>原件缺失 = 文件被删了，这份母版用不了，得重传。</td></tr>
+  <tr><td><code>改名</code> / <code>设置适用项目</code></td><td>见下。</td><td>系统内置母版没有这些按钮。</td></tr>
+  <tr><td>下载图标</td><td>下载母版原件（想直接改样板时用）。</td><td>原件缺失时是灰的。</td></tr>
+  <tr><td><code>删除</code></td><td>删掉这份母版。</td><td>会解除它与各项目的绑定，<strong>已经导出的报表不受影响</strong>。</td></tr>
+</table>
+
+<h3>上传弹窗（这里有个顺序坑）</h3>
+
+<table>
+  <tr><th style="width:26%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>母版名称（可留空）</code></td><td>显示名。</td><td>留空就用文件名，上传后也能改。</td></tr>
+  <tr>
+    <td><code>合并母版（多个项目装订成一份）</code><br><span class="kv">开关</span></td>
+    <td>勾上 = 这份母版只能用于「合并报表」，不会出现在单项目导出的下拉里。</td>
+    <td>母版里有<strong>多张数据表、每张装一个项目</strong>时才勾。<br>普通单项目母版<strong>不要勾</strong>——勾了就导不了单项目日报。</td>
+  </tr>
+  <tr><td><code>所有项目通用</code> + 项目多选</td><td>这份母版给谁用。</td><td>不勾通用时必须选至少一个项目，否则导出页里找不到它。</td></tr>
+  <tr>
+    <td><code>选择整卷文件上传</code></td>
+    <td>选 Excel 文件。</td>
+    <td><strong>⚠ 选完文件就立即上传，没有"再确认一次"的步骤。</strong><br>所以顺序是：<u>先填名称 → 先勾合并母版 → 先选作用范围 → 最后才点选文件</u>。反了就会带着空配置上传（或被拦下）。</td>
+  </tr>
+</table>
+
+<h3>设置适用项目 / 改名</h3>
+
+<table>
+  <tr><th style="width:26%">弹窗</th><th>说明</th></tr>
+  <tr><td><code>设置适用项目</code></td><td>勾选项目 + 「所有项目通用」开关。<br>两者都没选会被拦：<code>请至少选一个项目，或者设为「所有项目通用」</code>。<br>把当前项目取消勾选时会二次确认。</td></tr>
+  <tr><td><code>母版改名</code></td><td>只改显示名，文件和布局不受影响。<br>名称不能为空；不能和已有母版重名（同名两个在下拉里分不出来）。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>重传同名母版 = 原地替换：</strong>母版 id 不变，合并报表的绑定不会断。<strong>但请保持文件名/名称一致</strong>——换了名字会被当成新的一份，老的还挂在那儿。</p>
+</div>
+
+<h1>第 7 章　配置</h1>
+
+<h2>7.1　预警规则：四个格子怎么填</h2>
+
+<p>入口：项目列表 → 工具栏 <code>预警规则</code>（规则库视角），或项目行内「更多 → 预警规则」（项目视角）。</p>
+
+<h3>先理解"一套规则"</h3>
+
+<p>一套规则 = <strong>4 行</strong>：沉降·控制值、沉降·报警值、水平位移·控制值、水平位移·报警值。</p>
+
+<p>关键点：<strong>一套规则可以作用于好几个项目</strong>。几个基坑限值一样时，改一次它们一起变。</p>
+
+<h3>弹窗里的控件</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>规则：</code>下拉</td>
+    <td>切换正在编辑哪一套。</td>
+    <td>从项目进来时会自动选中本项目绑定的那套。<br>项目"借用通用规则"时下拉是空的（草稿状态）。</td>
+  </tr>
+  <tr><td><code>新建一套</code></td><td>清空表单新建。</td><td>会清空所有已填数值。</td></tr>
+  <tr><td><code>删除这套</code><br><span class="kv">红字</span></td><td>删掉当前规则套。</td><td>会解除它与各项目的绑定，这些项目改回套用通用规则。<br>有气泡确认。</td></tr>
+  <tr><td><code>规则名称：</code></td><td>如"八号基坑监测方案"。</td><td><strong>新建时必填</strong>；编辑时可留空 = 保持原名。</td></tr>
+  <tr><td><code>来源标注：</code></td><td>如 <code>GB 50497-2019</code>。</td><td>选规范预设时会自动带出。</td></tr>
+  <tr><td><code>所有项目通用</code> + 项目多选</td><td>这套规则给谁用。</td><td>和母版不同：勾了通用之后，<strong>还能再额外指定个别项目</strong>，多选框不会禁用。</td></tr>
+  <tr><td><code>选择规范预设：</code></td><td>一键把某个规范的限值填进 4 行。</td><td><strong>会整体覆盖当前已填的数值</strong>，没有二次确认。改完还能逐格微调。<br>切换规则套时预设下拉会被清空。</td></tr>
+</table>
+
+<h3>阈值表格：三个格子各管什么</h3>
+
+<table>
+  <tr><th style="width:24%">列</th><th style="width:36%">含义</th><th>报表上</th></tr>
+  <tr>
+    <td><code>累计变化限值(mm)</code></td>
+    <td>相对初始值<strong>总共</strong>能变多少。</td>
+    <td><strong>印在「控制值」第一列</strong></td>
+  </tr>
+  <tr>
+    <td><code>本次变化量限值(mm)</code></td>
+    <td>这一期相对上一期<strong>跳了多少</strong>的上限。<strong>不看间隔天数</strong>，隔 3 天测也不会被摊薄。</td>
+    <td><strong>不印</strong>，只参与判定</td>
+  </tr>
+  <tr>
+    <td><code>变化速率限值(mm/d)</code></td>
+    <td>本次变化 ÷ 间隔天数。</td>
+    <td><strong>印在「控制值」第二列</strong></td>
+  </tr>
+</table>
+
+<p>三格都可以留空。<strong>留空 = 这一维不判</strong>（绝不拿 0 当阈值）。判定规则：三样各判一次，<strong>取最严的那一级</strong>：≥报警值 → 报警；≥控制值 → 预警。</p>
+
+<h3>两条硬校验</h3>
+
+<table>
+  <tr><th style="width:28%">情况</th><th>结果</th></tr>
+  <tr>
+    <td>报警值 < 控制值</td>
+    <td><strong>拒绝保存</strong>。红色提示会列出哪一维倒挂，并解释：这样"预警"这一级永远不会出现，一到控制值就直接报警。</td>
+  </tr>
+  <tr>
+    <td>报警值 = 控制值</td>
+    <td>允许，但会提醒：实际只有一级判定（到值就报报警，不会先出预警）。规范做法是报警值比控制值宽一档。</td>
+  </tr>
+</table>
+
+<h3>改共用规则会发生什么</h3>
+
+<div class="warn box">
+  <p><strong>两种情况，结果完全不同，一定要分清：</strong></p>
+  <table style="margin:2mm 0 0;">
+    <tr><th style="width:34%">情况</th><th>保存时</th></tr>
+    <tr>
+      <td>本项目<strong>借用的是通用规则</strong>（自己没有套）</td>
+      <td>系统会<strong>为本项目单独建一套</strong>，不动通用规则、不影响别的项目（自动分叉，安全）。</td>
+    </tr>
+    <tr>
+      <td>本项目<strong>和别的项目共用同一套</strong></td>
+      <td><strong>会一起改掉所有共用项目</strong>，不会自动分叉。界面只给橙色警告 + 保存时二次确认。<br>只想改一个项目，请点「新建一套」并只勾那一个。</td>
+    </tr>
+  </table>
+</div>
+
+<div class="tip box">
+  <p><strong>改完限值之后，旧报表不会自动变。</strong>已经导出的文件里印的还是当时的旧数，需要重新导出；要翻出哪些旧文件已经对不上，用「文件检查」（第 8.2 节）。</p>
+</div>
+
+<h2>7.2　沉降不允许回弹（只沉不升）</h2>
+
+<p>位置：预警规则弹窗，表格下方那个开关。</p>
+
+<p>适用场景：<strong>盖梁支架</strong>这类理论上"只沉不升"的观测。测出来的"回升"是测量误差，不该让曲线掉头。</p>
+
+<table>
+  <tr><th style="width:26%">项</th><th>说明</th></tr>
+  <tr><td>开启后</td><td>累计变化的绝对值<strong>不再变小</strong>；本期被判为回弹时，成果读数取上一期，本次变化记 0、速率记 0。</td></tr>
+  <tr><td>原始读数</td><td><strong>照旧存库，记录页查到的还是实测值。</strong>改的只是成果口径（报表上印的累计和变化）。</td></tr>
+  <tr><td>报表自洽</td><td>「本次测值 − 上次测值」仍然等于「本次变化量」——因为成果读数、变化量、累计都基于同一个数算。</td></tr>
+  <tr><td>作用范围</td><td><strong>只对沉降生效</strong>。水平位移有来有回是真实变形，不会被抹平。</td></tr>
+  <tr><td>默认值</td><td><strong>关闭</strong>。基坑这类可能有真实回弹的场景保持关闭。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>只勾开关不填阈值 = 只锁方向、不锁大小。</strong>回升会被抹平，但一直沉下去也不会报警。要真正约束，必须把「累计变化限值」和「变化速率限值」填上。</p>
+</div>
+
+<p>判定依据是「这一期的累计变化绝对值，是否比上一期小」，基准是<strong>初始值 V0</strong>。所以 V0 填错了，累计、回弹判断、控制值比对会一起错。</p>
+
+<h2>7.3　项目默认值：规则、母版、天气、签名、仪器</h2>
+
+<p>入口：项目列表 → 工具栏 <code>项目默认值</code>。</p>
+
+<div class="tip box">
+  <p><strong>这里只影响以后新建的项目</strong>，已经建好的项目一个都不动。要把已有的项目改成同一套，回列表勾选它们，用「套用规则 / 套用母版」。</p>
+</div>
+
+<table>
+  <tr><th style="width:24%">区块 / 字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>默认预警规则</code></td>
+    <td>新建项目自动绑这套，建完就能判预警。</td>
+    <td>选「不绑定」则靠通用规则兜底。</td>
+  </tr>
+  <tr>
+    <td><code>默认导出母版</code></td>
+    <td>新建项目自动加入这份母版的适用范围。</td>
+    <td>下拉里<strong>只有普通 Excel 母版</strong>（合并母版和 Word 不走这条）。</td>
+  </tr>
+  <tr>
+    <td><code>默认天气</code></td>
+    <td>导出页打开时默认选它。</td>
+    <td>现场每期还能单独改。</td>
+  </tr>
+  <tr>
+    <td><code>天气位置</code><br>输入框 + <code>搜索</code> + 候选下拉 + 位置标签</td>
+    <td>配好后导出日报的天气会按当天当地自动填。</td>
+    <td><strong>中文地名可能搜不到，用拼音更稳</strong>（Jiashan / Jiaxing / Shanghai）。<br>点位置标签上的 × 可清除。</td>
+  </tr>
+</table>
+
+<h3>电子签名</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>每个签字栏一行<br><code>上传</code> / <code>重传</code> / <code>删除</code></td>
+    <td>给每个角色传自己的手写签名（白纸黑字，PNG/JPG 都行）。</td>
+    <td><strong>选完文件立即上传</strong>，不用点保存。<br><strong>没上传的栏留空</strong>，不会拿别人的顶替。<br>也可以直接把 PNG 放进服务器 <code>database/signatures/</code>，文件名用栏名（如 <code>编制.png</code>）。</td>
+  </tr>
+  <tr>
+    <td><code>签名大小</code><br><span class="kv">滑块 24~64</span></td>
+    <td>控制签名在报表里的像素高度。</td>
+    <td>右侧实时显示 px。<strong>拖动不会自动保存</strong>，要点「保存」。</td>
+  </tr>
+  <tr>
+    <td><code>位置微调 — 左右 / 上下</code><br><span class="kv">两个滑块</span></td>
+    <td>左右 ±60px、上下 ±40px。</td>
+    <td>同样要点保存。右侧有灰字显示 <code>→12 / ↓5</code> 这样的方向。</td>
+  </tr>
+  <tr>
+    <td><code>回正</code></td>
+    <td>把两个偏移都归 0。</td>
+    <td>都是 0 时按钮是灰的。</td>
+  </tr>
+  <tr>
+    <td>样张（两张 1:1 示意）</td>
+    <td>左边是签字页那行（压线居中），右边是数据表那行（紧跟文字）。</td>
+    <td>拖动滑块约 0.1 秒后重画。<strong>所见即所得</strong>，导出就是这个尺寸。</td>
+  </tr>
+</table>
+
+<h3>测量仪器</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>已配仪器标签</td>
+    <td>显示配过的仪器，点 × 移除。</td>
+    <td>移除只是本地操作，<strong>点保存才真正写入</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>从常见仪器里选</code><br><span class="kv">可搜型号</span></td>
+    <td>预置了几十款常见水准仪/全站仪，按类别分组。</td>
+    <td>选中<strong>只预填名称和型号</strong>，出厂编号、检定日期还得手填。</td>
+  </tr>
+  <tr>
+    <td>四栏：名称 / 型号 / 出厂编号 / 检定日期 + <code>添加这台仪器</code></td>
+    <td>手输一台仪器。</td>
+    <td><strong>型号为空时「添加」是灰的。</strong><br>检定日期是普通文本框，格式手输（如 <code>2025-10-20</code>）。<br>保存时只有"型号或出厂编号至少一项"的才会存下来。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>哪些即时生效、哪些要保存：</strong><br>
+  <strong>即时</strong>：电子签名的上传 / 删除。<br>
+  <strong>要按「保存」</strong>：三个下拉、天气位置、仪器清单、签名大小、签名左右/上下偏移。<br>
+  <code>重新读取当前设置</code> 会丢弃未保存的修改，且<strong>没有二次确认</strong>。</p>
+</div>

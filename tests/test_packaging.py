@@ -229,11 +229,12 @@ def test_release_ships_the_manual():
     """
     src = BUILD_SCRIPT.read_text(encoding="utf-8")
     assert "BUNDLED_DOCS" in src and "使用说明书" in src, "构建脚本没有把说明书列为随包文档"
-    for doc in (ROOT / "docs" / "使用说明书.html", ROOT / "docs" / "使用说明书.pdf"):
-        assert doc.is_file(), f"说明书不存在：{doc.name}（改完说明记得重新导出 PDF）"
+    # 只发 PDF（用户 2026-11-16 定）：HTML 源留在 docs/manual/，不作为交付物
+    pdf = ROOT / "docs" / "使用说明书.pdf"
+    assert pdf.is_file(), "说明书不存在：使用说明书.pdf（改完说明记得重新导出 PDF）"
+    assert pdf.stat().st_size > 200_000, "PDF 太小，八成是空壳或截图缺失，重导一次"
 
     target = ROOT / "release" / "基坑监测系统-测试版"
     if not target.is_dir():
         pytest.skip("还没有构建过发布包")
-    for name in ("使用说明书.html", "使用说明书.pdf"):
-        assert (target / name).is_file(), f"发布包里缺少 {name}"
+    assert (target / "使用说明书.pdf").is_file(), "发布包里缺少 使用说明书.pdf"

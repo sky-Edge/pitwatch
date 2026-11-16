@@ -1,0 +1,412 @@
+<h1>第 2 章　建项目与测点（第一次用）</h1>
+
+<p class="lead">一个基坑 = 一个「项目」；基坑里的每个观测点 = 一个「测点」。第一次用，先把这两层建起来，之后每天才有地方录数。</p>
+
+<h2>2.1　新建项目：每个字段怎么填</h2>
+
+<p>入口：项目列表页 → 工具栏 <code>新建项目</code>（蓝色主按钮）。</p>
+
+<table>
+  <tr><th style="width:20%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>项目编号</code><br><span class="kv">必填</span></td>
+    <td>项目的唯一编号，列表、报表文件名、导出的日报都用它区分。例如 <code>8号基坑</code>、<code>PRJ001</code>。</td>
+    <td><strong>建好之后不能改</strong>（编辑项目时这一格是灰的）。<br>建议用能一眼对上的写法，别用 <code>001</code> 这种过两天自己都分不清的。</td>
+  </tr>
+  <tr>
+    <td><code>项目名称</code><br><span class="kv">必填</span></td>
+    <td>项目全称，会印在报表封面上（除非合并报表另填了封面工程名称）。</td>
+    <td>可以随时改。报表里出现"工程名称"的地方优先用名字全的那个。</td>
+  </tr>
+  <tr>
+    <td><code>地点</code><br><span class="kv">可空</span></td>
+    <td>工程位置 / 标段，纯备注性质。</td>
+    <td>留空就显示 <code>-</code>，不影响任何计算。</td>
+  </tr>
+  <tr>
+    <td><code>沉降读数：正值代表</code></td>
+    <td>决定报表和文字结论里把"读数的正方向"说成<strong>下沉</strong>还是<strong>隆起</strong>。</td>
+    <td>两个选项：<code>下沉（多数基坑习惯）</code> / <code>隆起 / 上升</code>。<br><strong>填错了不会算错数</strong>，但报表上"下沉/隆起"的说法会反——拿不准就保持默认，它只影响措辞。</td>
+  </tr>
+  <tr>
+    <td><code>水平位移读数：正值代表</code></td>
+    <td>同上，决定位移方向说成<strong>向基坑内</strong>还是<strong>向基坑外</strong>。</td>
+    <td>选项：<code>向基坑内（多数基坑习惯）</code> / <code>向基坑外</code>。</td>
+  </tr>
+</table>
+
+<div class="tip box">
+  <p><strong>一个容易被忽略的点：</strong>项目的编号和名称、方向设置，都可以在项目行的「更多 → 编辑项目」里改（编号除外）。建项目时不用纠结太久。</p>
+</div>
+
+<h2>2.2　先看个示例：不填任何数据先跑通</h2>
+
+<p>入口：项目列表页 → <code>先看个示例</code>（烧瓶图标）。</p>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>先看个示例</code></td>
+    <td>一键建一个演示项目：固定 <strong>8 个测点</strong>、自动配好预警规则、自动生成 <strong>3 期</strong>演示数据。</td>
+    <td>建完就能直接看曲线、导日报，用来熟悉流程。<br>演示项目和你自己建的项目没有区别，用完可以在行内「更多 → 彻底删除」删掉。<br>按钮点击后会转圈，防止连点重复建。</td>
+  </tr>
+</table>
+
+<h2>2.3　批量建项目：一张清单建好几个基坑</h2>
+
+<p>入口：项目列表页 → <code>批量建项目</code>。适用场景：一次测量采集了好几个基坑的点位清单（点号 + X/Y/Z 坐标）。</p>
+
+<div class="warn box">
+  <p><strong>先确认入口别走错：</strong>这里要的是<strong>点位清单</strong>（点号 + 坐标/高程），<u>不是</u>逐期观测台账（那种表里有"观测日期""本次测值"）。逐期台账请进项目后用「Excel 导入」。</p>
+</div>
+
+<h3>第 ①／② 步：上传清单</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>拖拽区 / <code>点击或拖拽清单文件到此处</code></td>
+    <td>上传点位清单（.xlsx / .xlsm / .xls）。</td>
+    <td><strong>一次只能传一个文件</strong>，重新上传会整体覆盖上次的结果。<br>表里只要有点号和坐标/高程就行，有没有表头都能认。</td>
+  </tr>
+  <tr>
+    <td>解析结果条<br><code>读到 N 个点 ｜ 数据表：xxx</code></td>
+    <td>显示识别到多少个点、从哪个 Sheet 读的、各列对应关系。</td>
+    <td>会提示 <code>X/Y 是根据坐标数值大小自动判的，核对一下有没有判反（X 一般 341 万量级，Y 一般 51 万量级）</code>。<strong>这句要认真看</strong>，判反了平面布置图会横竖颠倒。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步：分组与点号规则</h3>
+
+<p>系统会按点号尾部序号猜一次分组（比如 JJC1~JJC8 一组、JJC9~JJC16 一组），猜错可以逐行改。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>所属基坑（可改）</code><br><span class="kv">表格里每一行</span></td>
+    <td>给这个点选一个基坑，可以直接输入新名字。</td>
+    <td>没分组的行整行有底色，一眼能看出来。<br>系统无法自动分组时会提示 <code>没能自动分组，请在表格里给每行选一个基坑（可以勾选多行一起归类）</code>。</td>
+  </tr>
+  <tr>
+    <td>批量归类工具条<br>输入框 <code>归到哪个基坑</code> + 按钮 <code>归到这个基坑</code></td>
+    <td>先勾选多行，再输入基坑名，一次归好。</td>
+    <td>按钮<strong>没勾选行、或名字没填时是灰的</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>项目编号</code> / <code>项目名称</code><br><span class="kv">每组两个输入框</span></td>
+    <td>这组要建成（或复用）哪个项目。</td>
+    <td>如果名字和系统里已有项目一致，会显示 <code>已有项目「xxx」→ 直接用它</code>，<strong>不会重复建</strong>。<br>该项目已有测点时还会提醒你注意点号别撞。</td>
+  </tr>
+  <tr>
+    <td><code>初始值日期</code><br><span class="kv">每组一个，必填</span></td>
+    <td>这一组的初始值（第 0 期）算哪一天测的。</td>
+    <td><strong>没有默认值，必须手选</strong>。没选就点生成会被拦下并点名是哪几组。<br>顶部有 <code>统一设为这一天</code> + <code>应用到全部</code>，多组同一天时用它省事。</td>
+  </tr>
+  <tr>
+    <td><code>点号规则</code><br>前缀 / 起始序号 / 补零位数</td>
+    <td>把清单里的原始点号，按规则重新编成系统里的点号。</td>
+    <td>默认：前缀 <code>JJC</code>、起始序号 <code>1</code>、<code>不补零</code> → 生成 <code>JJC1、JJC2…</code>。<br><strong>组内按清单出现顺序编号</strong>，不沿用表里的原编号。右侧会实时显示区间（如 <code>JJC1 ~ JJC12</code>）。</td>
+  </tr>
+  <tr>
+    <td><code>取消这个分组</code></td>
+    <td>把这一组拆掉，点退回"未分组"。</td>
+    <td><strong>只取消分组，不删点</strong>，重新分就行。</td>
+  </tr>
+</table>
+
+<h3>第 ② 步底部：生成</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>生成 N 个项目（M 个测点）</code><br><span class="kv">主按钮</span></td>
+    <td>一次创建全部项目、测点、初始值记录。</td>
+    <td>点之前会校验三件事：有没有分组、每组有没有选初始值日期、每组有没有填点号前缀。<strong>缺一项就停下并告诉你缺哪组</strong>。<br>同名测点会<strong>跳过</strong>，不会覆盖它的初始值。</td>
+  </tr>
+  <tr>
+    <td><code>重新选择</code></td>
+    <td>清空解析结果和分组，回到上传。</td>
+    <td>已分好的组会一起清掉，注意别误点。</td>
+  </tr>
+</table>
+
+<h3>第 ③ 步：完成</h3>
+
+<p>结果会逐组列出：<code>组名 → 项目「名称」（编号）【新建】/【复用已有】：测点 N 个、初始值 M 条、日期 2026-03-05</code>。有跳过的点会单独点名并给出原因。</p>
+
+<h2>2.4　测点管理：新建、编辑、停用、彻底删除</h2>
+
+<p>入口：项目列表 → 行内「下一步」按钮（<code>先创建测点</code> / <code>录入初始值</code>），或「更多 → 测点管理」。</p>
+
+<h3>页面工具条</h3>
+
+<table>
+  <tr><th style="width:22%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>新建测点</code><br><span class="kv">主按钮</span></td><td>逐个建点。</td><td>见下方字段表。</td></tr>
+  <tr><td><code>批量新建</code><br><span class="kv">加号图标</span></td><td>粘贴多行文本一次建多个点。</td><td>见 2.5。</td></tr>
+  <tr><td><code>观测录入</code></td><td>跳到记录页开始录当天读数。</td><td>测点建好后才有意义。</td></tr>
+  <tr><td><code>显示已停用：</code><br><span class="kv">开关，默认开</span></td><td>是否把停用的测点一起列出来。</td><td>关掉后列表只剩在用点。停用的点数据仍在，只是不再出现在录入表里。</td></tr>
+</table>
+
+<h3>新建 / 编辑测点弹窗</h3>
+
+<table>
+  <tr><th style="width:22%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>测点编号</code><br><span class="kv">必填</span></td>
+    <td>点号，如 <code>JJC1</code>、<code>QC01</code>。项目内唯一。</td>
+    <td><strong>编辑时不能改</strong>。建错点号只能删掉重建。</td>
+  </tr>
+  <tr>
+    <td><code>观测类型</code><br><span class="kv">必填，无默认值</span></td>
+    <td>这个点测什么：<code>沉降</code> / <code>水平位移</code> / <code>沉降 + 水平位移</code>。</td>
+    <td>决定录入时要填几个数：沉降 1 个、位移 2 个（X/Y）、两者都要 3 个。<strong>新建时必须手动选</strong>，不会替你默认。</td>
+  </tr>
+  <tr>
+    <td><code>显式初始值 V0(mm，可选)</code></td>
+    <td>手工指定这个点的初始读数（毫米）。</td>
+    <td><strong>强烈建议留空</strong>——留空时系统取"首期有效读数"作为 V0（推荐默认行为）。<br>只有在你确实有一份独立的初始值采集成果时才填。<br>这里填的是<strong>毫米</strong>，注意和录入时的"米"区分。</td>
+  </tr>
+  <tr>
+    <td><code>位置描述</code></td>
+    <td>现场位置备注，如 <code>1#钢板桩桩顶 / 桩号 K2+100</code>。</td>
+    <td>会显示在顺序录入面板上，方便核对。可空。</td>
+  </tr>
+</table>
+
+<h3>表格与行操作</h3>
+
+<table>
+  <tr><th style="width:26%">列 / 按钮</th><th style="width:32%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>ID</code></td><td>数据库内部编号。</td><td>日常用不到。</td></tr>
+  <tr><td><code>测点编号</code> / <code>类型</code> / <code>位置描述</code></td><td>建点时填的内容。</td><td>位置为空显示 <code>-</code>。</td></tr>
+  <tr><td><code>初始值(mm)</code></td><td>显式指定的 V0（毫米原值）。</td><td>显示的是<strong>毫米</strong>；记录页显示的是<strong>米</strong>，别以为是两套数。</td></tr>
+  <tr><td><code>状态</code></td><td><code>在用</code>（绿）/ <code>已停用</code>（灰）。</td><td>停用不删数据。</td></tr>
+  <tr><td><code>编辑</code></td><td>改名称、类型、初始值、位置。</td><td>停用的点也能编辑。</td></tr>
+  <tr><td><code>停用</code></td><td>软删除：不再出现在录入表里，数据全部保留。</td><td>确认框问 <code>确定停用测点 xxx？</code>。<br><strong>日常建议用这个，不要用删除。</strong></td></tr>
+  <tr><td><code>恢复</code></td><td>把停用点改回在用。</td><td>没有二次确认，点了就恢复。</td></tr>
+  <tr><td><code>删除…</code></td><td><strong>物理删除</strong>：连同该点的全部观测数据、预警事件一起删。</td><td>必须<strong>手动输入测点编号</strong>才能点确认按钮。<br>删除前系统自动备份数据库，但不要依赖它——有数据的点请用「停用」。</td></tr>
+</table>
+
+<h2>2.5　批量新建测点：粘贴一堆点号</h2>
+
+<p>入口：测点管理页 → <code>批量新建</code>。</p>
+
+<h3>第一步：粘贴文本</h3>
+
+<p>文本框里一行一个测点，格式：</p>
+
+<p><code>编号,类型,初始值(mm，可空),位置(可空)</code></p>
+
+<table>
+  <tr><th style="width:24%">字段</th><th>说明</th></tr>
+  <tr><td>编号</td><td>点号。这一格为空的行会被跳过。</td></tr>
+  <tr><td>类型</td><td><code>settlement</code>/<code>沉降</code>、<code>displacement</code>/<code>水平位移</code>、<code>both</code>/<code>沉降+位移</code>。认不出来时按 <code>both</code> 处理。</td></tr>
+  <tr><td>初始值</td><td>毫米。只有能转成数字才写入，写错字就留空（等于走"首期读数自动作废 V0"）。</td></tr>
+  <tr><td>位置</td><td>位置描述。</td></tr>
+</table>
+
+<p>分隔符用逗号、中文逗号、分号、Tab 都可以。表头行（含"编号/点号/point"且只有两格）会自动跳过。</p>
+
+<p>示例：</p>
+<pre style="background:#F1F4F8;padding:3mm;border-radius:1mm;font-size:9.5pt;line-height:1.6;">JJC1,both,4907000,1#钢板桩
+JJC2,settlement,,2#钢板桩
+JJC3,displacement,3413055112,3#钢板桩</pre>
+
+<h3>第二步：预览与创建</h3>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>校验并预览</code></td>
+    <td>先解析、不落库，把每一行的校验结果列出来。</td>
+    <td>一行都没解析出来会提示格式写法。</td>
+  </tr>
+  <tr>
+    <td>预览表格的<code>校验结果</code>列</td>
+    <td>三态：<code>可创建</code>（绿）/ <code>跳过（原因）</code>（橙，通常是已存在）/ <code>错误（原因）</code>（红）。</td>
+    <td>只有「可创建」的会被提交。</td>
+  </tr>
+  <tr>
+    <td><code>← 返回编辑</code></td>
+    <td>回到文本编辑，改完再校验。</td>
+    <td>返回会清空预览行。</td>
+  </tr>
+  <tr>
+    <td><code>确认创建 N 个测点</code></td>
+    <td>真正落库。</td>
+    <td>可创建数为 0 时会提示"没有可创建的测点（全部冲突/错误）"，不提交。</td>
+  </tr>
+</table>
+
+<h2>2.6　测点平面布置图</h2>
+
+<p>测点管理页上方会自动画一张平面图（有坐标数据时才出现）。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td><code>坐标数值</code> <span class="kv">开关，默认开</span></td>
+    <td>在每个点下方显示 X / Y 坐标。</td>
+    <td>点挤在一起时可以关掉。</td>
+  </tr>
+  <tr>
+    <td><code>相邻间距</code> <span class="kv">开关，默认开</span></td>
+    <td>画相邻点之间的虚线和距离（如 <code>12.5 m</code>）。</td>
+    <td>按点号顺序连，不是按实际相邻关系算的。</td>
+  </tr>
+  <tr>
+    <td><code>范围框</code> <span class="kv">开关，默认开</span></td>
+    <td>画所有点的外包虚线矩形。</td>
+    <td><strong>只是包络框，不代表围护结构或基坑边界。</strong></td>
+  </tr>
+  <tr>
+    <td><code>收起图</code> / <code>展开图</code></td>
+    <td>折叠图形，给下方表格让出空间。</td>
+    <td>收起后显示 <code>图已收起（N 个点，范围 W m × H m）</code>。</td>
+  </tr>
+</table>
+
+<div class="warn box">
+  <p><strong>为什么有的点画不上：</strong>平面位置取的是<strong>水平位移的 X/Y 首期读数</strong>。纯沉降点没有 X/Y、或者缺 Y 的点，画不出来。系统会把画不上的点<strong>点名列出来</strong>，不会静默少点。</p>
+</div>
+
+<h1>第 3 章　录数据（每天用）</h1>
+
+<h2>3.1　观测记录页：先认清楚这块界面</h2>
+
+<p>入口：项目内流程第 ② 步 → <code>逐日录入</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr>
+    <td>日期选择器<br><span class="kv">工具条最左，默认今天</span></td>
+    <td>切换"正在录哪一期"。</td>
+    <td>从「需要关注」点进来时会自动定位到有问题的那一天。<br>日期不能清空；<strong>没有测点时是灰的</strong>。</td>
+  </tr>
+  <tr>
+    <td><code>保存本期观测</code><br><span class="kv">蓝色主按钮</span></td>
+    <td>保存当前日期、当前表格里<strong>所有测点</strong>的读数。</td>
+    <td>保存是<strong>整张表</strong>的，不能只存一个点。<br>"留空"也会被保存成一条"缺测"记录——这是有意的，等于告诉系统"这天没测"。</td>
+  </tr>
+  <tr>
+    <td><code>自动生成数据</code><br><span class="kv">闪电图标</span></td>
+    <td>打开演示数据生成器（见 3.5）。</td>
+    <td>日常真实观测不要用它。</td>
+  </tr>
+  <tr>
+    <td><code>总览表格</code> / <code>顺序录入</code><br><span class="kv">分段切换</span></td>
+    <td>两种录入方式。</td>
+    <td>数据是同一份，切换方式不会丢已填的内容。</td>
+  </tr>
+</table>
+
+<h3>日期面板上的标记怎么读</h3>
+
+<table>
+  <tr><th style="width:26%">标记</th><th>含义</th></tr>
+  <tr><td>底色浅红 / 浅金</td><td>这天有<strong>报警</strong> / <strong>预警</strong>。</td></tr>
+  <tr><td>右上角 <code>休</code> / <code>班</code></td><td>法定放假 / 调休上班。</td></tr>
+  <tr><td>左上角蓝点</td><td>这天是<strong>初始值日</strong>（V0 的来源日）。</td></tr>
+  <tr><td>底部横条（红/金/绿）</td><td>这天<strong>已录入</strong>，颜色表示当天最严重的预警等级。</td></tr>
+  <tr><td>日期数字变灰</td><td>周末。</td></tr>
+</table>
+
+<h2>3.2　总览表格录入</h2>
+
+<p>一行 = 一个测点（不是一条记录）。列的含义：</p>
+
+<table>
+  <tr><th style="width:22%">列</th><th style="width:34%">含义</th><th>注意事项</th></tr>
+  <tr><td><code>测点</code> / <code>类型</code></td><td>点号和观测类型。</td><td>类型决定后面三格哪几个能填。</td></tr>
+  <tr><td><code>初始值 V0 (m)</code></td><td>显示该点各观测项的 V0，带来源标签 <code>显式</code> 或 <code>首期</code>。</td><td><strong>这里不能改</strong>。要改 V0 去测点管理页。</td></tr>
+  <tr><td><code>沉降读数 (m)</code></td><td>当天沉降读数，占位符 <code>留空=缺测</code>。</td><td>纯位移点这一格显示 <code>-</code>。</td></tr>
+  <tr><td><code>位移 X (m)</code> / <code>位移 Y (m)</code></td><td>当天水平位移读数。</td><td>纯沉降点这两格显示 <code>-</code>。</td></tr>
+  <tr><td><code>录入状态</code></td><td><code>未录入</code> / <code>已录入</code> / <code>缺测</code> / <code>异常</code> / <code>作废</code>。</td><td>按测点聚合：<strong>只要有一个观测项缺测，整行就显示"缺测"</strong>。</td></tr>
+  <tr><td><code>预警状态</code></td><td><code>正常</code> / <code>预警</code> / <code>报警</code>，或 <code>—</code>。</td><td>报警优先于预警。显示的是<strong>所选日期</strong>那一天的状态。</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>单位要当心：</strong>录入框里填的是<strong>米</strong>（如 <code>2.9775</code>），保存后系统内部按毫米存（<code>2977.5</code>）。测点管理页的「初始值(mm)」那一列显示的是<strong>毫米</strong>原值——两边数字差 1000 倍是正常的。</p>
+</div>
+
+<div class="tip box">
+  <p><strong>录入框没有任何格式校验</strong>（能打字母、能打两个小数点）。提交时系统按数字解析，写错了会保存失败或算出怪数。建议只用数字和小数点，别粘贴带单位的文本。</p>
+</div>
+
+<h2>3.3　顺序录入（键盘流）</h2>
+
+<p>一屏一个测点，适合现场一个一个念着录。切换方式：工具条 <code>顺序录入</code>。</p>
+
+<table>
+  <tr><th style="width:24%">控件 / 按键</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td>进度 <code>第 N / M 个测点</code></td><td>当前在第几个点。</td><td>—</td></tr>
+  <tr><td>进度条 <code>x / y 项已填</code></td><td>已填字段数 / 应有字段数。</td><td>按"这一格有内容"计数，填了字母也算已填。</td></tr>
+  <tr><td>输入框（带后缀 <code>m</code>）</td><td>填读数，标签是 <code>沉降读数</code> / <code>位移 X</code> / <code>位移 Y</code>。</td><td>占位符 <code>留空=缺测</code>。<br>已有值时右侧会显示灰字 <code>已录 x.xxx</code>。</td></tr>
+  <tr><td><code>回车</code></td><td>跳到本点下一格；在最后一格回车 = 跳到下一个点。</td><td>在最后一个点的最后一格回车 = <strong>直接保存</strong>（省一次点击）。</td></tr>
+  <tr><td><code>↑</code> / <code>↓</code></td><td>上一个 / 下一个测点。</td><td>切换后自动聚焦输入框。</td></tr>
+  <tr><td><code>上一个</code> / <code>下一个</code></td><td>同样的切换，用鼠标点。</td><td>第一个点时「上一个」是灰的，最后一个点时「下一个」是灰的。</td></tr>
+  <tr><td><code>保存本期观测</code></td><td>与工具条那个按钮同一个动作。</td><td>最后一个点下方会提示"按回车或点保存即可提交"。</td></tr>
+</table>
+
+<h2>3.4　保存与更正：改一个数会发生什么</h2>
+
+<p>点「保存本期观测」后，系统逐测点比对"你现在填的"和"系统里已有的"：</p>
+
+<table>
+  <tr><th style="width:26%">情况</th><th style="width:34%">系统怎么处理</th><th>你会看到</th></tr>
+  <tr><td>这一期还没有记录</td><td>新增一条（留空的也会新增一条"缺测"记录）。</td><td>汇总提示 <code>保存完成：新增 N 条</code></td></tr>
+  <tr><td>有记录、值没变</td><td>不动。</td><td>如果整张表都没变：<code>本期数据无变化，无需保存</code></td></tr>
+  <tr><td>有记录、值变了</td><td><strong>更正</strong>：旧记录标记为"已被更正"并保留，新值另存一条。</td><td>先弹确认框 <code>确认更正以下数据？</code>，逐行列出 <code>1.234m → 1.240m</code>（或 <code>→ 缺测</code>）</td></tr>
+</table>
+
+<div class="warn box">
+  <p><strong>更正确认框里那句「原值将保留（可追溯），新值生效」不是客套话：</strong>旧读数不会被删，只是不再是"当前有效值"。所以改错了还能查回来，也所以<strong>改历史期会让报表重算</strong>——已经出过的日报不会自动变，需要重新导出。</p>
+</div>
+
+<h2>3.5　自动生成数据：演示与补数</h2>
+
+<p>入口：记录页 → <code>自动生成数据</code>（闪电图标）。用于演示、培训，或在真实数据还没到时先把流程跑通。</p>
+
+<table>
+  <tr><th style="width:24%">字段</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>开始：</code> / <code>结束：</code></td><td>生成的日期范围。默认"今天前 6 天 ~ 今天"。</td><td>结束早于开始会提示。<br>生成范围里的每一天都会有一条读数。</td></tr>
+  <tr><td><code>每日缺测概率：N%</code><br><span class="kv">滑块，默认 0%</span></td><td>每天被随机判为"缺测"的概率（0~50%）。</td><td>想模拟真实台账那种"偶尔漏测"就调大一点；演示用保持 0。</td></tr>
+  <tr><td><code>随机种子（可选，固定可复现）</code></td><td>填一个数，同样参数每次生成同一批数据。</td><td>要在会上演示、想保证每次都一样，就填一个固定值（如 <code>20260801</code>）。</td></tr>
+  <tr><td><code>全站仪观测模式</code><br><span class="kv">开关，默认关</span></td><td>开启后叠加"每次架站"的公共误差：同一期所有位移点会一起偏一点。</td><td>只影响<strong>水平位移</strong>（沉降是水准仪测的，不受影响）。<br>开启后还要填对中误差、定向误差、工作距离。</td></tr>
+</table>
+
+<h3>点「开始生成」之后</h3>
+
+<table>
+  <tr><th style="width:26%">情况</th><th>会发生什么</th></tr>
+  <tr><td>范围内都是空日期</td><td>直接生成，不打扰你。</td></tr>
+  <tr><td>范围内已有数据</td><td>弹窗问你怎么办，三个选项见下。</td></tr>
+</table>
+
+<table>
+  <tr><th style="width:30%">选项</th><th style="width:36%">含义</th><th>什么时候选</th></tr>
+  <tr>
+    <td><code>跳过它们，只填空白的那 N 天</code></td>
+    <td>已有数据一律不动。</td>
+    <td><strong>涉及真实数据时的默认选项</strong>，也是最安全的。</td>
+  </tr>
+  <tr>
+    <td><code>替换掉自动生成的那 N 天</code></td>
+    <td>只重做系统自己生成的演示数据，真实数据仍然跳过。</td>
+    <td>之前造过演示数据、想重新造一批。</td>
+  </tr>
+  <tr>
+    <td><code>连真实数据一起替换（N 天 / 约 M 条）</code></td>
+    <td>真实读数会被顶替——<strong>但原值不删除，标记为「作废」保留</strong>。</td>
+    <td>基本不要选。选了会弹红色警告，并建议你先去「数据备份」做快照。</td>
+  </tr>
+</table>
+
+<p>生成完成后，结果会以卡片形式<strong>留在页面上</strong>（弹窗会自动关闭），列出"生成了多少条、替换了几条、跳过几天"，还会给一张"原读数 → 新读数"的对照表，让你确认数据确实换过了。</p>
+
+<table>
+  <tr><th style="width:24%">控件</th><th style="width:34%">作用</th><th>注意事项</th></tr>
+  <tr><td><code>收起</code></td><td>关掉结果卡片。</td><td>再生成一次也会覆盖。</td></tr>
+  <tr><td><code>清理自动生成的数据</code><br><span class="kv">红色小按钮，在生成弹窗里</span></td><td>删除<strong>整个项目</strong>的全部自动生成数据。</td><td><strong>没有日期范围限制</strong>——点一下清的是这个项目所有演示数据，不是当前选的区间。<br>真实录入/导入的数据不受影响。<br>操作前有气泡确认。</td></tr>
+</table>
