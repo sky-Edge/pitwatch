@@ -44,12 +44,25 @@ def _series_rows(db: Session, project_id: int, obs_date: date) -> list[dict]:
     """
     out: list[dict] = []
     points = [p for p in list_points(db, project_id, include_inactive=False)]
+    # ⚡ 一次取回整个项目的记录 + 每个指标只取一次规则，避免逐点逐分量各查一遍。
+    # 导出是高频操作（每天每项目一次），原来 62 个点要发 154 条查询。
+    by_point = observation_repo.group_by_point(
+        observation_repo.list_by_project(db, project_id, active_only=True)
+    )
+    limits_cache: dict[str, object] = {}
     for p in points:
+        point_records = by_point.get(p.id, [])
         sts = ["settlement", "displacement"] if p.point_type == "both" else [p.point_type]
         for st in sts:
+            if st not in limits_cache:
+                from backend.services.warning_service import rule_limits
+
+                limits_cache[st] = rule_limits(db, project_id, st)
             comps = ["value"] if st == "settlement" else ["X", "Y"]
             for comp in comps:
-                rows = calc_service.compute_point_series(db, p, st, comp)
+                rows = calc_service.compute_point_series(
+                    db, p, st, comp, records=point_records, limits=limits_cache[st]
+                )
                 if not rows:
                     continue
                 # 找 target 行（该日有效）
