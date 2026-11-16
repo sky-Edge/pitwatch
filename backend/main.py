@@ -271,18 +271,29 @@ if _static_dir is not None:
     from starlette.types import Scope
 
     class CachedStaticFiles(StaticFiles):
-        """带缓存的静态文件。
+        """带缓存 + 传输压缩的静态文件。
 
         【为什么要自己写】
         2026-10-29 用户反馈「打开网站很慢」，实测悉尼节点下行只有 **17 KB/s**，
-        前端主包 869 KB 要传 50 多秒。而 `StaticFiles` 默认**不发 Cache-Control**，
-        浏览器每次打开都要重新验证/下载 —— 慢上加慢。
+        而 `StaticFiles` 默认**不发 Cache-Control**，浏览器每次打开都要重新验证/下载。
 
         【缓存策略】
         · `assets/*`：Vite 产物文件名带内容 hash（`index-DTWSWfWM.js`），
           改内容必改名，所以可以 `immutable` 缓存一年，浏览器**连请求都不发**。
         · `index.html`：绝对不能缓存 —— 否则用户永远拿不到新版本的前端。
+
+        【传输压缩 2026-11-16】
+        `StaticFiles` 不压缩：主包 1.4MB 原样下发，在"悉尼节点 + 国内链路"上要传一分多钟，
+        用户看到的就是"页面一直白着、很卡"。gzip 后 1.4MB → 442KB，首屏等待少三分之二。
+        按 (路径, mtime) 缓存压缩结果，压缩只发生在部署后的第一次请求。
+        没挂 `GZipMiddleware` 是因为它只包 API 的 JSON，流式的 FileResponse 压不到。
         """
+
+        #: {相对路径: (mtime, gzip 字节)}
+        _gz_cache: dict[str, tuple[float, bytes]] = {}
+
+        #: 值得压的类型（图片/字体已经压过，再压是白烧 CPU）
+        _GZ_EXT = (".js", ".css", ".svg", ".json", ".map", ".txt", ".html")
 
         async def get_response(self, path: str, scope: Scope) -> Response:
             response = await super().get_response(path, scope)
@@ -291,12 +302,67 @@ if _static_dir is not None:
             # 用 path 判断会漏掉首页 → 首页被缓存一小时 → 部署新版本后用户拿旧 index.html、
             # 再去请求已被删掉的旧 JS，**整页白屏**。（第一版就是这么写的，实测发现。）
             ctype = response.headers.get("content-type", "")
-            if path.startswith("assets/"):
+            # 不同 Starlette 版本传进来的 path 可能带前导斜杠（"/assets/x.js"），
+            # 统一规范化再判断 —— 否则 assets 会被当成普通文件只缓存 1 小时。
+            # 分隔符要归一：Windows 上 StaticFiles 传进来的是 `assets\index-x.js`（反斜杠），
+            # Linux 上是正斜杠。只判断 "assets/" 会让 Windows 本地跑的时候永远走不到长缓存分支
+            # （实测：本地 8097 端口返回 max-age=3600，而不是 immutable）。
+            rel = (path or "").replace("\\", "/").lstrip("/")
+            if not rel.startswith("assets/"):
+                if "text/html" in ctype:
+                    response.headers["Cache-Control"] = "no-cache, must-revalidate"
+
+            gz = self._gzip_for(path, scope)
+            if gz is not None:
+                headers = {
+                    k: v for k, v in response.headers.items() if k.lower() != "content-length"
+                }
+                headers["Content-Encoding"] = "gzip"
+                headers["Vary"] = "Accept-Encoding"
+                response = Response(content=gz, headers=headers)
+
+            if rel.startswith("assets/"):
                 response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
             elif "text/html" in ctype:
                 response.headers["Cache-Control"] = "no-cache, must-revalidate"
             else:
                 response.headers["Cache-Control"] = "public, max-age=3600"
             return response
+
+        def _gzip_for(self, path: str, scope: Scope) -> bytes | None:
+            """需要压且客户端支持时返回压缩后的字节；否则 None（走原响应）。"""
+            import gzip as _gzip
+            from pathlib import Path as _Path
+
+            if not path or not path.endswith(self._GZ_EXT):
+                return None
+            # 客户端支不支持 gzip：scope["headers"] 是 [(b"accept-encoding", b"...")]
+            accepted = ""
+            for k, v in scope.get("headers") or []:
+                if k.lower() == b"accept-encoding":
+                    accepted = v.decode("latin-1").lower()
+                    break
+            if "gzip" not in accepted:
+                return None
+
+            full = _Path(self.directory) / path
+            try:
+                mtime = full.stat().st_mtime
+            except OSError:
+                return None
+            hit = self._gz_cache.get(path)
+            if hit is not None and hit[0] == mtime:
+                return hit[1]
+
+            try:
+                raw = full.read_bytes()
+            except OSError:
+                return None
+            # 太小的文件压了反而更大（gzip 头 18 字节起），别费这个劲
+            if len(raw) < 1024:
+                return None
+            packed = _gzip.compress(raw, compresslevel=6)
+            self._gz_cache[path] = (mtime, packed)
+            return packed
 
     app.mount("/", CachedStaticFiles(directory=str(_static_dir), html=True), name="frontend")
