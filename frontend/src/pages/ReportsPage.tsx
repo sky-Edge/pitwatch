@@ -37,7 +37,6 @@ interface Props {
 
 /** 记住每个项目上次用的导出模板与天气 —— 现场每次导出口径一致，不必重选。 */
 const tplPrefKey = (projectId: number) => `monitor.report.tpl.${projectId}`
-const weatherPrefKey = (projectId: number) => `monitor.report.weather.${projectId}`
 
 function readPref(key: string): string | null {
   try {
@@ -152,15 +151,12 @@ export default function ReportsPage({ projectId, onBack }: Props) {
       setInstruments(Array.isArray(list) ? list : [])
       setInstrumentId((prev) => (prev !== undefined && prev < list.length ? prev : list.length ? 0 : undefined))
 
-      const rememberedWeather = readPref(weatherPrefKey(projectId))
-      if (rememberedWeather) {
-        setWeather(rememberedWeather)
-      } else {
-        // 本项目还没选过天气 → 用主界面「项目默认值」里配的全站默认天气。
-        // 取不到就算了（旧后端没有 /settings），保持页面里那个初始值。
-        const cfg = await settingsApi.get().catch(() => null)
-        if (cfg?.default_weather) setWeather(cfg.default_weather)
-      }
+      // 天气：**默认自动**（用户 2026-11-16：「把天气默认设置为自动获取」）。
+      // 以前这里会先读"上次给这个项目选过的天气"，于是只要选过一次「晴」，
+      // 以后每天都自动填「晴」—— 和"自动获取"正好相反，且填错了没人会发现。
+      // 现在只认「项目默认值」里配的那一项；没配就是空串 = 自动按位置查当天。
+      const cfg = await settingsApi.get().catch(() => null)
+      setWeather(cfg?.default_weather ?? '')
     } catch (e) {
       message.error((e as Error).message)
     }
@@ -171,10 +167,9 @@ export default function ReportsPage({ projectId, onBack }: Props) {
     setTemplateId(id)
     writePref(tplPrefKey(projectId), id === undefined ? null : String(id))
   }
-  const pickWeather = (w: string) => {
-    setWeather(w)
-    writePref(weatherPrefKey(projectId), w)
-  }
+  // 天气不再"记住上次选的"：默认自动，用户在这里改只影响本次导出。
+  // 要长期固定用某个天气，去主界面「项目默认值」里配（那是全站默认）。
+  const pickWeather = (w: string) => setWeather(w)
 
   useEffect(() => {
     void loadAll()
@@ -725,11 +720,6 @@ export default function ReportsPage({ projectId, onBack }: Props) {
               刷新
             </Button>
           </Space>
-
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            当前模板：
-            {selectedTpl ? `${selectedTpl.is_builtin ? '系统标准' : '我的模板'}「${selectedTpl.name}」` : '未选择'}
-          </Typography.Text>
 
           {batchDates.length > 0 ? (
             <div>
