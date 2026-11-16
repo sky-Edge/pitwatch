@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Card, DatePicker, Input, Modal, Select, Space, Tooltip, Typography, Upload, message } from 'antd'
 import {
+  CalendarOutlined,
   EditOutlined,
   EyeOutlined,
   FileExcelOutlined,
@@ -62,6 +63,17 @@ function writePref(key: string, value: string | null) {
 
 export default function ReportsPage({ projectId, onBack }: Props) {
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null)
+  /**
+   * 期次选择的弹窗状态。
+   *
+   * 【为什么要从"内联日历"改成弹窗】（用户 2026-11-16）
+   * 内联 RangePicker 的面板是浮层：窗口一窄它就往上弹，被视口顶部切掉，
+   * 最上面几行日期直接看不见；而且它盖住的正好是「报告模板」和「体检通过」。
+   * 收进弹窗后，日历有整屏可用，怎么都不遮、也不会被裁。
+   */
+  const [periodOpen, setPeriodOpen] = useState(false)
+  const [draft, setDraft] = useState<[Dayjs | null, Dayjs | null] | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [dates, setDates] = useState<string[]>([])
   const [templates, setTemplates] = useState<ExportTemplateInfo[]>([])
   const [templateId, setTemplateId] = useState<number | undefined>(undefined) // undefined = 内置标准
@@ -175,6 +187,14 @@ export default function ReportsPage({ projectId, onBack }: Props) {
     const e = range[1].format('YYYY-MM-DD')
     return dates.filter((d) => d >= s && d <= e)
   }, [range, dates])
+
+  /** 弹窗里当前区间选中了哪几期（只用于弹窗内的实时提示，不改主界面状态） */
+  const draftPicked = useMemo(() => {
+    if (!draft?.[0] || !draft?.[1]) return []
+    const a = draft[0].format('YYYY-MM-DD')
+    const b = draft[1].format('YYYY-MM-DD')
+    return dates.filter((d) => d >= a && d <= b)
+  }, [draft, dates])
 
   const singleDate = batchDates.length === 1 ? batchDates[0] : undefined
 
@@ -650,15 +670,24 @@ export default function ReportsPage({ projectId, onBack }: Props) {
 
           <Space wrap>
             <span>
-              选择期次（观测日期，起止选同一天=单期，框选区间=多期）：
-              <DatePicker.RangePicker
+              期次：
+              {range?.[0] && range?.[1] ? (
+                <Typography.Text strong style={{ marginLeft: 6 }}>
+                  {range[0].format('YYYY-MM-DD')} ~ {range[1].format('YYYY-MM-DD')}
+                </Typography.Text>
+              ) : (
+                <Typography.Text type="secondary" style={{ marginLeft: 6 }}>
+                  未选择
+                </Typography.Text>
+              )}
+              <Button
+                size="small"
+                icon={<CalendarOutlined />}
                 style={{ marginLeft: 8 }}
-                value={range}
-                onChange={(v) => setRange(v as [Dayjs | null, Dayjs | null] | null)}
-                disabledDate={(d) => !d || !dates.includes(d.format('YYYY-MM-DD'))}
-                placeholder={['起始日期（或单期日期）', '截止日期']}
-                {...calendarPanel}
-              />
+                onClick={() => setPeriodOpen(true)}
+              >
+                选期次
+              </Button>
             </span>
             {instruments.length > 0 && (
               <span>
@@ -879,6 +908,86 @@ export default function ReportsPage({ projectId, onBack }: Props) {
         doc={previewDoc}
         loading={previewing}
       />
+
+      <Modal
+        title="选择期次"
+        open={periodOpen}
+        onCancel={() => setPeriodOpen(false)}
+        onOk={() => {
+          setRange(draft)
+          setPeriodOpen(false)
+        }}
+        okText="用这个区间"
+        width={720}
+        afterOpenChange={(o) => {
+          if (o) {
+            setDraft(range)
+            // 一打开就把日历摊开：既然已经在弹窗里了，再让人点一次输入框是多余的一步
+            window.setTimeout(() => setPickerOpen(true), 120)
+          } else {
+            setPickerOpen(false)
+          }
+        }}
+      >
+        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            起止选同一天 = 单期；框一段 = 多期。日历上有底部横条的日子才有观测数据，其余日期选不了。
+          </Typography.Text>
+
+          <DatePicker.RangePicker
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            style={{ width: '100%' }}
+            value={draft}
+            onChange={(v) => setDraft(v as [Dayjs | null, Dayjs | null] | null)}
+            disabledDate={(d) => !d || !dates.includes(d.format('YYYY-MM-DD'))}
+            placeholder={['起始日期（或单期日期）', '截止日期']}
+            {...calendarPanel}
+          />
+
+          <Space wrap size={8}>
+            <Button
+              size="small"
+              onClick={() => {
+                if (!dates.length) return
+                const last = dates[dates.length - 1]
+                const from = dayjs(last).subtract(6, 'day').format('YYYY-MM-DD')
+                const hit = dates.filter((d) => d >= from && d <= last)
+                if (hit.length) setDraft([dayjs(hit[0]), dayjs(hit[hit.length - 1])])
+              }}
+            >
+              最近 7 天
+            </Button>
+            <Button
+              size="small"
+              onClick={() => {
+                if (!dates.length) return
+                const last = dates[dates.length - 1]
+                const from = dayjs(last).subtract(29, 'day').format('YYYY-MM-DD')
+                const hit = dates.filter((d) => d >= from && d <= last)
+                if (hit.length) setDraft([dayjs(hit[0]), dayjs(hit[hit.length - 1])])
+              }}
+            >
+              最近 30 天
+            </Button>
+            <Button
+              size="small"
+              disabled={!dates.length}
+              onClick={() => setDraft([dayjs(dates[0]), dayjs(dates[dates.length - 1])])}
+            >
+              全部期次
+            </Button>
+            <Button size="small" onClick={() => setDraft(null)}>
+              清空
+            </Button>
+            <Typography.Text type={draftPicked.length ? 'success' : 'warning'} style={{ fontSize: 12 }}>
+              {draftPicked.length
+                ? `已选 ${draftPicked.length} 期：${draftPicked[0]} ~ ${draftPicked[draftPicked.length - 1]}`
+                : '还没选日期'}
+            </Typography.Text>
+          </Space>
+        </Space>
+      </Modal>
 
       {/* 体检里「没配控制值」这类问题，导出的数就来自这里 —— 就地开弹窗改，别让人去别页找 */}
       <WarningRulesModal

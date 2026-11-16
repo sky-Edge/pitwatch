@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Button,
@@ -42,6 +42,7 @@ import {
   settingsApi,
   warningRuleApi,
   type ExportTemplateInfo,
+  type DailyProgress,
   type Project,
   type ProjectAttention,
   type ProjectBrief,
@@ -107,6 +108,26 @@ export default function ProjectsPage({
   const [briefs, setBriefs] = useState<Record<number, ProjectBrief>>({})
   /** 每个项目的关注项（"要不要管"） */
   const [attention, setAttention] = useState<Record<number, ProjectAttention>>({})
+  /** 今日进度：填数据 + 出报都完成才算完成（用户 2026-11-16 要求能一眼区分今天做了哪些项目） */
+  const [todayProgress, setTodayProgress] = useState<DailyProgress | null>(null)
+  const [progressFilter, setProgressFilter] = useState<'all' | 'undone' | 'done'>('all')
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setTodayProgress(await projectApi.dailyProgress())
+      } catch {
+        // 今日进度是附加信息，取不到就当没显示，不打扰用户
+      }
+    })()
+  }, [])
+
+  /** 「今天做完没有」的三种视图：全部 / 今日未完成 / 今日已完成 */
+  const shownProjects = useMemo(() => {
+    if (progressFilter === 'all' || !todayProgress) return projects
+    const done = new Set(todayProgress.done)
+    return projects.filter((p) => (progressFilter === 'done' ? done.has(p.id) : !done.has(p.id)))
+  }, [projects, todayProgress, progressFilter])
   const [loading, setLoading] = useState(false)
   /** 列表范围：false = 仅进行中项目；true = 含已归档 */
   const [includeInactive, setIncludeInactive] = useState(false)
@@ -761,6 +782,43 @@ export default function ProjectsPage({
       },
     },
     {
+      title: '今日进度',
+      width: 132,
+      render: (_, record) => {
+        if (!record.is_active) return <span className="kv">—</span>
+        if (!todayProgress) return <span className="kv">—</span>
+        const filled = todayProgress.filled.includes(record.id)
+        const exported = todayProgress.exported.includes(record.id)
+        // 两件都做完才算「今日完成」—— 只填了数据还没出报，等于今天这期还没交出去
+        if (filled && exported) {
+          return (
+            <Tooltip title={`今天已录入数据、已导出/打印日报（${todayProgress.date}）`}>
+              <Tag color="green">今日完成</Tag>
+            </Tooltip>
+          )
+        }
+        if (filled) {
+          return (
+            <Tooltip title="今天的数据已经录完，还差导出/打印日报">
+              <Tag color="gold">待出报</Tag>
+            </Tooltip>
+          )
+        }
+        if (exported) {
+          return (
+            <Tooltip title="今天出过报，但还没有录入当天的观测数据">
+              <Tag color="blue">待填数据</Tag>
+            </Tooltip>
+          )
+        }
+        return (
+          <Tooltip title="今天还没录入数据、也没出报">
+            <Tag>未开始</Tag>
+          </Tooltip>
+        )
+      },
+    },
+    {
       title: '下一步',
       width: 170,
       className: 'no-print',
@@ -979,6 +1037,17 @@ export default function ProjectsPage({
               ]}
             />
             {includeInactive && <Tag>含 {projects.filter((p) => !p.is_active).length} 个已归档项目</Tag>}
+            <Tooltip title="填了数据 + 出了报，两件都做完才算「今日完成」">
+              <Segmented
+                value={progressFilter}
+                onChange={(v) => setProgressFilter(v as 'all' | 'undone' | 'done')}
+                options={[
+                  { label: '今日全部', value: 'all' },
+                  { label: '未做完', value: 'undone' },
+                  { label: '已做完', value: 'done' },
+                ]}
+              />
+            </Tooltip>
           </Space>
 
           {/* 勾选后才出现：一次对多个项目做同一件事（本来要一个个点进去） */}
@@ -1045,7 +1114,7 @@ export default function ProjectsPage({
         rowKey="id"
         loading={loading}
         columns={columns}
-        dataSource={projects}
+        dataSource={shownProjects}
         // 勾选是批量操作的入口。跨页保留（selectedIds 记在状态里），
         // 否则"翻到第 2 页勾一个"会把第 1 页勾的全丢掉。
         rowSelection={{
@@ -1058,7 +1127,7 @@ export default function ProjectsPage({
         // 否则没有弹性列可压，antd 会把最宽的那列挤成一条竖线。
         // 现在各列合计 1550 + 勾选列 ≈ 1598，取 1600。加列/改宽时记得同步这个数。
         // （1600 是照着"1680 宽窗口下不出现横向滚动"定的；屏幕更窄时才会滚，属正常）
-        scroll={{ x: 1600 }}
+        scroll={{ x: 1640 }}
       />
 
       <Modal

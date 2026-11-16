@@ -5,7 +5,7 @@
 """
 from datetime import date
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from backend.core.db import get_db
@@ -21,6 +21,8 @@ from backend.services import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 brief_router = APIRouter(prefix="/project-briefs", tags=["projects"])
 attention_router = APIRouter(prefix="/project-attention", tags=["projects"])
+#: 今日进度：填数据 + 出报两件都做了才算完成（项目列表的「今日进度」列用）
+progress_router = APIRouter(prefix="/daily-progress", tags=["projects"])
 
 
 @router.get("", response_model=list[ProjectRead])
@@ -58,6 +60,21 @@ def create_sample_project(
 def project_briefs(db: Session = Depends(get_db)):
     """全部项目的「一句结论」速览（列表页卡片用）。"""
     return project_brief_service.all_project_headlines(db)
+
+
+@progress_router.get("")
+def daily_progress(
+    day: str = Query("", alias="date", description="YYYY-MM-DD，留空=今天"),
+    db: Session = Depends(get_db),
+):
+    """今天哪些项目填了数据、哪些出过报。只返回 id 列表，前端自己配项目表用。"""
+    from backend.services import daily_progress_service
+
+    try:
+        target = date.fromisoformat(day) if day else date.today()
+    except ValueError:
+        raise HTTPException(status_code=422, detail=f"日期格式不对：{day}（应为 YYYY-MM-DD）") from None
+    return daily_progress_service.daily_progress(db, target)
 
 
 @attention_router.get("")

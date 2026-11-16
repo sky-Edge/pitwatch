@@ -169,3 +169,12 @@
   outline: 2px solid var(--wm-brand-primary);
   outline-offset: 2px;
 }
+
+
+/* 日期面板：面板本身必须是不透明白底。
+   用户 2026-11-16 报障「日期格子里的数字被页面文字盖住」——不管父级出了什么状况，
+   这里兜一道底：白底 + 描边，保证日期数字永远看得清。 */
+.ant-picker-dropdown .ant-picker-panel-container {
+  background: var(--wm-neutral-white);
+  border: 0.5px solid var(--wm-grid-line);
+}

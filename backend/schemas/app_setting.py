@@ -11,7 +11,8 @@ class AppSettingsRead(BaseModel):
     #: 新建项目自动加入适用范围的 Excel 母版 id（None = 不挂）
     default_template_id: int | None = None
     #: 新建项目的默认导出天气
-    default_weather: str = "晴"
+    #: 空串 = 自动（导出时按「天气位置」查当天天气）；用户 2026-11-16 要求默认自动
+    default_weather: str = ""
     #: 「文件检查」扫的那个共同文件夹（导出日报统一存放处）
     audit_folder: str | None = None
     #: 上次检查完成时间（ISO 字符串）—— 用来做"超过 7 天就提醒补扫"

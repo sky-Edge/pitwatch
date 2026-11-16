@@ -154,6 +154,7 @@ async def _log_failed_requests(request: Request, call_next):
 app.include_router(projects.router, prefix=settings.api_prefix)
 app.include_router(projects.brief_router, prefix=settings.api_prefix)
 app.include_router(projects.attention_router, prefix=settings.api_prefix)
+app.include_router(projects.progress_router, prefix=settings.api_prefix)
 app.include_router(points.project_points_router, prefix=settings.api_prefix)
 app.include_router(points.point_router, prefix=settings.api_prefix)
 app.include_router(records.records_router, prefix=settings.api_prefix)

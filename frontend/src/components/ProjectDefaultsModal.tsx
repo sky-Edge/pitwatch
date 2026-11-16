@@ -8,7 +8,8 @@ import { reportApi, settingsApi, warningRuleApi, type ExportTemplateInfo, type W
 
 
 
-const WEATHERS = ['晴', '多云', '阴', '小雨', '中雨', '大雨']
+/** 空串 = 自动（导出时按下面的天气位置查当天）；其余为手工指定 */
+const WEATHERS = ['', '晴', '多云', '阴', '小雨', '中雨', '大雨']
 
 
 
@@ -103,7 +104,7 @@ export default function ProjectDefaultsModal({
 
   const [presets, setPresets] = useState<InstrumentPreset[]>([])
 
-  const [weather, setWeather] = useState('晴')
+  const [weather, setWeather] = useState('')
 
   const [loading, setLoading] = useState(false)
 
@@ -211,7 +212,7 @@ export default function ProjectDefaultsModal({
 
       setTemplateId(cfg.default_template_id)
 
-      setWeather(cfg.default_weather || '晴')
+      setWeather(cfg.default_weather ?? '')
 
       setLoc((cfg as { weather_location?: WeatherLoc | null }).weather_location ?? null)
 
@@ -475,7 +476,7 @@ export default function ProjectDefaultsModal({
 
             onChange={setWeather}
 
-            options={WEATHERS.map((w) => ({ value: w, label: w }))}
+            options={WEATHERS.map((w) => ({ value: w, label: w || '自动' }))}
 
           />
 
@@ -929,7 +930,7 @@ export default function ProjectDefaultsModal({
 
               <li>挂上母版：{tplName ? `「${tplName}」` : '不挂（用系统标准版式）'}</li>
 
-              <li>默认天气：{weather}</li>
+              <li>默认天气：{weather || '自动'}</li>
 
             </ul>
 

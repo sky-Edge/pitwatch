@@ -26,7 +26,8 @@ DEFAULTS: dict[str, object] = {
     #: 新建项目自动加入适用范围的母版（None = 不自动挂）
     "default_template_id": None,
     #: 新建项目导出日报时的默认天气
-    "default_weather": "晴",
+    # 空串 = 自动查当天天气（不再替用户默认成「晴」）
+    "default_weather": "",
     #: 「文件检查」要扫的那个"共同文件夹"（导出日报统一存放处）
     "audit_folder": None,
     #: 上次检查完成的时间（ISO 字符串）—— 用来做"打开系统时若超过 7 天就补扫一遍"

@@ -147,7 +147,18 @@ export interface ProjectAttention {
   needs_observation: boolean
 }
 
+/** 今日进度：填了数据的项目 / 出过报的项目 / 两件都做了的项目（都是 id） */
+export interface DailyProgress {
+  date: string
+  filled: number[]
+  exported: number[]
+  done: number[]
+}
+
 export const projectApi = {
+  /** 今天哪些项目填了数据、哪些出过报（填数据 + 出报都完成才算「今日完成」） */
+  dailyProgress: (day?: string) =>
+    http.get<DailyProgress>('/daily-progress', { params: day ? { date: day } : {} }).then((r) => r.data),
   list: (includeInactive = true) =>
     http.get<Project[]>('/projects', { params: { include_inactive: includeInactive } }).then((r) => r.data),
   create: (data: ProjectInput) => http.post<Project>('/projects', data).then((r) => r.data),

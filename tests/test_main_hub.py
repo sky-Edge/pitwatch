@@ -114,7 +114,9 @@ def test_settings_defaults_then_update(client) -> None:
     # 而它想验的是"默认什么都没绑"，不是"键的集合正好这么多"。
     assert cfg["default_rule_set_id"] is None
     assert cfg["default_template_id"] is None
-    assert cfg["default_weather"] == "晴"
+    # 空串 = 自动（导出时按「天气位置」查当天）。用户 2026-11-16 要求默认自动，
+    # 不再替用户默认成「晴」——填错天气比不填更容易误导。
+    assert cfg["default_weather"] == ""
     assert cfg["audit_folder"] is None
     assert cfg["audit_last_run"] is None
     # 2026-10-20：生成数据是否带预警，默认开（保持原本"像真实台账"的行为）

@@ -3,6 +3,7 @@
 from backend.models.app_setting import AppSetting
 from backend.models.base import Base
 from backend.models.backup_record import BackupRecord
+from backend.models.export_log import ExportLog
 from backend.models.export_template import ExportTemplate
 from backend.models.export_template_link import ExportTemplateProject
 from backend.models.import_batch import ImportBatch
@@ -14,4 +15,4 @@ from backend.models.warning_event import WarningEvent
 from backend.models.warning_rule import WarningRule
 from backend.models.warning_rule_set import WarningRuleSet, WarningRuleSetProject
 
-__all__ = ["Base", "Project", "MeasurementPoint", "ObservationRecord", "ImportBatch", "WarningRule", "WarningEvent", "BackupRecord", "ExportTemplate", "ExportTemplateProject", "WarningRuleSet", "WarningRuleSetProject", "AppSetting", "ReportGroup", "ReportGroupItem"]
+__all__ = ["Base", "Project", "MeasurementPoint", "ObservationRecord", "ImportBatch", "WarningRule", "WarningEvent", "BackupRecord", "ExportTemplate", "ExportTemplateProject", "ExportLog", "WarningRuleSet", "WarningRuleSetProject", "AppSetting", "ReportGroup", "ReportGroupItem"]

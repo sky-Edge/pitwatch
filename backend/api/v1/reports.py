@@ -37,6 +37,14 @@ def _brief_summary(info: dict | None) -> dict:
     return {k: info[k] for k in _SUMMARY_KEYS if (info or {}).get(k)}
 
 
+def _log_export(db, project_id: int, dates, kind: str) -> None:
+    """记一条导出日志（供项目列表的「今日进度」用）。**绝不影响导出本身**。"""
+    from backend.services import daily_progress_service
+
+    ds = [d if isinstance(d, str) else d.isoformat() for d in dates if d]
+    daily_progress_service.record_export(db, project_id, ds, kind)
+
+
 def _stream_response(buf, filename: str, info: dict | None = None) -> Response:
     """文件下载响应（中文文件名 URL 编码）。
 
@@ -161,6 +169,7 @@ def export_excel(
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    _log_export(db, project_id, [info.get("obs_date") or (obs_date.isoformat() if obs_date else "")], "excel")
     return _stream_response(buf, filename, info)
 
 
@@ -256,6 +265,7 @@ def export_pdf(
     except PdfConvertError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
 
+    _log_export(db, project_id, wanted, "pdf")
     stem = first_name.rsplit(".", 1)[0] if "." in first_name else first_name
     name = f"{stem}.pdf" if len(wanted) == 1 else f"{stem}_等{len(wanted)}期.pdf"
     return Response(
@@ -373,6 +383,9 @@ def export_excel_batch(
             lines = [f"{d}：{msg}" for d, msg in errors]
             zf.writestr("生成失败清单.txt", "\n".join(lines) + "\n")
 
+    ok_dates = [d for d in dates if d.isoformat() not in {e[0] for e in errors}]
+    _log_export(db, project_id, ok_dates, "excel")
+
     if not errors:
         n = len(dates)
         first, last = dates[0], dates[-1]
@@ -392,6 +405,8 @@ def export_daily_docx(project_id: int, obs_date: date | None = None, db: Session
         buf, filename, info = build_daily_docx(db, project_id, obs_date)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    if obs_date:
+        _log_export(db, project_id, [obs_date], "word")
     return _stream_response(buf, filename)
 
 
@@ -453,12 +468,16 @@ def _merged_build(db, group, target: date, weather, instrument_id: int | None):
 
     try:
         w = _resolve_weather(db, weather, target)
-        return build_merged_report(
+        buf, name, info = build_merged_report(
             db, group, target, weather=w,
             instrument=instrument_service.get_instrument(db, instrument_id),
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    # 合并册子里的每个项目都算「今天出过报」——南北两侧本来就是一个动作出的
+    for item in group.items:
+        _log_export(db, item.project_id, [target], "merged")
+    return buf, name, info
 
 
 @merged_router.get("/merged/excel")
@@ -523,6 +542,7 @@ def export_merged_pdf(
     except PdfConvertError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
 
+    _log_export(db, project_id, wanted, "pdf")
     stem = first_name.rsplit(".", 1)[0] if "." in first_name else first_name
     name = f"{stem}.pdf" if len(wanted) == 1 else f"{stem}_等{len(wanted)}期.pdf"
     return Response(
